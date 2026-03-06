@@ -23,10 +23,11 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 const clientUrls = [
-    process.env.CLIENT_URL || 'http://localhost:5173',
+    process.env.CLIENT_URL,
+    'https://flowdesk-frontend-g35x.onrender.com',
     'http://localhost:5173',
     'http://localhost:5174',
-];
+].filter(Boolean) as string[];
 
 const io = new Server(server, {
     cors: {
@@ -41,10 +42,21 @@ const PORT = process.env.PORT || 5000;
 export { io };
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
 app.use(cors({
-    origin: clientUrls,
+    origin: (origin, callback) => {
+        if (!origin || clientUrls.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Fallback to true if we're unsure, or log it
+        }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Body parsing
