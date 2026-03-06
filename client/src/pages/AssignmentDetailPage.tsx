@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Clock, Send, Users, Edit3, Crown } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };

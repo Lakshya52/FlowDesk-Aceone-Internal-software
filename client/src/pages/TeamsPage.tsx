@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Users, Search, Trash2, UserPlus, UserMinus, Shield, Crown } from 'lucide-react';
+import { Plus, Users, Trash2, UserPlus, UserMinus, Crown } from 'lucide-react';
 
 const TeamsPage: React.FC = () => {
     const { user } = useAuthStore();

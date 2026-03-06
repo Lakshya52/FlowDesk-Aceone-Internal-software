@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { Search, CheckSquare, Edit3, Trash2, X, Check } from 'lucide-react';
+import { Search, Edit3, Trash2, X, Check } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };

@@ -94,6 +94,7 @@ const CalendarPage: React.FC = () => {
                         </div>
                     ))}
                 </div>
+                {loading ? null : null}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
                     {days.map((date, idx) => {
                         const dayEvents = getEventsForDay(date);
