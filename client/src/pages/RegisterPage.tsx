@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Zap, Eye, EyeOff, ArrowLeft, User, Mail, Lock } from 'lucide-react';
+import { Zap, Eye, EyeOff, ArrowLeft} from 'lucide-react';
 
 const RegisterPage: React.FC = () => {
     const [name, setName] = useState('');

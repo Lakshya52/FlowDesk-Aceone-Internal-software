@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
-import { Bell, Sun, Moon, LogOut, Search, ChevronDown, User } from 'lucide-react';
+import { Bell, Sun, Moon, LogOut, Search, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 
 const Header: React.FC = () => {
