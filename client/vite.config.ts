@@ -6,8 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      // '/api': 'http://localhost:5000',
-      '/api': 'https://flowdesk-backend-l5tt.onrender.com',
+      '/api': 'https://flowdesk-backend-l5tt.onrender.com', // Keep for local development pointing to prod server
     },
   },
 })
