@@ -78,7 +78,8 @@ const AssignmentDetailPage: React.FC = () => {
         fetchAll();
 
         // Socket connection
-        const socket = io('http://localhost:5000');
+        // const socket = io('http://localhost:5000');
+        const socket = io('https://flowdesk-backend-l5tt.onrender.com');
         socketRef.current = socket;
 
         socket.on('connect', () => {
