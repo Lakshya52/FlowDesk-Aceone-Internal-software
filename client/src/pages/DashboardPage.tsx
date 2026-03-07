@@ -103,7 +103,7 @@ const DashboardPage: React.FC = () => {
 
     const statCards = [
         {
-            label: 'Active Assignments',
+            label: 'Active Projects',
             value: data.stats.activeAssignments,
             total: data.stats.totalAssignments,
             icon: FolderKanban,

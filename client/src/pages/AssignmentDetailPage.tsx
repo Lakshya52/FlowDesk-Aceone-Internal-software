@@ -21,7 +21,7 @@ const AssignmentDetailPage: React.FC = () => {
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'chat'>('tasks');
-    const [comment, setComment] = useState('');
+    // const [comment, setComment] = useState('');
     const [chatInput, setChatInput] = useState('');
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
@@ -47,6 +47,7 @@ const AssignmentDetailPage: React.FC = () => {
         if (type.includes('word') || type.includes('document')) return '📝';
         return '📎';
     };
+    
 
     const getDueDateColor = (dueDate: string) => {
         const due = new Date(dueDate);
@@ -124,12 +125,12 @@ const AssignmentDetailPage: React.FC = () => {
     };
 
     const handleDelete = async () => {
-        if (!window.confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) return;
+        if (!window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) return;
         try {
             await api.delete(`/assignments/${id}`);
             navigate('/assignments');
         } catch (e: any) {
-            alert(e.response?.data?.message || 'Failed to delete assignment please try again later');
+            alert(e.response?.data?.message || 'Failed to delete project please try again later');
         }
     };
 
@@ -146,15 +147,15 @@ const AssignmentDetailPage: React.FC = () => {
         }
     };
 
-    const addComment = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!comment.trim()) return;
-        try {
-            const { data } = await api.post('/comments', { content: comment, assignmentId: id });
-            setComments(prev => [data.comment, ...prev]);
-            setComment('');
-        } catch { }
-    };
+    // const addComment = async (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     if (!comment.trim()) return;
+    //     try {
+    //         const { data } = await api.post('/comments', { content: comment, assignmentId: id });
+    //         setComments(prev => [data.comment, ...prev]);
+    //         setComment('');
+    //     } catch { }
+    // };
 
     const createTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -260,7 +261,7 @@ const AssignmentDetailPage: React.FC = () => {
     const progressPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
     if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><div className="skeleton" style={{ height: 120 }} /><div className="skeleton" style={{ height: 400 }} /></div>;
-    if (!assignment) return <div style={{ padding: 48, textAlign: 'center' }}>Assignment not found</div>;
+    if (!assignment) return <div style={{ padding: 48, textAlign: 'center' }}>Project not found</div>;
 
     const tabs = [
         { key: 'tasks', label: 'Tasks', count: tasks.length },
@@ -270,12 +271,13 @@ const AssignmentDetailPage: React.FC = () => {
 
     return (
         <div style={{ maxWidth: 1000 }}>
+            {comments ? null : null}
             {/* Back button */}
             <button className="btn btn-ghost btn-sm" style={{ marginBottom: 16 }} onClick={() => navigate('/assignments')}>
-                <ArrowLeft size={16} /> Back to Assignments
+                <ArrowLeft size={16} /> Back to Projects
             </button>
 
-            {/* Assignment header */}
+            {/* Project header */}
             <div className="card" style={{ padding: '24px', marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <div style={{ flex: 1 }}>
@@ -296,7 +298,7 @@ const AssignmentDetailPage: React.FC = () => {
                                 {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
                             {isAdmin && (
-                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Assignment">
+                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Project">
                                     <Trash2 size={18} />
                                 </button>
                             )}
