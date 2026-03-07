@@ -31,20 +31,11 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTeams = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const filter: any = {};
-
-        // Managers only see their own teams
-        if (req.user!.role === 'manager') {
-            filter.manager = req.user!._id;
-        }
-        // Members see teams they belong to
-        if (req.user!.role === 'member') {
-            filter.members = req.user!._id;
-        }
-
-        const teams = await Team.find(filter)
+        // Return all teams regardless of role
+        const teams = await Team.find({})
             .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
 
@@ -107,11 +98,19 @@ export const updateTeam = async (req: AuthRequest, res: Response): Promise<void>
 
 export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const team = await Team.findByIdAndDelete(req.params.id);
+        const team = await Team.findById(req.params.id);
         if (!team) {
             res.status(404).json({ message: 'Team not found' });
             return;
         }
+
+        // Only admin or team manager can delete
+        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to delete this team' });
+            return;
+        }
+
+        await team.deleteOne();
 
         await ActivityLog.create({
             action: 'Team deleted',
@@ -159,6 +158,115 @@ export const updateTeamMembers = async (req: AuthRequest, res: Response): Promis
         });
 
         res.json({ team: populated });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const requestJoinTeam = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const team = await Team.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+
+        if (team.members.includes(req.user!._id) || team.manager.toString() === req.user!._id.toString()) {
+            res.status(400).json({ message: 'Already a member of this team' });
+            return;
+        }
+
+        if (team.joinRequests.includes(req.user!._id)) {
+            res.status(400).json({ message: 'Join request already sent' });
+            return;
+        }
+
+        team.joinRequests.push(req.user!._id);
+        await team.save();
+
+        const populated = await Team.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+
+        res.json({ team: populated, message: 'Join request sent successfully.' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const approveJoinRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const team = await Team.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+
+        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to approve join requests.' });
+            return;
+        }
+
+        const userId = req.params.userId;
+        const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
+
+        if (requestIndex === -1) {
+            res.status(400).json({ message: 'Join request not found' });
+            return;
+        }
+
+        team.joinRequests.splice(requestIndex, 1);
+        if (!team.members.find(id => id.toString() === userId)) {
+            //@ts-ignore
+            team.members.push(userId);
+        }
+        await team.save();
+
+        const populated = await Team.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+
+        res.json({ team: populated, message: 'Request approved.' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const rejectJoinRequest = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const team = await Team.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+
+        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to reject join requests.' });
+            return;
+        }
+
+        const userId = req.params.userId;
+        const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
+
+        if (requestIndex === -1) {
+            res.status(400).json({ message: 'Join request not found' });
+            return;
+        }
+
+        team.joinRequests.splice(requestIndex, 1);
+        await team.save();
+
+        const populated = await Team.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+
+        res.json({ team: populated, message: 'Request rejected.' });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

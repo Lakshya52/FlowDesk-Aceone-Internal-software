@@ -157,15 +157,16 @@ const Header: React.FC = () => {
                             width: 28,
                             height: 28,
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
+                            background: user?.avatar ? `url(${import.meta.env.VITE_SOCKET_URL}${user.avatar}) center/cover` : 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: 'white',
                             fontSize: '0.75rem',
                             fontWeight: 600,
+                            overflow: 'hidden'
                         }}>
-                            {user?.name?.charAt(0).toUpperCase()}
+                            {!user?.avatar && user?.name?.charAt(0).toUpperCase()}
                         </div>
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontSize: '0.8125rem', fontWeight: 500, lineHeight: 1.2 }}>{user?.name}</div>

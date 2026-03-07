@@ -20,7 +20,7 @@ const AssignmentDetailPage: React.FC = () => {
     const [files, setFiles] = useState<any[]>([]);
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'discussion' | 'chat'>('tasks');
+    const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'chat'>('tasks');
     const [comment, setComment] = useState('');
     const [chatInput, setChatInput] = useState('');
     const [showTaskForm, setShowTaskForm] = useState(false);
@@ -30,6 +30,8 @@ const AssignmentDetailPage: React.FC = () => {
     const [updatingTeam, setUpdatingTeam] = useState(false);
     const [editingTask, setEditingTask] = useState<string | null>(null);
     const [editTaskForm, setEditTaskForm] = useState<any>({});
+    const [stagedFiles, setStagedFiles] = useState<any[]>([]);
+    const [isUploadingFile, setIsUploadingFile] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatFileRef = useRef<HTMLInputElement>(null);
     const socketRef = useRef<any>(null);
@@ -127,7 +129,7 @@ const AssignmentDetailPage: React.FC = () => {
             await api.delete(`/assignments/${id}`);
             navigate('/assignments');
         } catch (e: any) {
-            alert(e.response?.data?.message || 'Failed to delete assignment');
+            alert(e.response?.data?.message || 'Failed to delete assignment please try again later');
         }
     };
 
@@ -217,27 +219,40 @@ const AssignmentDetailPage: React.FC = () => {
 
     const sendChatMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!chatInput.trim()) return;
+        if (!chatInput.trim() && stagedFiles.length === 0) return;
         try {
-            await api.post('/chat', { content: chatInput, assignmentId: id });
+            await api.post('/chat', {
+                content: chatInput,
+                assignmentId: id,
+                attachments: stagedFiles.map(f => f._id)
+            });
             setChatInput('');
+            setStagedFiles([]);
         } catch { }
     };
 
     const sendChatFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setIsUploadingFile(true);
         const formData = new FormData();
         formData.append('file', file);
         formData.append('assignmentId', id!);
-        formData.append('content', '');
         try {
-            await api.post('/chat', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            // Refresh files list since chat uploads go to assignment files
+            const { data } = await api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            // Refresh files list to show in "Files" tab as well
             const fRes = await api.get(`/files?assignmentId=${id}`);
             setFiles(fRes.data.attachments || []);
+            setStagedFiles(prev => [...prev, data.attachment]);
         } catch { }
+        finally {
+            setIsUploadingFile(false);
+        }
         if (chatFileRef.current) chatFileRef.current.value = '';
+    };
+
+    const removeStagedFile = (fileId: string) => {
+        setStagedFiles(prev => prev.filter(f => f._id !== fileId));
     };
 
     // Calculate assignment progress from tasks
@@ -251,7 +266,6 @@ const AssignmentDetailPage: React.FC = () => {
         { key: 'tasks', label: 'Tasks', count: tasks.length },
         { key: 'chat', label: 'Chat', count: chatMessages.length },
         { key: 'files', label: 'Files', count: files.length },
-        { key: 'discussion', label: 'Discussion', count: comments.length },
     ];
 
     return (
@@ -505,7 +519,7 @@ const AssignmentDetailPage: React.FC = () => {
                                         }}>
                                             {msg.sender?.name?.charAt(0)}
                                         </div>
-                                        <div style={{ maxWidth: '70%' }}>
+                                        <div style={{ maxWidth: '60%', width: 'fit-content' }}>
                                             <div style={{
                                                 fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', marginBottom: 4,
                                                 textAlign: isOwnMessage ? 'right' : 'left',
@@ -513,13 +527,16 @@ const AssignmentDetailPage: React.FC = () => {
                                                 {msg.sender?.name} · {format(new Date(msg.createdAt), 'h:mm a')}
                                             </div>
                                             {msg.content && (
-                                                <div style={{
-                                                    padding: '10px 14px', borderRadius: 12, fontSize: '0.875rem',
-                                                    background: isOwnMessage ? 'var(--color-primary)' : 'var(--color-surface-hover)',
-                                                    color: isOwnMessage ? 'white' : 'var(--color-text)',
-                                                    borderTopRightRadius: isOwnMessage ? 4 : 12,
-                                                    borderTopLeftRadius: isOwnMessage ? 12 : 4,
-                                                }}>
+                                                <div
+                                                    className="chat-bubble"
+                                                    style={{
+                                                        padding: '10px 14px', borderRadius: 12, fontSize: '0.875rem',
+                                                        background: isOwnMessage ? 'var(--color-primary)' : 'var(--color-surface-hover)',
+                                                        color: isOwnMessage ? 'white' : 'var(--color-text)',
+                                                        borderTopRightRadius: isOwnMessage ? 4 : 12,
+                                                        borderTopLeftRadius: isOwnMessage ? 12 : 4,
+                                                    }}
+                                                >
                                                     {msg.content}
                                                 </div>
                                             )}
@@ -547,136 +564,128 @@ const AssignmentDetailPage: React.FC = () => {
                         <div ref={chatEndRef} />
                     </div>
 
-                    {/* Chat input */}
-                    <form onSubmit={sendChatMessage} style={{
-                        display: 'flex', gap: 8, padding: '12px 0', borderTop: '1px solid var(--color-border)',
-                    }}>
-                        <input type="file" ref={chatFileRef} style={{ display: 'none' }} onChange={sendChatFile} />
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => chatFileRef.current?.click()} title="Attach file">
-                            <Paperclip size={16} />
-                        </button>
-                        <input
-                            className="input"
-                            style={{ flex: 1 }}
-                            placeholder="Type a message..."
-                            value={chatInput}
-                            onChange={e => setChatInput(e.target.value)}
-                        />
-                        <button type="submit" className="btn btn-primary btn-sm" disabled={!chatInput.trim()}>
-                            <Send size={14} /> Send
-                        </button>
-                    </form>
-                </div>
-            )}
-
-            {/* Files Tab */}
-            {activeTab === 'files' && (
-                <div>
-                    <label className="btn btn-secondary btn-sm" style={{ marginBottom: 16, cursor: 'pointer' }}>
-                        <Upload size={14} /> Upload File
-                        <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
-                    </label>
-                    {files.length === 0 ? (
-                        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No files uploaded</div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {files.map(f => (
-                                <div key={f._id} className="card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        <span style={{ fontSize: '1.25rem' }}>{getFileIcon(f.fileType)}</span>
-                                        <div>
-                                            <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{f.originalName}</div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                                {(f.fileSize / 1024).toFixed(1)} KB · {f.uploadedBy?.name} · {format(new Date(f.createdAt), 'MMM d, yyyy')}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <button className="btn btn-ghost btn-sm" onClick={() => downloadFile(f._id, f.originalName)} title="Download">
-                                        <Download size={14} />
+                    {/* Staged files area */}
+                    {stagedFiles.length > 0 && (
+                        <div style={{ padding: '8px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-hover)' }}>
+                            {stagedFiles.map(f => (
+                                <div key={f._id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--color-surface)', borderRadius: 16, fontSize: '0.75rem', border: '1px solid var(--color-border)' }}>
+                                    <span>{getFileIcon(f.fileType)}</span>
+                                    <span style={{ maxWidth: 100, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.originalName}</span>
+                                    <button type="button" onClick={() => removeStagedFile(f._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--color-text-tertiary)' }}>
+                                        <Trash2 size={12} />
                                     </button>
                                 </div>
                             ))}
                         </div>
                     )}
-                </div>
-            )}
 
-            {/* Discussion Tab */}
-            {activeTab === 'discussion' && (
-                <div>
-                    <form onSubmit={addComment} style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                        <input className="input" placeholder="Write a comment..." value={comment} onChange={e => setComment(e.target.value)} />
-                        <button type="submit" className="btn btn-primary btn-sm" disabled={!comment.trim()}>Post</button>
+                    {/* Chat input */}
+                    <form onSubmit={sendChatMessage} style={{
+                        display: 'flex', gap: 8, padding: '12px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center'
+                    }}>
+                        <input type="file" ref={chatFileRef} style={{ display: 'none' }} onChange={sendChatFile} />
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => chatFileRef.current?.click()} title="Attach file" disabled={isUploadingFile}>
+                            <Paperclip size={16} />
+                        </button>
+                        {isUploadingFile ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+                                <div style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                Uploading file...
+                            </div>
+                        ) : (
+                            <input
+                                className="input"
+                                style={{ flex: 1 }}
+                                placeholder="Type a message..."
+                                value={chatInput}
+                                onChange={e => setChatInput(e.target.value)}
+                            />
+                        )}
+                        <button type="submit" className="btn btn-primary btn-sm" disabled={(!chatInput.trim() && stagedFiles.length === 0) || isUploadingFile}>
+                            <Send size={14} /> Send
+                        </button>
                     </form>
-                    {comments.length === 0 ? (
-                        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No comments yet</div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {comments.map(c => (
-                                <div key={c._id} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
-                                    <div style={{
-                                        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                                        background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: 'white', fontSize: '0.75rem', fontWeight: 600,
-                                    }}>
-                                        {c.author?.name?.charAt(0)}
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                            <span style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{c.author?.name}</span>
-                                            <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
-                                        </div>
-                                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>{c.content}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
-            )}
+            )
+            }
 
-            {/* Manage Team Modal */}
-            {showTeamModal && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-                }} onClick={() => setShowTeamModal(false)}>
-                    <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={e => e.stopPropagation()}>
-                        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 }}>
-                            {users.map(u => {
-                                const isMember = assignment.team?.some((m: any) => m._id === u._id);
-                                return (
-                                    <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
-                                                {u.name?.charAt(0)}
+            {/* Files Tab */}
+            {
+                activeTab === 'files' && (
+                    <div>
+                        <label className="btn btn-secondary btn-sm" style={{ marginBottom: 16, cursor: 'pointer' }}>
+                            <Upload size={14} /> Upload File
+                            <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
+                        </label>
+                        {files.length === 0 ? (
+                            <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No files uploaded</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {files.map(f => (
+                                    <div key={f._id} className="card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <span style={{ fontSize: '1.25rem' }}>{getFileIcon(f.fileType)}</span>
+                                            <div>
+                                                <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{f.originalName}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                                    {(f.fileSize / 1024).toFixed(1)} KB · {f.uploadedBy?.name} · {format(new Date(f.createdAt), 'MMM d, yyyy')}
+                                                </div>
                                             </div>
-                                            <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</span>
                                         </div>
-                                        <button
-                                            className={`btn btn-xs ${isMember ? 'btn-secondary' : 'btn-primary'}`}
-                                            disabled={updatingTeam}
-                                            onClick={() => {
-                                                const currentIds = assignment.team?.map((m: any) => m._id) || [];
-                                                const nextIds = isMember ? currentIds.filter((tid: string) => tid !== u._id) : [...currentIds, u._id];
-                                                handleUpdateTeam(nextIds);
-                                            }}
-                                        >
-                                            {isMember ? 'Remove' : 'Add'}
+                                        <button className="btn btn-ghost btn-sm" onClick={() => downloadFile(f._id, f.originalName)} title="Download">
+                                            <Download size={14} />
                                         </button>
                                     </div>
-                                );
-                            })}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <button className="btn btn-secondary btn-sm" onClick={() => setShowTeamModal(false)}>Close</button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
+
+            {/* Manage Team Modal */}
+            {
+                showTeamModal && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+                    }} onClick={() => setShowTeamModal(false)}>
+                        <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={e => e.stopPropagation()}>
+                            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 }}>
+                                {users.map(u => {
+                                    const isMember = assignment.team?.some((m: any) => m._id === u._id);
+                                    return (
+                                        <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
+                                                    {u.name?.charAt(0)}
+                                                </div>
+                                                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</span>
+                                            </div>
+                                            <button
+                                                className={`btn btn-xs ${isMember ? 'btn-secondary' : 'btn-primary'}`}
+                                                disabled={updatingTeam}
+                                                onClick={() => {
+                                                    const currentIds = assignment.team?.map((m: any) => m._id) || [];
+                                                    const nextIds = isMember ? currentIds.filter((tid: string) => tid !== u._id) : [...currentIds, u._id];
+                                                    handleUpdateTeam(nextIds);
+                                                }}
+                                            >
+                                                {isMember ? 'Remove' : 'Add'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setShowTeamModal(false)}>Close</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

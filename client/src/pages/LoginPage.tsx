@@ -143,15 +143,6 @@ const LoginPage: React.FC = () => {
                         </button>
                     </form>
 
-                    <div style={{ marginTop: 24, textAlign: 'center', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        Don't have an account?{' '}
-                        <button
-                            onClick={() => navigate('/register')}
-                            style={{ border: 'none', background: 'none', color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                        >
-                            Sign up
-                        </button>
-                    </div>
                 </div>
 
             </div>

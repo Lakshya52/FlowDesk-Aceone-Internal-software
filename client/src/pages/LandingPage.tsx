@@ -136,7 +136,7 @@ const LandingPage: React.FC = () => {
                         Login
                     </button>
                     <button
-                        onClick={() => navigate('/register')}
+                        onClick={() => navigate('/login')}
                         className="btn btn-primary"
                         style={{ borderRadius: '100px', padding: '12px 28px', fontSize: '0.9375rem', fontWeight: 600, boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25)' }}
                     >

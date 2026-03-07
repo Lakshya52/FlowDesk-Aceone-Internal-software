@@ -7,6 +7,7 @@ import Header from './Header';
 const AppLayout: React.FC = () => {
     const { user } = useAuthStore();
     const location = useLocation();
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 
     if (!user) {
         return <Navigate to="/login" state={{ from: location }} replace />;
@@ -14,7 +15,7 @@ const AppLayout: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-            <Sidebar />
+            <Sidebar isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <Header />
                 <main style={{

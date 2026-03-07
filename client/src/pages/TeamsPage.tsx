@@ -63,6 +63,30 @@ const TeamsPage: React.FC = () => {
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };
 
+    const handleRequestJoin = async (teamId: string) => {
+        try {
+            const { data } = await api.post(`/teams/${teamId}/request-join`);
+            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            alert(data.message || 'Join request sent.');
+        } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+    };
+
+    const handleApproveRequest = async (teamId: string, userId: string) => {
+        try {
+            const { data } = await api.post(`/teams/${teamId}/requests/${userId}/approve`);
+            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            if (selectedTeam?._id === teamId) setSelectedTeam(data.team);
+        } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+    };
+
+    const handleRejectRequest = async (teamId: string, userId: string) => {
+        try {
+            const { data } = await api.post(`/teams/${teamId}/requests/${userId}/reject`);
+            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            if (selectedTeam?._id === teamId) setSelectedTeam(data.team);
+        } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+    };
+
     const canManageTeam = (team: any) => {
         return isAdmin || team.manager?._id === user?._id;
     };
@@ -119,6 +143,17 @@ const TeamsPage: React.FC = () => {
                                             onClick={() => { setSelectedTeam(team); setShowMembers(true); }}>
                                             <UserPlus size={14} /> Manage
                                         </button>
+                                    )}
+                                    {(!canManageTeam(team) && !team.members?.find((m: any) => m._id === user?._id) && !team.joinRequests?.find((m: any) => m._id === user?._id)) && (
+                                        <button className="btn btn-primary btn-xs"
+                                            onClick={() => handleRequestJoin(team._id)}>
+                                            Request to Join
+                                        </button>
+                                    )}
+                                    {(!canManageTeam(team) && team.joinRequests?.find((m: any) => m._id === user?._id)) && (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', padding: '4px 8px', background: 'var(--color-surface-hover)', borderRadius: 12 }}>
+                                            Requested
+                                        </span>
                                     )}
                                     {isAdmin && (
                                         <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }}
@@ -238,6 +273,43 @@ const TeamsPage: React.FC = () => {
                                 );
                             })}
                         </div>
+                        {selectedTeam.joinRequests && selectedTeam.joinRequests.length > 0 && (
+                            <div style={{ marginTop: 24 }}>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Join Requests ({selectedTeam.joinRequests.length})
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflow: 'auto', marginBottom: 20 }}>
+                                    {selectedTeam.joinRequests.map((u: any) => (
+                                        <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: 'var(--color-surface-hover)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-text-tertiary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 600 }}>
+                                                    {u.name?.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{u.email}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 6 }}>
+                                                <button
+                                                    className="btn btn-xs btn-primary"
+                                                    onClick={() => handleApproveRequest(selectedTeam._id, u._id)}
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    className="btn btn-xs btn-secondary"
+                                                    style={{ color: 'var(--color-error)' }}
+                                                    onClick={() => handleRejectRequest(selectedTeam._id, u._id)}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <button className="btn btn-secondary btn-sm" onClick={() => setShowMembers(false)}>Close</button>
                         </div>

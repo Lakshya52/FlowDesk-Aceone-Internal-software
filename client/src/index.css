@@ -83,18 +83,44 @@ body {
 
 /* ===== Animations ===== */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.chat-bubble {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .animate-fade-in {
@@ -213,17 +239,55 @@ body {
   font-weight: 500;
 }
 
-.badge-low { background: var(--color-info-light); color: var(--color-info); }
-.badge-medium { background: var(--color-warning-light); color: var(--color-warning); }
-.badge-high { background: #fff1f2; color: #f43f5e; }
-.badge-urgent { background: var(--color-danger-light); color: var(--color-danger); }
+.badge-low {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
 
-.badge-todo { background: var(--color-surface-hover); color: var(--color-text-secondary); }
-.badge-in_progress { background: var(--color-info-light); color: var(--color-info); }
-.badge-review { background: var(--color-warning-light); color: var(--color-warning); }
-.badge-completed { background: var(--color-success-light); color: var(--color-success); }
-.badge-not_started { background: var(--color-surface-hover); color: var(--color-text-secondary); }
-.badge-delayed { background: var(--color-danger-light); color: var(--color-danger); }
+.badge-medium {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.badge-high {
+  background: #fff1f2;
+  color: #f43f5e;
+}
+
+.badge-urgent {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.badge-todo {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+
+.badge-in_progress {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.badge-review {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.badge-completed {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.badge-not_started {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+}
+
+.badge-delayed {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
 
 .select {
   appearance: none;
@@ -252,6 +316,11 @@ body {
 }
 
 @keyframes skeleton-loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
