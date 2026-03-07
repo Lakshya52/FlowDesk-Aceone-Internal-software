@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import Assignment from '../models/Assignment';
 import Task from '../models/Task';
+import Team from '../models/Team';
+import User from '../models/User';
 import ActivityLog from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
 
@@ -17,7 +19,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         const assignmentFilter: any = {};
         const taskFilter: any = {};
         if (userRole === 'member') {
-            assignmentFilter.team = userId;
+            assignmentFilter.team = userId; // team is an array of IDs, Mongoose handles this with direct match
             taskFilter.assignedTo = userId;
         }
 
@@ -162,9 +164,37 @@ export const getCalendarEvents = async (req: AuthRequest, res: Response): Promis
     }
 };
 
+
+export const getReportFilters = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userRole = req.user!.role;
+        const userId = req.user!._id;
+
+        let teams: any[] = [];
+        let employees: any[] = [];
+
+        if (userRole === 'admin') {
+            teams = await Team.find().select('name');
+            employees = await User.find().select('name email employeeId');
+        } else if (userRole === 'manager') {
+            teams = await Team.find({ manager: userId }).select('name');
+            const teamIds = teams.map(t => t._id);
+            const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
+            employees = await User.find({ _id: { $in: teamMembers } }).select('name email employeeId');
+        }
+
+        res.json({ teams, employees });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const getReports = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, teamId, employeeId } = req.query;
+        const userRole = req.user!.role;
+        const userId = req.user!._id;
+
         const dateFilter: any = {};
         if (startDate && endDate) {
             dateFilter.createdAt = {
@@ -173,9 +203,43 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
             };
         }
 
+        let baseMatch: any = { ...dateFilter };
+
+        // Role-based constraints
+        if (userRole === 'member') {
+            baseMatch.assignedTo = userId;
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+
+            if (teamId) {
+                if (!managedTeams.map(id => id.toString()).includes(teamId as string)) {
+                    res.status(403).json({ message: 'Forbidden' });
+                    return;
+                }
+                const team = await Team.findById(teamId);
+                baseMatch.assignedTo = { $in: team?.members || [] };
+            } else if (employeeId) {
+                if (!managedMembers.map(id => id.toString()).includes(employeeId as string)) {
+                    res.status(403).json({ message: 'Forbidden' });
+                    return;
+                }
+                baseMatch.assignedTo = employeeId;
+            } else {
+                baseMatch.assignedTo = { $in: managedMembers };
+            }
+        } else if (userRole === 'admin') {
+            if (teamId) {
+                const team = await Team.findById(teamId);
+                baseMatch.assignedTo = { $in: team?.members || [] };
+            } else if (employeeId) {
+                baseMatch.assignedTo = employeeId;
+            }
+        }
+
         // Productivity report
         const completedTasks = await Task.aggregate([
-            { $match: { status: 'completed', ...dateFilter } },
+            { $match: { status: 'completed', ...baseMatch } },
             {
                 $group: {
                     _id: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } },
@@ -187,15 +251,26 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
 
         // Task delay report
         const delayedTasks = await Task.find({
+            ...baseMatch,
             dueDate: { $lt: new Date() },
             status: { $ne: 'completed' },
         })
-            .populate('assignedTo', 'name email')
+            .populate('assignedTo', 'name email employeeId')
             .populate('assignment', 'title')
             .sort({ dueDate: 1 });
 
-        // Assignment completion analytics
+        // Assignment completion analytics (Filtered by team if provided)
+        const assignmentFilter: any = {};
+        if (teamId) assignmentFilter.teams = teamId;
+        else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            assignmentFilter.teams = { $in: managedTeams };
+        } else if (userRole === 'member') {
+            assignmentFilter.team = userId;
+        }
+
         const assignmentStats = await Assignment.aggregate([
+            { $match: assignmentFilter },
             {
                 $group: {
                     _id: '$status',
@@ -206,7 +281,7 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
 
         // Per-user productivity
         const userProductivity = await Task.aggregate([
-            { $match: { status: 'completed', ...dateFilter } },
+            { $match: { status: 'completed', ...baseMatch } },
             { $group: { _id: '$assignedTo', completed: { $sum: 1 } } },
             {
                 $lookup: {
@@ -222,6 +297,7 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
                     _id: 0,
                     userId: '$_id',
                     name: '$user.name',
+                    employeeId: '$user.employeeId',
                     completed: 1,
                 },
             },

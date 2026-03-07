@@ -242,22 +242,24 @@ const AssignmentsPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Individual Members */}
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Individual Members</label>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {allUsers.map(u => (
-                                        <button
-                                            key={u._id}
-                                            type="button"
-                                            className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`}
-                                            onClick={() => toggleTeamMember(u._id)}
-                                        >
-                                            {u.name}
-                                        </button>
-                                    ))}
+                            {/* Individual Members (Hidden for Admin) */}
+                            {!isAdmin && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Individual Members</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                        {allUsers.map(u => (
+                                            <button
+                                                key={u._id}
+                                                type="button"
+                                                className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                                onClick={() => toggleTeamMember(u._id)}
+                                            >
+                                                {u.name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
                                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Assignment'}</button>

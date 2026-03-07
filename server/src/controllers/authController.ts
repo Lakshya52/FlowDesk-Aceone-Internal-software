@@ -132,3 +132,41 @@ export const permanentDeleteUser = async (req: AuthRequest, res: Response): Prom
         res.status(500).json({ message: error.message });
     }
 };
+export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        if (!req.file) {
+            res.status(400).json({ message: 'No file uploaded' });
+            return;
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        user.avatar = `/uploads/${req.file.filename}`;
+        await user.save();
+
+        res.json({ message: 'Avatar updated successfully', user: { ...user.toObject(), password: '' } });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const removeAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        user.avatar = undefined;
+        await user.save();
+
+        res.json({ message: 'Avatar removed successfully', user: { ...user.toObject(), password: '' } });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
