@@ -6,13 +6,13 @@ import {
     CheckSquare,
     CalendarDays,
     BarChart3,
-    FileText,
+    // FileText,
     Settings,
     Zap,
     Users,
     Menu,
     ChevronLeft,
-    ChevronRight
+    // ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -22,7 +22,7 @@ interface SidebarProps {
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/assignments', icon: FolderKanban, label: 'Assignments' },
+    { to: '/assignments', icon: FolderKanban, label: 'Projects' },
     { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { to: '/teams', icon: Users, label: 'Teams' },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },

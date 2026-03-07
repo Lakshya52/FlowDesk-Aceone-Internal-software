@@ -195,7 +195,7 @@ const LandingPage: React.FC = () => {
                         maxWidth: 650,
                         margin: '0 auto 48px'
                     }}>
-                        FlowDesk is the unified workspace where strategy meets execution. Manage assignments, track tasks, and scale your team with precision.
+                        FlowDesk is the unified workspace where strategy meets execution. Manage Projects, track tasks, and scale your team with precision.
                     </p>
 
                     <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
@@ -286,7 +286,7 @@ const LandingPage: React.FC = () => {
                     margin: '0 auto'
                 }}>
                     <TestimonialCard
-                        quote="FlowDesk has completely transformed how we handle client assignments. The UI is exceptionally polished."
+                        quote="FlowDesk has completely transformed how we handle client Projects. The UI is exceptionally polished."
                         author="Sarah Jenkins"
                         role="Product Lead at Vercel"
                         avatar="https://ui-avatars.com/api/?name=Sarah+Jenkins&background=6366f1&color=fff"
@@ -365,7 +365,7 @@ const LandingPage: React.FC = () => {
                             active={activeFaq === 1}
                             onClick={() => setActiveFaq(activeFaq === 1 ? null : 1)}
                             question="Can I invite external collaborators?"
-                            answer="Yes! Our Pro and Enterprise plans allow you to invite guests to specific assignments without giving them full access to your workspace."
+                            answer="Yes! Our Pro and Enterprise plans allow you to invite guests to specific projects without giving them full access to your workspace."
                         />
                         <FaqItem
                             index={2}

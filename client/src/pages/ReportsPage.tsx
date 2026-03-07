@@ -106,7 +106,7 @@ const ReportsPage: React.FC = () => {
                             onChange={e => setFilters({ ...filters, employeeId: e.target.value, teamId: '' })}
                         >
                             <option value="">All Employees</option>
-                            {filterOptions.employees.map(e => <option key={e._id} value={e._id}>{e.name} ({e.employeeId})</option>)}
+                            {filterOptions.employees.map(e => <option key={e._id} value={e._id}>{e.name} </option>)}
                         </select>
                     </div>
                     <button className="btn btn-ghost" onClick={() => { setFilters({ teamId: '', employeeId: '' }); setDateRange({ startDate: '', endDate: '' }); }}>

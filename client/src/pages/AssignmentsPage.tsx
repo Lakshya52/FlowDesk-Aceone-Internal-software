@@ -79,14 +79,14 @@ const AssignmentsPage: React.FC = () => {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Assignments</h1>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Projects</h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                        {assignments.length} assignment{assignments.length !== 1 ? 's' : ''}
+                        {assignments.length} Project{assignments.length !== 1 ? 's' : ''}
                     </p>
                 </div>
                 {isAdmin && (
                     <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-                        <Plus size={16} /> New Assignment
+                        <Plus size={16} /> New Project
                     </button>
                 )}
             </div>
@@ -95,7 +95,7 @@ const AssignmentsPage: React.FC = () => {
             <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 <div style={{ flex: 1, maxWidth: 320, position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-                    <input className="input" style={{ paddingLeft: 36 }} placeholder="Search assignments..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <input className="input" style={{ paddingLeft: 36 }} placeholder="Search Projects..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
                 <select className="select" style={{ width: 180 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                     <option value="">All Statuses</option>
@@ -103,7 +103,7 @@ const AssignmentsPage: React.FC = () => {
                 </select>
             </div>
 
-            {/* Assignment List */}
+            {/* Project List */}
             {loading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 100, borderRadius: 12 }} />)}
@@ -111,9 +111,9 @@ const AssignmentsPage: React.FC = () => {
             ) : assignments.length === 0 ? (
                 <div className="card" style={{ padding: 48, textAlign: 'center' }}>
                     <FolderKanban size={48} style={{ margin: '0 auto 12px', color: 'var(--color-text-tertiary)', opacity: 0.3 }} />
-                    <div style={{ fontWeight: 500, marginBottom: 4 }}>No assignments found</div>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>No Projects found</div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        {isAdmin ? 'Create your first assignment to get started.' : 'No assignments have been assigned to you yet.'}
+                        {isAdmin ? 'Create your first Project to get started.' : 'No Projects have been assigned to you yet.'}
                     </div>
                 </div>
             ) : (
@@ -193,11 +193,11 @@ const AssignmentsPage: React.FC = () => {
                     background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
                 }} onClick={() => setShowCreate(false)}>
                     <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: 28, maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
-                        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 20 }}>Create Assignment</h2>
+                        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 20 }}>Create Project</h2>
                         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Title *</label>
-                                <input className="input" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Assignment title" />
+                                <input className="input" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Project title" />
                             </div>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Client Name *</label>
@@ -262,7 +262,7 @@ const AssignmentsPage: React.FC = () => {
                             )}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Assignment'}</button>
+                                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Project'}</button>
                             </div>
                         </form>
                     </div>

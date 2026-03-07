@@ -70,7 +70,7 @@ const Header: React.FC = () => {
                 <Search size={16} color="var(--color-text-tertiary)" />
                 <input
                     type="text"
-                    placeholder="Search assignments, tasks..."
+                    placeholder="Search Projects, tasks etc..."
                     className="input"
                     style={{ border: 'none', boxShadow: 'none', padding: '6px 0', background: 'transparent' }}
                 />
