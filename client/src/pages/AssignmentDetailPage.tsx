@@ -302,7 +302,9 @@ const AssignmentDetailPage: React.FC = () => {
     };
 
     const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setChatInput(e.target.value);
+        const val = e.target.value;
+        setChatInput(val);
+        localStorage.setItem(`chat_draft_${id}`, val);
         
         if (socketRef.current) {
             socketRef.current.emit('typing', { assignmentId: id, userName: user?.name });
@@ -479,7 +481,13 @@ const AssignmentDetailPage: React.FC = () => {
                         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No tasks yet</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {tasks.map(t => (
+                            {tasks
+                            .filter(t => {
+                                // Admin/Manager see all tasks. Employees only see their own.
+                                if (canEdit) return true;
+                                return t.assignedTo?._id === user?._id || t.assignedTo === user?._id;
+                            })
+                            .map(t => (
                                 <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
                                     {editingTask === t._id ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -598,21 +606,63 @@ const AssignmentDetailPage: React.FC = () => {
                                                 </div>
                                             )}
                                             {/* Attachments in message */}
-                                            {msg.attachments?.map((att: any) => (
-                                                <div key={att._id} style={{
-                                                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-                                                    marginTop: 4, borderRadius: 8,
-                                                    background: 'var(--color-surface-hover)', cursor: 'pointer',
-                                                    border: '1px solid var(--color-border)',
-                                                }} onClick={() => downloadFile(att._id, att.originalName)}>
-                                                    <span>{getFileIcon(att.fileType)}</span>
-                                                    <div style={{ flex: 1 }}>
-                                                        <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{att.originalName}</div>
-                                                        <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>{(att.fileSize / 1024).toFixed(1)} KB</div>
+                                            {msg.attachments?.map((att: any) => {
+                                                const isImage = att.fileType?.startsWith('image/');
+                                                const fileUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/${att.fileName}`;
+                                                
+                                                return (
+                                                    <div 
+                                                        key={att._id} 
+                                                        style={{
+                                                            marginTop: 6,
+                                                            padding: isImage ? '4px' : '8px 12px',
+                                                            borderRadius: 10,
+                                                            background: isOwnMessage ? 'rgba(255,255,255,0.1)' : 'var(--color-surface)',
+                                                            border: '1px solid var(--color-border)',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: 4,
+                                                            cursor: 'pointer',
+                                                            maxWidth: '100%',
+                                                            boxShadow: 'var(--shadow-sm)'
+                                                        }} 
+                                                        onClick={() => window.open(fileUrl, '_blank')}
+                                                    >
+                                                        {isImage ? (
+                                                            <img 
+                                                                src={fileUrl} 
+                                                                alt={att.originalName} 
+                                                                style={{ 
+                                                                    width: '100%', 
+                                                                    maxWidth: 240, 
+                                                                    borderRadius: 6, 
+                                                                    display: 'block' 
+                                                                }} 
+                                                            />
+                                                        ) : (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                <div style={{ 
+                                                                    width: 32, height: 32, borderRadius: 8, 
+                                                                    background: 'var(--color-surface-hover)',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    color: 'var(--color-primary)'
+                                                                }}>
+                                                                    {getFileIcon(att.fileType)}
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {att.originalName}
+                                                                    </div>
+                                                                    <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>
+                                                                        {(att.fileSize / 1024).toFixed(1)} KB
+                                                                    </div>
+                                                                </div>
+                                                                <Download size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <Download size={14} style={{ color: 'var(--color-primary)' }} />
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );
@@ -715,7 +765,14 @@ const AssignmentDetailPage: React.FC = () => {
                         <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={e => e.stopPropagation()}>
                             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 }}>
-                                {users.map(u => {
+                                {users.filter(u => {
+                                    if (isAdmin) return true;
+                                    if (isManager) {
+                                        // Managers only see users from the teams assigned to this project
+                                        return assignment.teams?.some((t: any) => t.members?.some((m: any) => m._id === u._id || m === u._id));
+                                    }
+                                    return false;
+                                }).map(u => {
                                     const isMember = assignment.team?.some((m: any) => m._id === u._id);
                                     return (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>

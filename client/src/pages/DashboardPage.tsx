@@ -210,27 +210,59 @@ const DashboardPage: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     
                     {/* Charts Row */}
-                    {(user?.role === 'admin' || user?.role === 'manager') && workloadData.length > 0 && (
-                        <div className="card" style={{ padding: '20px' }}>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 16 }}>
-                                {user.role === 'admin' ? 'Organization Workload' : 'Team Workload'}
-                            </h3>
-                            <ResponsiveContainer width="100%" height={220}>
-                                <BarChart data={workloadData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} />
-                                    <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
-                                    <Tooltip
-                                        contentStyle={{
-                                            background: 'var(--color-surface)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: 8,
-                                            fontSize: '0.8125rem',
-                                        }}
-                                    />
-                                    <Bar dataKey="tasks" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                    {(user?.role === 'admin' || user?.role === 'manager') && (
+                        <div style={{ display: 'grid', gridTemplateColumns: workloadData.length > 0 && data.weeklyCompletionData?.length > 0 ? '1fr 1fr' : '1fr', gap: 24 }}>
+                            {workloadData.length > 0 && (
+                                <div className="card" style={{ padding: '20px' }}>
+                                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 16 }}>
+                                        {user.role === 'admin' ? 'Organization Workload' : 'Team Workload'}
+                                    </h3>
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <BarChart data={workloadData}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                                            <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} />
+                                            <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    background: 'var(--color-surface)',
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: 8,
+                                                    fontSize: '0.8125rem',
+                                                }}
+                                            />
+                                            <Bar dataKey="tasks" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                            {data.weeklyCompletionData?.length > 0 && (
+                                <div className="card" style={{ padding: '20px' }}>
+                                    <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 16 }}>
+                                        Weekly Performance Trend
+                                    </h3>
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <LineChart data={data.weeklyCompletionData}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                                            <XAxis 
+                                                dataKey="_id" 
+                                                tick={{ fontSize: 10, fill: 'var(--color-text-secondary)' }} 
+                                                formatter={(val: string) => val.split('-').slice(1).join('/')}
+                                            />
+                                            <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    background: 'var(--color-surface)',
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: 8,
+                                                    fontSize: '0.8125rem',
+                                                }}
+                                                labelFormatter={(label) => `Date: ${label}`}
+                                            />
+                                            <Line type="monotone" dataKey="completed" name="Tasks Completed" stroke="var(--color-success)" strokeWidth={3} dot={{ fill: 'var(--color-success)', r: 4 }} activeDot={{ r: 6 }} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -332,15 +364,20 @@ const DashboardPage: React.FC = () => {
                     <div className="card" style={{ padding: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                             <Users size={18} color="var(--color-primary)" />
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user?.role === 'admin' ? 'All Teams' : 'My Teams'}</h3>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                                {user?.role === 'admin' ? 'All Teams' : 'My Teams'}
+                            </h3>
                         </div>
-                        {myTeams.length === 0 ? (
+                        {myTeams.filter(t => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id)).length === 0 ? (
                             <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.75rem' }}>
                                 No teams joined yet
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                {myTeams.slice(0, 5).map((team: any) => (
+                                {myTeams
+                                    .filter(t => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id))
+                                    .slice(0, 5)
+                                    .map((team: any) => (
                                     <div key={team._id} style={{
                                         padding: '10px 12px', borderRadius: 10,
                                         background: 'var(--color-surface-hover)',
