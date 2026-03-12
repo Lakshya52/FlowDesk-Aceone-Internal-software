@@ -161,6 +161,24 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
             .sort({ dueDate: 1 })
             .limit(5);
 
+        // Weekly completion data for trend chart
+        const weeklyCompletionData = await Task.aggregate([
+            {
+                $match: {
+                    ...taskFilter,
+                    status: 'completed',
+                    updatedAt: { $gte: weekStart }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } },
+                    completed: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
         res.json({
             stats: {
                 activeAssignments,
@@ -177,6 +195,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
             totalPages: Math.ceil(totalActivities / limit),
             teamWorkload,
             upcomingDeadlines,
+            weeklyCompletionData,
         });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
