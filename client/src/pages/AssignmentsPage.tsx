@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
 import { Plus, Search, FolderKanban, Users } from 'lucide-react';
 import { format } from 'date-fns';
@@ -150,30 +151,20 @@ const AssignmentsPage: React.FC = () => {
                                             ))}
                                         </div>
                                     )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                </div>                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                                     {a.team?.slice(0, 3).map((member: any, i: number) => (
-                                        <div
-                                            key={member._id}
-                                            style={{
-                                                width: 28,
-                                                height: 28,
-                                                borderRadius: '50%',
-                                                background: `hsl(${(i * 60 + 220) % 360}, 60%, 60%)`,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: 'white',
-                                                fontSize: '0.6875rem',
-                                                fontWeight: 600,
-                                                border: '2px solid var(--color-surface)',
-                                                marginLeft: i > 0 ? -8 : 0,
-                                            }}
-                                            title={member.name}
-                                        >
-                                            {member.name?.charAt(0)}
-                                        </div>
-                                    ))}
+                                         <Avatar
+                                             key={member._id}
+                                             src={member.avatar}
+                                             name={member.name}
+                                             size={28}
+                                             style={{
+                                                 border: '2px solid var(--color-surface)',
+                                                 marginLeft: i > 0 ? -8 : 0,
+                                                 zIndex: 10 - i
+                                             }}
+                                         />
+                                     ))}
                                     {a.team?.length > 3 && (
                                         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
                                             +{a.team.length - 3}

@@ -56,6 +56,21 @@ const ReportsPage: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
+    const exportToExcel = () => {
+        if (!data) return;
+        // Simple CSV that Excel opens well
+        const items = data.userProductivity?.length > 0 ? data.userProductivity : [];
+        if (items.length === 0) {
+            alert('No data to export');
+            return;
+        }
+        exportCSV(items, `Productivity_Report_${format(new Date(), 'yyyy-MM-dd')}`);
+    };
+
+    const exportToPDF = () => {
+        window.print();
+    };
+
     const assignmentPieData = (data?.assignmentStats || []).map((s: any) => ({
         name: STATUS_LABELS[s._id] || s._id,
         value: s.count,
@@ -80,6 +95,16 @@ const ReportsPage: React.FC = () => {
                         <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem' }}>to</span>
                         <input className="input-minimal" type="date" value={dateRange.endDate} onChange={e => setDateRange({ ...dateRange, endDate: e.target.value })} />
                     </div>
+                    {user.role === 'admin' && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-primary btn-sm" onClick={exportToExcel} title="Export to Excel">
+                                <Download size={14} /> Excel
+                            </button>
+                            <button className="btn btn-secondary btn-sm" onClick={exportToPDF} title="Export to PDF/Print">
+                                <Download size={14} /> PDF
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 

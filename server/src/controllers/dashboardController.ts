@@ -18,9 +18,27 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         // Base filters for role-based access
         const assignmentFilter: any = {};
         const taskFilter: any = {};
+        const activityFilter: any = {};
+
         if (userRole === 'member') {
-            assignmentFilter.team = userId; // team is an array of IDs, Mongoose handles this with direct match
+            assignmentFilter.team = userId; 
             taskFilter.assignedTo = userId;
+            // Activity related to their team
+            const userTeams = await Team.find({ members: userId }).distinct('_id');
+            activityFilter['$or'] = [
+                { user: userId },
+                { team: { $in: userTeams } }
+            ];
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+            assignmentFilter.teams = { $in: managedTeams };
+            taskFilter.assignedTo = { $in: managedMembers };
+            activityFilter['$or'] = [
+                { team: { $in: managedTeams } },
+                { user: { $in: managedMembers } },
+                { user: userId }
+            ];
         }
 
         // Active assignments
@@ -62,15 +80,22 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
             { $group: { _id: '$status', count: { $sum: 1 } } },
         ]);
 
-        // Recent activity
-        const recentActivity = await ActivityLog.find()
+        // Recent activity with pagination (7 per page as requested)
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = 7;
+        const skip = (page - 1) * limit;
+
+        const recentActivity = await ActivityLog.find(activityFilter)
             .populate('user', 'name email avatar')
             .sort({ createdAt: -1 })
-            .limit(10);
+            .skip(skip)
+            .limit(limit);
+
+        const totalActivities = await ActivityLog.countDocuments(activityFilter);
 
         // Team workload (admin/manager only)
         let teamWorkload: any[] = [];
-        if (userRole !== 'member') {
+        if (userRole === 'admin') {
             teamWorkload = await Task.aggregate([
                 { $match: { status: { $ne: 'completed' } } },
                 { $group: { _id: '$assignedTo', taskCount: { $sum: 1 } } },
@@ -96,9 +121,36 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
                 { $sort: { taskCount: -1 } },
                 { $limit: 10 },
             ]);
+        } else if (userRole === 'manager') {
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+            teamWorkload = await Task.aggregate([
+                { $match: { assignedTo: { $in: managedMembers }, status: { $ne: 'completed' } } },
+                { $group: { _id: '$assignedTo', taskCount: { $sum: 1 } } },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user',
+                    },
+                },
+                { $unwind: '$user' },
+                {
+                    $project: {
+                        _id: 0,
+                        userId: '$_id',
+                        name: '$user.name',
+                        email: '$user.email',
+                        avatar: '$user.avatar',
+                        taskCount: 1,
+                    },
+                },
+                { $sort: { taskCount: -1 } },
+                { $limit: 10 },
+            ]);
         }
 
-        // Upcoming deadlines
+        // Upcoming deadlines (role-based)
         const upcomingDeadlines = await Task.find({
             ...taskFilter,
             dueDate: { $gte: todayStart },
@@ -120,6 +172,9 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
             },
             tasksByStatus,
             recentActivity,
+            totalActivities,
+            currentPage: page,
+            totalPages: Math.ceil(totalActivities / limit),
             teamWorkload,
             upcomingDeadlines,
         });
@@ -261,11 +316,13 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
 
         // Assignment completion analytics (Filtered by team if provided)
         const assignmentFilter: any = {};
-        if (teamId) assignmentFilter.teams = teamId;
-        else if (userRole === 'manager') {
+        if (teamId) {
+            assignmentFilter.teams = teamId;
+        } else if (userRole === 'manager') {
             const managedTeams = await Team.find({ manager: userId }).distinct('_id');
             assignmentFilter.teams = { $in: managedTeams };
         } else if (userRole === 'member') {
+            // Check if the user is in the 'team' array (participants)
             assignmentFilter.team = userId;
         }
 
@@ -310,6 +367,55 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
             assignmentStats,
             userProductivity,
         });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const globalSearch = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { query } = req.query;
+        if (!query) {
+            res.json({ tasks: [], assignments: [], users: [], teams: [] });
+            return;
+        }
+
+        const userId = req.user!._id;
+        const userRole = req.user!.role;
+        const searchRegex = new RegExp(query as string, 'i');
+
+        // Base filters
+        const taskFilter: any = { title: searchRegex };
+        const assignmentFilter: any = { $or: [{ title: searchRegex }, { clientName: searchRegex }] };
+        const userFilter: any = { $or: [{ name: searchRegex }, { email: searchRegex }, { employeeId: searchRegex }] };
+        const teamFilter: any = { name: searchRegex };
+
+        if (userRole === 'member') {
+            taskFilter.assignedTo = userId;
+            assignmentFilter.team = userId;
+            const myTeams = await Team.find({ members: userId }).distinct('_id');
+            teamFilter._id = { $in: myTeams };
+            // Members can see users only in their teams? Let's say all users for now or filter by team
+            const teamMembers = await Team.find({ members: userId }).distinct('members');
+            userFilter._id = { $in: teamMembers };
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+            // Can see all their managed stuff
+            taskFilter.assignedTo = { $in: [...managedMembers, userId] };
+            assignmentFilter.$or.push({ teams: { $in: managedTeams } });
+            teamFilter.$or = [{ manager: userId }, { _id: { $in: managedTeams } }];
+            userFilter._id = { $in: managedMembers };
+        }
+
+        const [tasks, assignments, users, teams] = await Promise.all([
+            Task.find(taskFilter).limit(5).populate('assignedTo', 'name').populate('assignment', 'title'),
+            Assignment.find(assignmentFilter).limit(5),
+            User.find(userFilter).limit(5).select('name email avatar role employeeId'),
+            Team.find(teamFilter).limit(5).populate('manager', 'name'),
+        ]);
+
+        res.json({ tasks, assignments, users, teams });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

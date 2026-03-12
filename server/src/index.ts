@@ -84,6 +84,14 @@ io.on('connection', (socket) => {
         console.log(`User joined assignment room: assignment_${assignmentId}`);
     });
 
+    socket.on('typing', ({ assignmentId, userName }) => {
+        socket.to(`assignment_${assignmentId}`).emit('user_typing', { userName, userId: socket.id });
+    });
+
+    socket.on('stop_typing', ({ assignmentId }) => {
+        socket.to(`assignment_${assignmentId}`).emit('user_stop_typing', { userId: socket.id });
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected');
     });

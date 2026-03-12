@@ -1,18 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { Bell, Sun, Moon, LogOut, Search, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
+import Avatar from '../common/Avatar';
 
 const Header: React.FC = () => {
     const { user, logout } = useAuthStore();
     const { isDark, toggle } = useThemeStore();
+    const navigate = useNavigate();
     const [showProfile, setShowProfile] = useState(false);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotif, setShowNotif] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
     const notifRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLDivElement>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any>(null);
+    const [showSearch, setShowSearch] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
 
     useEffect(() => {
         const fetchNotifications = async () => {
@@ -31,10 +39,31 @@ const Header: React.FC = () => {
         const handler = (e: MouseEvent) => {
             if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfile(false);
             if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false);
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults(null);
+            setShowSearch(false);
+            return;
+        }
+
+        const delayDebounceFn = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const { data } = await api.get(`/dashboard/search?query=${searchQuery}`);
+                setSearchResults(data);
+                setShowSearch(true);
+            } catch { }
+            finally { setIsSearching(false); }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
 
     const markAsRead = async (id: string) => {
         try {
@@ -66,14 +95,119 @@ const Header: React.FC = () => {
             flexShrink: 0,
         }}>
             {/* Search */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 400 }}>
+            <div ref={searchRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, maxWidth: 400, position: 'relative' }}>
                 <Search size={16} color="var(--color-text-tertiary)" />
                 <input
                     type="text"
                     placeholder="Search Projects, tasks etc..."
                     className="input"
                     style={{ border: 'none', boxShadow: 'none', padding: '6px 0', background: 'transparent' }}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => searchQuery && setShowSearch(true)}
                 />
+                {isSearching && <div className="spinner-xs" style={{ marginLeft: 8 }} />}
+
+                {showSearch && searchResults && (
+                    <div className="card animate-fade-in" style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: -32,
+                        right: 0,
+                        marginTop: 8,
+                        maxHeight: 480,
+                        overflow: 'auto',
+                        zIndex: 100,
+                        padding: '12px 0',
+                        boxShadow: 'var(--shadow-lg)'
+                    }}>
+                        {/* Tasks */}
+                        {searchResults.tasks?.length > 0 && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Tasks</div>
+                                {searchResults.tasks.map((t: any) => (
+                                    <div 
+                                        key={t._id} 
+                                        style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
+                                        onClick={() => { navigate(`/assignments/${t.assignment._id}/tasks/${t._id}`); setShowSearch(false); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{t.title}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{t.assignment.title}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Assignments */}
+                        {searchResults.assignments?.length > 0 && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Project Assignments</div>
+                                {searchResults.assignments.map((a: any) => (
+                                    <div 
+                                        key={a._id} 
+                                        style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
+                                        onClick={() => { navigate(`/assignments/${a._id}`); setShowSearch(false); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{a.title}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{a.clientName}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Users */}
+                        {searchResults.users?.length > 0 && (
+                            <div style={{ marginBottom: 12 }}>
+                                <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Employees</div>
+                                {searchResults.users.map((u: any) => (
+                                    <div 
+                                        key={u._id} 
+                                        style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease', display: 'flex', alignItems: 'center', gap: 10 }}
+                                        onClick={() => { setShowSearch(false); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <Avatar src={u.avatar} name={u.name} size={28} />
+                                        <div>
+                                            <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{u.employeeId} · {u.role === 'member' ? 'Team Member' : u.role}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Teams */}
+                        {searchResults.teams?.length > 0 && (
+                            <div>
+                                <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Teams</div>
+                                {searchResults.teams.map((team: any) => (
+                                    <div 
+                                        key={team._id} 
+                                        style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
+                                        onClick={() => { navigate('/teams'); setShowSearch(false); }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{team.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>Managed by {team.manager?.name}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* No results */}
+                        {!searchResults.tasks?.length && !searchResults.assignments?.length && !searchResults.users?.length && !searchResults.teams?.length && (
+                            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>
+                                No results found for "{searchQuery}"
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Actions */}
@@ -153,21 +287,7 @@ const Header: React.FC = () => {
                         onClick={() => setShowProfile(!showProfile)}
                         style={{ gap: 8 }}
                     >
-                        <div style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            background: user?.avatar ? `url(${import.meta.env.VITE_SOCKET_URL}${user.avatar}) center/cover` : 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            overflow: 'hidden'
-                        }}>
-                            {!user?.avatar && user?.name?.charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar src={user?.avatar} name={user?.name} size={28} />
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ fontSize: '0.8125rem', fontWeight: 500, lineHeight: 1.2 }}>{user?.name}</div>
                             <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', lineHeight: 1.2 }}>{roleLabel}</div>

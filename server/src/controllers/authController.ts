@@ -70,9 +70,34 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     }
 };
 
-export const getUsers = async (_req: AuthRequest, res: Response): Promise<void> => {
+import Team from '../models/Team';
+
+export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const users = await User.find().select('-password').sort({ name: 1 });
+        const userRole = req.user!.role;
+        const userId = req.user!._id;
+
+        let query: any = {};
+
+        if (userRole === 'manager') {
+            // Managers only see users from their teams
+            const managedTeams = await Team.find({ manager: userId });
+            const memberIds = managedTeams.flatMap(t => t.members.map(m => m.toString()));
+            // Include themselves and unique members
+            const uniqueMemberIds = [...new Set([...memberIds, userId.toString()])];
+            query._id = { $in: uniqueMemberIds };
+        } else if (userRole === 'member') {
+            // Employees only see their own profile or direct team members? 
+            // Usually, employees should see teammates in their assignments.
+            // For now, let's keep it simple: admin sees all, manager sees their team, member sees their team.
+            const userTeams = await Team.find({ members: userId });
+            const memberIds = userTeams.flatMap(t => t.members.map(m => m.toString()));
+            const managerIds = userTeams.map(t => t.manager.toString());
+            const uniqueIds = [...new Set([...memberIds, ...managerIds, userId.toString()])];
+            query._id = { $in: uniqueIds };
+        }
+
+        const users = await User.find(query).select('-password').sort({ name: 1 });
         res.json({ users });
     } catch (error: any) {
         res.status(500).json({ message: error.message });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import api from '../lib/api';
+import Avatar from '../components/common/Avatar';
 import { Sun, Moon, Shield, Users, UserPlus, Trash2 } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Admin', manager: 'Manager', member: 'Team Member' };
@@ -129,37 +130,25 @@ const SettingsPage: React.FC = () => {
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 20 }}>Profile Overview</h3>
                 <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                     <div
-                        style={{
-                            width: 80, height: 80, borderRadius: '50%',
-                            background: user?.avatar ? `url(${import.meta.env.VITE_SOCKET_URL}${user.avatar}) center/cover` : 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: 'white', fontSize: '2rem', fontWeight: 600,
-                            cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                            border: '3px solid var(--color-surface)'
-                        }}
                         onClick={() => !uploading && fileInputRef.current?.click()}
-                        onMouseEnter={(e) => {
-                            if (!uploading) {
-                                const overlay = e.currentTarget.querySelector('.avatar-overlay') as HTMLDivElement;
-                                if (overlay) overlay.style.opacity = '1';
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!uploading) {
-                                const overlay = e.currentTarget.querySelector('.avatar-overlay') as HTMLDivElement;
-                                if (overlay) overlay.style.opacity = '0';
-                            }
-                        }}
+                        style={{ cursor: 'pointer', position: 'relative' }}
                     >
-                        {!user?.avatar && user?.name?.charAt(0)}
+                        <Avatar
+                            src={user?.avatar}
+                            name={user?.name}
+                            size={80}
+                            style={{
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                border: '3px solid var(--color-surface)'
+                            }}
+                        />
                         <div
                             className="avatar-overlay"
                             style={{
                                 position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                 color: 'white', opacity: uploading ? 1 : 0, transition: 'all 0.2s',
-                                backdropFilter: 'blur(2px)'
+                                backdropFilter: 'blur(2px)', borderRadius: '50%'
                             }}>
                             {uploading ? (
                                 <div style={{
@@ -267,14 +256,7 @@ const SettingsPage: React.FC = () => {
                                 opacity: u.isActive ? 1 : 0.5,
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <div style={{
-                                        width: 32, height: 32, borderRadius: '50%',
-                                        background: u.avatar ? `url(${import.meta.env.VITE_SOCKET_URL}${u.avatar}) center/cover` : 'var(--color-primary-light)', color: 'var(--color-primary)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.75rem', fontWeight: 600, overflow: 'hidden'
-                                    }}>
-                                        {!u.avatar && u.name?.charAt(0)}
-                                    </div>
+                                    <Avatar src={u.avatar} name={u.name} size={32} />
                                     <div>
                                         <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
                                         <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{u.email}</div>
