@@ -1,0 +1,70 @@
+{
+  "name": "flowdesk-desktop",
+  "version": "1.0.0",
+  "description": "Desktop wrapper for FlowDesk SaaS",
+  "main": "dist/main.js",
+  "author": "FlowDesk Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "build": "tsc && electron-builder",
+    "lint": "eslint . --ext .ts",
+    "start": "electron .",
+    "pack": "tsc && electron-builder --dir",
+    "dist:win": "tsc && electron-builder --win",
+    "dist:mac": "tsc && electron-builder --mac",
+    "dist:linux": "tsc && electron-builder --linux"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^34.3.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.8.2",
+    "@types/node": "^22.13.9"
+  },
+  "build": {
+    "appId": "com.flowdesk.app",
+    "productName": "FlowDesk",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json",
+      ".env"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icons"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FlowDesk"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Lakshya52",
+        "repo": "FlowDesk-Aceone-Internal-software"
+      }
+    ]
+  }
+}

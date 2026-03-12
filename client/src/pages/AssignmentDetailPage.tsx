@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -35,9 +36,12 @@ const AssignmentDetailPage: React.FC = () => {
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatFileRef = useRef<HTMLInputElement>(null);
     const socketRef = useRef<any>(null);
+    const [typingUsers, setTypingUsers] = useState<any>({});
+    const typingTimeoutRef = useRef<any>(null);
 
     const isAdmin = user?.role === 'admin';
     const isManager = user?.role === 'manager';
+    const isEmployee = user?.role === 'member';
     const canEdit = isAdmin || isManager;
 
     const getFileIcon = (type: string) => {
@@ -106,10 +110,32 @@ const AssignmentDetailPage: React.FC = () => {
             });
         });
 
+        socket.on('user_typing', ({ userName, userId }: any) => {
+            setTypingUsers((prev: any) => ({ ...prev, [userId]: userName }));
+        });
+
+        socket.on('user_stop_typing', ({ userId }: any) => {
+            setTypingUsers((prev: any) => {
+                const next = { ...prev };
+                delete next[userId];
+                return next;
+            });
+        });
+
         return () => {
+            socket.emit('stop_typing', { assignmentId: id });
             socket.disconnect();
         };
     }, [id]);
+
+    useEffect(() => {
+        const draft = localStorage.getItem(`chat_draft_${id}`);
+        if (draft) setChatInput(draft);
+    }, [id]);
+
+    useEffect(() => {
+        localStorage.setItem(`chat_draft_${id}`, chatInput);
+    }, [id, chatInput]);
 
     useEffect(() => {
         if (activeTab === 'chat') {
@@ -221,39 +247,75 @@ const AssignmentDetailPage: React.FC = () => {
     const sendChatMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!chatInput.trim() && stagedFiles.length === 0) return;
+        
+        setIsUploadingFile(true);
         try {
+            let attachmentIds: string[] = [];
+            
+            // Upload files only on send
+            if (stagedFiles.length > 0) {
+                const uploadPromises = stagedFiles.map(fileObject => {
+                    const formData = new FormData();
+                    formData.append('file', fileObject.file);
+                    formData.append('assignmentId', id!);
+                    return api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                });
+                
+                const uploadResults = await Promise.all(uploadPromises);
+                attachmentIds = uploadResults.map(res => res.data.attachment._id);
+            }
+
             await api.post('/chat', {
                 content: chatInput,
                 assignmentId: id,
-                attachments: stagedFiles.map(f => f._id)
+                attachments: attachmentIds
             });
+            
             setChatInput('');
             setStagedFiles([]);
-        } catch { }
-    };
-
-    const sendChatFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploadingFile(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('assignmentId', id!);
-        try {
-            const { data } = await api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            // Refresh files list to show in "Files" tab as well
-            const fRes = await api.get(`/files?assignmentId=${id}`);
-            setFiles(fRes.data.attachments || []);
-            setStagedFiles(prev => [...prev, data.attachment]);
-        } catch { }
-        finally {
+            localStorage.removeItem(`chat_draft_${id}`);
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Failed to send message');
+        } finally {
             setIsUploadingFile(false);
         }
+    };
+
+    const sendChatFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = e.target.files;
+        if (!selectedFiles || selectedFiles.length === 0) return;
+        
+        const newStagedFiles = [...stagedFiles];
+        for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i];
+            newStagedFiles.push({
+                id: Math.random().toString(36).substr(2, 9), // Temp ID for list rendering
+                file: file,
+                originalName: file.name,
+                fileType: file.type,
+                fileSize: file.size
+            });
+        }
+        
+        setStagedFiles(newStagedFiles);
         if (chatFileRef.current) chatFileRef.current.value = '';
     };
 
-    const removeStagedFile = (fileId: string) => {
-        setStagedFiles(prev => prev.filter(f => f._id !== fileId));
+    const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setChatInput(e.target.value);
+        
+        if (socketRef.current) {
+            socketRef.current.emit('typing', { assignmentId: id, userName: user?.name });
+            
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => {
+                socketRef.current.emit('stop_typing', { assignmentId: id });
+            }, 3000);
+        }
+    };
+
+    const removeStagedFile = (tempId: string) => {
+        setStagedFiles(prev => prev.filter(f => f.id !== tempId));
     };
 
     // Calculate assignment progress from tasks
@@ -352,9 +414,7 @@ const AssignmentDetailPage: React.FC = () => {
                                 display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
                                 borderRadius: 6, background: 'var(--color-surface-hover)', fontSize: '0.75rem', fontWeight: 500,
                             }}>
-                                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 600 }}>
-                                    {m.name?.charAt(0)}
-                                </div>
+                                <Avatar src={m.avatar} name={m.name} size={20} />
                                 {m.name}
                             </span>
                         ))}
@@ -459,7 +519,11 @@ const AssignmentDetailPage: React.FC = () => {
                                                         value={t.status}
                                                         onChange={e => updateTaskStatus(t._id, e.target.value)}
                                                     >
-                                                        {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                        {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
+                                                            // Employees can only move to Review or In Progress, not directly to Completed
+                                                            if (isEmployee && k === 'completed') return null;
+                                                            return <option key={k} value={k}>{v}</option>;
+                                                        })}
                                                     </select>
                                                 )}
                                                 {canEdit && (
@@ -511,16 +575,7 @@ const AssignmentDetailPage: React.FC = () => {
                                         display: 'flex', gap: 10,
                                         flexDirection: isOwnMessage ? 'row-reverse' : 'row',
                                     }}>
-                                        <div style={{
-                                            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                                            background: isOwnMessage
-                                                ? 'linear-gradient(135deg, var(--color-primary), #a78bfa)'
-                                                : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: 'white', fontSize: '0.75rem', fontWeight: 600,
-                                        }}>
-                                            {msg.sender?.name?.charAt(0)}
-                                        </div>
+                                        <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={32} />
                                         <div style={{ maxWidth: '60%', width: 'fit-content' }}>
                                             <div style={{
                                                 fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', marginBottom: 4,
@@ -563,6 +618,11 @@ const AssignmentDetailPage: React.FC = () => {
                                 );
                             })
                         )}
+                        {Object.values(typingUsers).length > 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic', padding: '0 8px' }}>
+                                {Object.values(typingUsers).join(', ')} {Object.values(typingUsers).length === 1 ? 'is' : 'are'} typing...
+                            </div>
+                        )}
                         <div ref={chatEndRef} />
                     </div>
 
@@ -570,10 +630,10 @@ const AssignmentDetailPage: React.FC = () => {
                     {stagedFiles.length > 0 && (
                         <div style={{ padding: '8px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-hover)' }}>
                             {stagedFiles.map(f => (
-                                <div key={f._id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--color-surface)', borderRadius: 16, fontSize: '0.75rem', border: '1px solid var(--color-border)' }}>
+                                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'var(--color-surface)', borderRadius: 16, fontSize: '0.75rem', border: '1px solid var(--color-border)' }}>
                                     <span>{getFileIcon(f.fileType)}</span>
                                     <span style={{ maxWidth: 100, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.originalName}</span>
-                                    <button type="button" onClick={() => removeStagedFile(f._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--color-text-tertiary)' }}>
+                                    <button type="button" onClick={() => removeStagedFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', color: 'var(--color-text-tertiary)' }}>
                                         <Trash2 size={12} />
                                     </button>
                                 </div>
@@ -585,8 +645,8 @@ const AssignmentDetailPage: React.FC = () => {
                     <form onSubmit={sendChatMessage} style={{
                         display: 'flex', gap: 8, padding: '12px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center'
                     }}>
-                        <input type="file" ref={chatFileRef} style={{ display: 'none' }} onChange={sendChatFile} />
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => chatFileRef.current?.click()} title="Attach file" disabled={isUploadingFile}>
+                        <input type="file" ref={chatFileRef} style={{ display: 'none' }} multiple onChange={sendChatFile} />
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => chatFileRef.current?.click()} title="Attach files" disabled={isUploadingFile}>
                             <Paperclip size={16} />
                         </button>
                         {isUploadingFile ? (
@@ -600,7 +660,7 @@ const AssignmentDetailPage: React.FC = () => {
                                 style={{ flex: 1 }}
                                 placeholder="Type a message..."
                                 value={chatInput}
-                                onChange={e => setChatInput(e.target.value)}
+                                onChange={handleChatInputChange}
                             />
                         )}
                         <button type="submit" className="btn btn-primary btn-sm" disabled={(!chatInput.trim() && stagedFiles.length === 0) || isUploadingFile}>
@@ -660,9 +720,7 @@ const AssignmentDetailPage: React.FC = () => {
                                     return (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600 }}>
-                                                    {u.name?.charAt(0)}
-                                                </div>
+                                                <Avatar src={u.avatar} name={u.name} size={28} />
                                                 <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</span>
                                             </div>
                                             <button

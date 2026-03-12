@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
+import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
 import { Plus, Users, Trash2, UserPlus, UserMinus, Crown } from 'lucide-react';
 
@@ -167,9 +168,7 @@ const TeamsPage: React.FC = () => {
                             {/* Manager */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 10px', background: 'var(--color-surface-hover)', borderRadius: 8 }}>
                                 <Crown size={14} style={{ color: '#f59e0b' }} />
-                                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.625rem', fontWeight: 600 }}>
-                                    {team.manager?.name?.charAt(0)}
-                                </div>
+                                <Avatar src={team.manager?.avatar} name={team.manager?.name} size={24} />
                                 <span style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{team.manager?.name}</span>
                                 <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>Manager</span>
                             </div>
@@ -187,9 +186,7 @@ const TeamsPage: React.FC = () => {
                                             display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
                                             borderRadius: 20, background: 'var(--color-surface-hover)', fontSize: '0.75rem', fontWeight: 500,
                                         }}>
-                                            <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--color-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 600 }}>
-                                                {m.name?.charAt(0)}
-                                            </div>
+                                            <Avatar src={m.avatar} name={m.name} size={20} />
                                             {m.name}
                                         </div>
                                     ))
@@ -255,9 +252,7 @@ const TeamsPage: React.FC = () => {
                                 return (
                                     <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: isMember ? 'var(--color-primary-light)' : 'var(--color-surface-hover)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMember ? 'var(--color-primary)' : 'var(--color-text-tertiary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 600 }}>
-                                                {u.name?.charAt(0)}
-                                            </div>
+                                            <Avatar src={u.avatar} name={u.name} size={32} />
                                             <div>
                                                 <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{u.email}</div>
@@ -282,9 +277,7 @@ const TeamsPage: React.FC = () => {
                                     {selectedTeam.joinRequests.map((u: any) => (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: 'var(--color-surface-hover)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-text-tertiary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 600 }}>
-                                                    {u.name?.charAt(0)}
-                                                </div>
+                                                <Avatar src={u.avatar} name={u.name} size={32} />
                                                 <div>
                                                     <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{u.email}</div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -20,10 +20,9 @@ const queryClient = new QueryClient({
 });
 
 import LandingPage from './pages/LandingPage';
-import { useAuthStore } from './store/authStore';
+import NotFoundPage from './pages/NotFoundPage';
 
 const App: React.FC = () => {
-  const { user } = useAuthStore();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -42,11 +41,16 @@ const App: React.FC = () => {
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
-          <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
+          <Route path="*" element={<ProtectedNotFound />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
   );
+};
+
+// Simple helper to decide if we show 404 inside layout or full screen
+const ProtectedNotFound: React.FC = () => {
+  return <NotFoundPage />;
 };
 
 export default App;

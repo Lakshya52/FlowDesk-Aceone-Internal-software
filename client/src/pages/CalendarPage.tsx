@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
@@ -16,9 +17,11 @@ import {
 } from 'date-fns';
 
 const CalendarPage: React.FC = () => {
+    const navigate = useNavigate();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [events, setEvents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
     useEffect(() => {
         const fetch = async () => {
@@ -112,6 +115,7 @@ const CalendarPage: React.FC = () => {
                                     opacity: isCurrentMonth ? 1 : 0.4,
                                     background: today ? 'var(--color-primary-light)' : 'transparent',
                                 }}
+                                onClick={() => setSelectedDay(date)}
                             >
                                 <div style={{
                                     fontSize: '0.8125rem',
@@ -135,9 +139,18 @@ const CalendarPage: React.FC = () => {
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',
-                                                cursor: 'default',
+                                                cursor: 'pointer',
+                                                textDecoration: ev.status === 'completed' ? 'line-through' : 'none',
+                                                opacity: ev.status === 'completed' ? 0.6 : 1,
                                             }}
                                             title={ev.title}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const path = ev.type === 'task' 
+                                                    ? `/assignments/${ev.assignment}/tasks/${ev._id}`
+                                                    : `/assignments/${ev._id}`;
+                                                navigate(path);
+                                            }}
                                         >
                                             {ev.title}
                                         </div>
@@ -153,6 +166,82 @@ const CalendarPage: React.FC = () => {
                     })}
                 </div>
             </div>
+
+            {selectedDay && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+                }} onClick={() => setSelectedDay(null)}>
+                    <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 450, padding: 24 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{format(selectedDay, 'MMMM d, yyyy')}</h2>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
+                                < ChevronRight size={20} style={{ transform: 'rotate(90deg)' }} />
+                            </button>
+                        </div>
+
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
+                                Events & Deadlines
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {getEventsForDay(selectedDay).length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-tertiary)', background: 'var(--color-surface-hover)', borderRadius: 12 }}>
+                                        No events for this day
+                                    </div>
+                                ) : (
+                                    getEventsForDay(selectedDay).map((ev, i) => (
+                                        <div 
+                                            key={i} 
+                                            className="card" 
+                                            style={{ 
+                                                padding: '12px', 
+                                                display: 'flex', 
+                                                justifyContent: 'space-between', 
+                                                alignItems: 'center',
+                                                cursor: 'pointer'
+                                            }}
+                                            onClick={() => {
+                                                const path = ev.type === 'task' 
+                                                    ? `/assignments/${ev.assignment}/tasks/${ev._id}`
+                                                    : `/assignments/${ev._id}`;
+                                                navigate(path);
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ 
+                                                    width: 8, height: 8, borderRadius: '50%', 
+                                                    background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' 
+                                                }} />
+                                                <div>
+                                                    <div style={{ 
+                                                        fontSize: '0.875rem', fontWeight: 600,
+                                                        textDecoration: ev.status === 'completed' ? 'line-through' : 'none',
+                                                        opacity: ev.status === 'completed' ? 0.6 : 1
+                                                    }}>{ev.title}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{ev.type === 'task' ? 'Task' : 'Project Assignment'}</div>
+                                                </div>
+                                            </div>
+                                            <div className={`badge badge-${ev.status === 'completed' ? 'success' : 'info'}`} style={{ fontSize: '0.6875rem' }}>
+                                                {ev.status}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => navigate('/assignments')}>
+                                Create Project
+                            </button>
+                            <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => setSelectedDay(null)}>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

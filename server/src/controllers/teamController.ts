@@ -31,8 +31,20 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTeams = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        // Return all teams regardless of role
-        const teams = await Team.find({})
+        const userRole = req.user!.role;
+        const userId = req.user!._id;
+
+        let query = {};
+        if (userRole !== 'admin') {
+            query = {
+                $or: [
+                    { manager: userId },
+                    { members: userId }
+                ]
+            };
+        }
+
+        const teams = await Team.find(query)
             .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('joinRequests', 'name email avatar role')
