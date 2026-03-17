@@ -17,7 +17,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                 originalName: req.file.originalname,
                 fileType: req.file.mimetype,
                 fileSize: req.file.size,
-                filePath: req.file.path,
+                filePath: `/uploads/${req.file.filename}`,
                 uploadedBy: req.user!._id,
                 assignment: assignmentId,
             });

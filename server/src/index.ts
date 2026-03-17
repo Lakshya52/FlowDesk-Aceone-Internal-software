@@ -63,8 +63,46 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static files (uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve files from GridFS
+app.get('/uploads/:filename', async (req, res) => {
+    try {
+        if (!mongoose.connection.db) {
+            return res.status(500).json({ message: 'Database connection not established' });
+        }
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'uploads'
+        });
+
+        const filename = req.params.filename;
+        const files = await bucket.find({ filename }).toArray();
+
+        if (!files || files.length === 0) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+
+        const file = files[0];
+        if (file.contentType) {
+            res.set('Content-Type', file.contentType);
+        } else {
+            // Fallback for files without contentType (though GridFS usually has it)
+            const ext = filename.split('.').pop();
+            if (ext === 'png') res.set('Content-Type', 'image/png');
+            else if (ext === 'jpg' || ext === 'jpeg') res.set('Content-Type', 'image/jpeg');
+            else if (ext === 'pdf') res.set('Content-Type', 'application/pdf');
+        }
+
+        const downloadStream = bucket.openDownloadStreamByName(filename);
+        
+        downloadStream.on('error', () => {
+            res.status(404).json({ message: 'Error downloading file' });
+        });
+
+        downloadStream.pipe(res);
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 
 // API Routes
 app.use('/api/auth', authRoutes);

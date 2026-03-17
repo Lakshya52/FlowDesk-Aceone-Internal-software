@@ -11,8 +11,9 @@ import {
     TrendingUp,
     Users,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Line } from 'recharts';
 import { format } from 'date-fns';
+import { LineChart } from 'recharts';
 
 
 
@@ -131,12 +132,12 @@ const DashboardPage: React.FC = () => {
                         Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.name?.split(' ')[0]}
                     </h1>
                     <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', marginTop: 4 }}>
-                        {user?.role === 'admin' ? "Here's your organization's overview." : 
-                         user?.role === 'manager' ? "Here's an overview of your teams." : 
-                         "Here's what's happening with your tasks today."}
+                        {user?.role === 'admin' ? "Here's your organization's overview." :
+                            user?.role === 'manager' ? "Here's an overview of your teams." :
+                                "Here's what's happening with your tasks today."}
                     </p>
                 </div>
-                
+
                 {/* Dashboard Tabs */}
                 <div style={{ display: 'flex', gap: 12 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => navigate('/tasks')}>
@@ -205,10 +206,10 @@ const DashboardPage: React.FC = () => {
 
             {/* Main Content Area */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 24, marginBottom: 24 }}>
-                
+
                 {/* Left Column */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    
+
                     {/* Charts Row */}
                     {(user?.role === 'admin' || user?.role === 'manager') && (
                         <div style={{ display: 'grid', gridTemplateColumns: workloadData.length > 0 && data.weeklyCompletionData?.length > 0 ? '1fr 1fr' : '1fr', gap: 24 }}>
@@ -243,10 +244,10 @@ const DashboardPage: React.FC = () => {
                                     <ResponsiveContainer width="100%" height={220}>
                                         <LineChart data={data.weeklyCompletionData}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                                            <XAxis 
-                                                dataKey="_id" 
-                                                tick={{ fontSize: 10, fill: 'var(--color-text-secondary)' }} 
-                                                formatter={(val: string) => val.split('-').slice(1).join('/')}
+                                            <XAxis
+                                                dataKey="_id"
+                                                tick={{ fontSize: 10, fill: 'var(--color-text-secondary)' }}
+                                                tickFormatter={(val: string) => val.split('-').slice(1).join('/')}
                                             />
                                             <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
                                             <Tooltip
@@ -271,8 +272,8 @@ const DashboardPage: React.FC = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                             <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Recent Activity</h3>
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <button 
-                                    className="btn btn-ghost btn-xs" 
+                                <button
+                                    className="btn btn-ghost btn-xs"
                                     disabled={page === 1}
                                     onClick={() => setPage(p => Math.max(1, p - 1))}
                                 >
@@ -281,8 +282,8 @@ const DashboardPage: React.FC = () => {
                                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
                                     Page {data.currentPage} of {data.totalPages || 1}
                                 </span>
-                                <button 
-                                    className="btn btn-ghost btn-xs" 
+                                <button
+                                    className="btn btn-ghost btn-xs"
                                     disabled={page >= data.totalPages}
                                     onClick={() => setPage(p => p + 1)}
                                 >
@@ -327,7 +328,7 @@ const DashboardPage: React.FC = () => {
 
                 {/* Right Column */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    
+
                     {/* Task Status Pie */}
                     <div className="card" style={{ padding: '20px' }}>
                         <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 16 }}>Task Breakdown</h3>
@@ -378,21 +379,21 @@ const DashboardPage: React.FC = () => {
                                     .filter(t => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id))
                                     .slice(0, 5)
                                     .map((team: any) => (
-                                    <div key={team._id} style={{
-                                        padding: '10px 12px', borderRadius: 10,
-                                        background: 'var(--color-surface-hover)',
-                                        border: '1px solid var(--color-border)',
-                                        display: 'flex', alignItems: 'center', gap: 10,
-                                    }}>
-                                        <Avatar name={team.name} size={32} style={{ borderRadius: 8 }} />
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{team.name}</div>
-                                            <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>
-                                                {team.members?.length || 0} members · {team.manager?.name?.split(' ')[0]}
+                                        <div key={team._id} style={{
+                                            padding: '10px 12px', borderRadius: 10,
+                                            background: 'var(--color-surface-hover)',
+                                            border: '1px solid var(--color-border)',
+                                            display: 'flex', alignItems: 'center', gap: 10,
+                                        }}>
+                                            <Avatar name={team.name} size={32} style={{ borderRadius: 8 }} />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.8125rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{team.name}</div>
+                                                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>
+                                                    {team.members?.length || 0} members · {team.manager?.name?.split(' ')[0]}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                                 {myTeams.length > 5 && (
                                     <button className="btn btn-ghost btn-xs" onClick={() => navigate('/teams')} style={{ alignSelf: 'center' }}>
                                         View all teams
