@@ -1,10 +1,8 @@
 import { Response } from 'express';
 import Attachment from '../models/Attachment';
-import Notification, { NotificationType } from '../models/Notification';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
-import path from 'path';
-import fs from 'fs';
+import mongoose from 'mongoose';
 
 export const uploadFile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -16,11 +14,11 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
         const { assignmentId, taskId } = req.body;
 
         const attachment = await Attachment.create({
-            fileName: req.file.filename,
-            originalName: req.file.originalname,
-            fileType: req.file.mimetype,
-            fileSize: req.file.size,
-            filePath: req.file.path,
+            fileName: req.file!.filename,
+            originalName: req.file!.originalname,
+            fileType: req.file!.mimetype,
+            fileSize: req.file!.size,
+            filePath: `/uploads/${req.file!.filename}`, // Logically mapping to the GridFS access route
             uploadedBy: req.user!._id,
             assignment: assignmentId,
             task: taskId,
@@ -69,16 +67,27 @@ export const downloadFile = async (req: AuthRequest, res: Response): Promise<voi
             return;
         }
 
-        const filePath = path.resolve(attachment.filePath);
-        if (!fs.existsSync(filePath)) {
-            res.status(404).json({ message: 'File no longer exists on disk' });
+        if (!mongoose.connection.db) {
+            res.status(500).json({ message: 'Database connection not established' });
+            return;
+        }
+
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'uploads'
+        });
+
+        const files = await bucket.find({ filename: attachment.fileName }).toArray();
+        if (!files || files.length === 0) {
+            res.status(404).json({ message: 'File no longer exists in database' });
             return;
         }
 
         // Set proper Content-Type to preserve original file format
         res.setHeader('Content-Type', attachment.fileType);
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);
-        res.download(filePath, attachment.originalName);
+        
+        const downloadStream = bucket.openDownloadStreamByName(attachment.fileName);
+        downloadStream.pipe(res);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -92,10 +101,15 @@ export const deleteFile = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        // Delete from disk
-        const filePath = path.resolve(attachment.filePath);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        if (mongoose.connection.db) {
+            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+                bucketName: 'uploads'
+            });
+
+            const files = await bucket.find({ filename: attachment.fileName }).toArray();
+            if (files && files.length > 0) {
+                await bucket.delete(files[0]._id);
+            }
         }
 
         await Attachment.findByIdAndDelete(req.params.id);
@@ -113,3 +127,4 @@ export const deleteFile = async (req: AuthRequest, res: Response): Promise<void>
         res.status(500).json({ message: error.message });
     }
 };
+

@@ -85,13 +85,14 @@ const Header: React.FC = () => {
 
     return (
         <header style={{
-            height: 56,
+            // height: 56,
             borderBottom: '1px solid var(--color-border)',
             background: 'var(--color-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 24px',
+            padding: '17.5px 24px',
+            height: "fit-content",
             flexShrink: 0,
         }}>
             {/* Search */}
@@ -126,8 +127,8 @@ const Header: React.FC = () => {
                             <div style={{ marginBottom: 12 }}>
                                 <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Tasks</div>
                                 {searchResults.tasks.map((t: any) => (
-                                    <div 
-                                        key={t._id} 
+                                    <div
+                                        key={t._id}
                                         style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
                                         onClick={() => { navigate(`/assignments/${t.assignment._id}/tasks/${t._id}`); setShowSearch(false); }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
@@ -145,8 +146,8 @@ const Header: React.FC = () => {
                             <div style={{ marginBottom: 12 }}>
                                 <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Project Assignments</div>
                                 {searchResults.assignments.map((a: any) => (
-                                    <div 
-                                        key={a._id} 
+                                    <div
+                                        key={a._id}
                                         style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
                                         onClick={() => { navigate(`/assignments/${a._id}`); setShowSearch(false); }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
@@ -164,8 +165,8 @@ const Header: React.FC = () => {
                             <div style={{ marginBottom: 12 }}>
                                 <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Employees</div>
                                 {searchResults.users.map((u: any) => (
-                                    <div 
-                                        key={u._id} 
+                                    <div
+                                        key={u._id}
                                         style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease', display: 'flex', alignItems: 'center', gap: 10 }}
                                         onClick={() => { setShowSearch(false); }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
@@ -186,8 +187,8 @@ const Header: React.FC = () => {
                             <div>
                                 <div style={{ padding: '4px 16px', fontSize: '0.6875rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>Teams</div>
                                 {searchResults.teams.map((team: any) => (
-                                    <div 
-                                        key={team._id} 
+                                    <div
+                                        key={team._id}
                                         style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
                                         onClick={() => { navigate('/teams'); setShowSearch(false); }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}

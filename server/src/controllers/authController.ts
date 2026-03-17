@@ -71,6 +71,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 };
 
 import Team from '../models/Team';
+import mongoose from 'mongoose';
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -87,9 +88,6 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
             const uniqueMemberIds = [...new Set([...memberIds, userId.toString()])];
             query._id = { $in: uniqueMemberIds };
         } else if (userRole === 'member') {
-            // Employees only see their own profile or direct team members? 
-            // Usually, employees should see teammates in their assignments.
-            // For now, let's keep it simple: admin sees all, manager sees their team, member sees their team.
             const userTeams = await Team.find({ members: userId });
             const memberIds = userTeams.flatMap(t => t.members.map(m => m.toString()));
             const managerIds = userTeams.map(t => t.manager.toString());
@@ -108,7 +106,7 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
     try {
         const { id } = req.params;
         const updates = req.body;
-        delete updates.password; // Password update should be separate
+        delete updates.password;
 
         const user = await User.findByIdAndUpdate(id, updates, { returnDocument: 'after' }).select('-password');
         if (!user) {
@@ -140,7 +138,6 @@ export const permanentDeleteUser = async (req: AuthRequest, res: Response): Prom
     try {
         const { id } = req.params;
 
-        // Prevent admin from deleting themselves
         if (id === req.user!._id.toString()) {
             res.status(400).json({ message: 'You cannot delete your own account permanently' });
             return;
@@ -157,6 +154,7 @@ export const permanentDeleteUser = async (req: AuthRequest, res: Response): Prom
         res.status(500).json({ message: error.message });
     }
 };
+
 export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         if (!req.file) {
@@ -168,6 +166,18 @@ export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<voi
         if (!user) {
             res.status(404).json({ message: 'User not found' });
             return;
+        }
+
+        // Delete old avatar if exists in GridFS
+        if (user.avatar && user.avatar.startsWith('/uploads/') && mongoose.connection.db) {
+            const oldFilename = user.avatar.replace('/uploads/', '');
+            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+                bucketName: 'uploads'
+            });
+            const files = await bucket.find({ filename: oldFilename }).toArray();
+            if (files && files.length > 0) {
+                await bucket.delete(files[0]._id);
+            }
         }
 
         user.avatar = `/uploads/${req.file.filename}`;
@@ -187,6 +197,18 @@ export const removeAvatar = async (req: AuthRequest, res: Response): Promise<voi
             return;
         }
 
+        // Delete from GridFS
+        if (user.avatar && user.avatar.startsWith('/uploads/') && mongoose.connection.db) {
+            const oldFilename = user.avatar.replace('/uploads/', '');
+            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+                bucketName: 'uploads'
+            });
+            const files = await bucket.find({ filename: oldFilename }).toArray();
+            if (files && files.length > 0) {
+                await bucket.delete(files[0]._id);
+            }
+        }
+
         user.avatar = undefined;
         await user.save();
 
@@ -195,3 +217,4 @@ export const removeAvatar = async (req: AuthRequest, res: Response): Promise<voi
         res.status(500).json({ message: error.message });
     }
 };
+
