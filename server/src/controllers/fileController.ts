@@ -3,6 +3,7 @@ import Attachment from '../models/Attachment';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
 import mongoose from 'mongoose';
+import { uploadToGridFS, deleteFromGridFS } from '../utils/gridfs';
 
 export const uploadFile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -13,12 +14,19 @@ export const uploadFile = async (req: AuthRequest, res: Response): Promise<void>
 
         const { assignmentId, taskId } = req.body;
 
+        // Manual upload to GridFS from buffer
+        const { filename } = await uploadToGridFS(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype
+        );
+
         const attachment = await Attachment.create({
-            fileName: req.file!.filename,
-            originalName: req.file!.originalname,
-            fileType: req.file!.mimetype,
-            fileSize: req.file!.size,
-            filePath: `/uploads/${req.file!.filename}`, // Logically mapping to the GridFS access route
+            fileName: filename,
+            originalName: req.file.originalname,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            filePath: `/uploads/${filename}`,
             uploadedBy: req.user!._id,
             assignment: assignmentId,
             task: taskId,
@@ -101,15 +109,8 @@ export const deleteFile = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        if (mongoose.connection.db) {
-            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-                bucketName: 'uploads'
-            });
-
-            const files = await bucket.find({ filename: attachment.fileName }).toArray();
-            if (files && files.length > 0) {
-                await bucket.delete(files[0]._id);
-            }
+        if (attachment.fileName) {
+            await deleteFromGridFS(attachment.fileName);
         }
 
         await Attachment.findByIdAndDelete(req.params.id);

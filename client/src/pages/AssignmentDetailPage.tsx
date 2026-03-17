@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3 } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -33,6 +33,7 @@ const AssignmentDetailPage: React.FC = () => {
     const [editTaskForm, setEditTaskForm] = useState<any>({});
     const [stagedFiles, setStagedFiles] = useState<any[]>([]);
     const [isUploadingFile, setIsUploadingFile] = useState(false);
+    const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatFileRef = useRef<HTMLInputElement>(null);
     const socketRef = useRef<any>(null);
@@ -219,6 +220,8 @@ const AssignmentDetailPage: React.FC = () => {
     const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setUploadingFileName(file.name);
+        setIsUploadingFile(true);
         const formData = new FormData();
         formData.append('file', file);
         formData.append('assignmentId', id!);
@@ -226,6 +229,11 @@ const AssignmentDetailPage: React.FC = () => {
             const { data } = await api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setFiles(prev => [data.attachment, ...prev]);
         } catch { }
+        finally {
+            setIsUploadingFile(false);
+            setUploadingFileName(null);
+            if (e.target) e.target.value = '';
+        }
     };
 
     const downloadFile = async (fileId: string, originalName: string) => {
@@ -325,7 +333,18 @@ const AssignmentDetailPage: React.FC = () => {
     const progressPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
     if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><div className="skeleton" style={{ height: 120 }} /><div className="skeleton" style={{ height: 400 }} /></div>;
-    if (!assignment) return <div style={{ padding: 48, textAlign: 'center' }}>Project not found</div>;
+    if (!assignment) return (
+        <div style={{ padding: 64, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <FolderKanban size={48} style={{ opacity: 0.2 }} />
+            <div>
+                <h2 style={{ fontWeight: 700 }}>Project not found</h2>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>The project might have been deleted or you don't have permission to view it.</p>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/assignments')}>
+                Back to Projects
+            </button>
+        </div>
+    );
 
     const tabs = [
         { key: 'tasks', label: 'Tasks', count: tasks.length },
@@ -608,7 +627,7 @@ const AssignmentDetailPage: React.FC = () => {
                                             {/* Attachments in message */}
                                             {msg.attachments?.map((att: any) => {
                                                 const isImage = att.fileType?.startsWith('image/');
-                                                const fileUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/${att.fileName}`;
+                                                const fileUrl = `${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'}/uploads/${att.fileName}`;
                                                 
                                                 return (
                                                     <div 
@@ -700,9 +719,9 @@ const AssignmentDetailPage: React.FC = () => {
                             <Paperclip size={16} />
                         </button>
                         {isUploadingFile ? (
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-                                <div style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                                Uploading file...
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
+                                <div style={{ width: 18, height: 18, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                Sending {stagedFiles.length > 0 ? stagedFiles[0].originalName + (stagedFiles.length > 1 ? ` (+${stagedFiles.length - 1} more)` : '') : 'message'}...
                             </div>
                         ) : (
                             <input
@@ -725,10 +744,22 @@ const AssignmentDetailPage: React.FC = () => {
             {
                 activeTab === 'files' && (
                     <div>
-                        <label className="btn btn-secondary btn-sm" style={{ marginBottom: 16, cursor: 'pointer' }}>
-                            <Upload size={14} /> Upload File
-                            <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
-                        </label>
+                        {isUploadingFile && activeTab === 'files' ? (
+                            <div style={{ 
+                                marginBottom: 16, padding: '12px 16px', borderRadius: 12, 
+                                background: 'var(--color-primary-light)', color: 'var(--color-primary)',
+                                display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, fontSize: '0.875rem',
+                                border: '1px solid var(--color-primary)'
+                            }}>
+                                <div style={{ width: 18, height: 18, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                Uploading: <span style={{ textDecoration: 'underline' }}>{uploadingFileName}</span>
+                            </div>
+                        ) : (
+                            <label className="btn btn-secondary btn-sm" style={{ marginBottom: 16, cursor: 'pointer' }}>
+                                <Upload size={14} /> Upload File
+                                <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
+                            </label>
+                        )}
                         {files.length === 0 ? (
                             <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No files uploaded</div>
                         ) : (

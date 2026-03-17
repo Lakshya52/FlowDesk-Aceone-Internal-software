@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import path from 'path';
 import { Server } from 'socket.io';
 import http from 'http';
 

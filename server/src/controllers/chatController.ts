@@ -5,6 +5,8 @@ import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
 import { io } from '../index';
 
+import { uploadToGridFS } from '../utils/gridfs';
+
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { content, assignmentId } = req.body;
@@ -12,12 +14,18 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
 
         // If file was uploaded with the message
         if (req.file) {
+            const { filename } = await uploadToGridFS(
+                req.file.buffer,
+                req.file.originalname,
+                req.file.mimetype
+            );
+
             const attachment = await Attachment.create({
-                fileName: req.file.filename,
+                fileName: filename,
                 originalName: req.file.originalname,
                 fileType: req.file.mimetype,
                 fileSize: req.file.size,
-                filePath: `/uploads/${req.file.filename}`,
+                filePath: `/uploads/${filename}`,
                 uploadedBy: req.user!._id,
                 assignment: assignmentId,
             });

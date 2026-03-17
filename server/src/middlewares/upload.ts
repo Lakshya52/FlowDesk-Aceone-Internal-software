@@ -1,29 +1,10 @@
 import multer from 'multer';
-import { GridFsStorage } from 'multer-gridfs-storage';
-import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/flowdesk';
-
-// Create storage engine
-const storage = new GridFsStorage({
-    url: mongoUri,
-    options: { useUnifiedTopology: true },
-    file: (_req, file) => {
-        return new Promise((resolve, _reject) => {
-            const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-            const filename = `${uniqueSuffix}${path.extname(file.originalname)}`;
-            const fileInfo = {
-                filename: filename,
-                bucketName: 'uploads', // collection name will be uploads.files and uploads.chunks
-                contentType: file.mimetype
-            };
-            resolve(fileInfo);
-        });
-    }
-});
+// Use memory storage - files are held in buffer, then manually written to GridFS in controllers
+const storage = multer.memoryStorage();
 
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowedMimes = [
@@ -50,10 +31,9 @@ const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterC
 };
 
 export const upload = multer({
-    storage: storage as any,
+    storage,
     fileFilter,
     limits: {
         fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10), // 10MB default
     },
 });
-

@@ -55,19 +55,42 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
 
         if (status) filter.status = status;
         if (priority) filter.priority = priority;
+        
+        let searchFilter: any = {};
         if (search) {
-            filter.$or = [
+            searchFilter.$or = [
                 { title: { $regex: search, $options: 'i' } },
                 { clientName: { $regex: search, $options: 'i' } },
             ];
         }
 
-        // Members only see assignments they're on
+        let roleFilter: any = {};
         if (req.user!.role === 'member') {
-            filter.team = req.user!._id;
+            roleFilter.$or = [
+                { team: req.user!._id },
+                { createdBy: req.user!._id }
+            ];
+        } else if (req.user!.role === 'manager') {
+            const Team = (await import('../models/Team')).default;
+            const managedTeams = await Team.find({ manager: req.user!._id }).distinct('_id');
+            roleFilter.$or = [
+                { createdBy: req.user!._id },
+                { teams: { $in: managedTeams } },
+                { team: req.user!._id }
+            ];
         }
 
-        const assignments = await Assignment.find(filter)
+        // Combine all filters using $and to avoid overwriting $or
+        const finalFilter: any = { ...filter };
+        const conditions = [];
+        if (Object.keys(searchFilter).length > 0) conditions.push(searchFilter);
+        if (Object.keys(roleFilter).length > 0) conditions.push(roleFilter);
+        
+        if (conditions.length > 0) {
+            finalFilter.$and = conditions;
+        }
+
+        const assignments = await Assignment.find(finalFilter)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
             .populate({
