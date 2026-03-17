@@ -32,8 +32,20 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         } else if (userRole === 'manager') {
             const managedTeams = await Team.find({ manager: userId }).distinct('_id');
             const managedMembers = await Team.find({ manager: userId }).distinct('members');
-            assignmentFilter.teams = { $in: managedTeams };
-            taskFilter.assignedTo = { $in: managedMembers };
+            
+            // Managers see assignments they created OR where their team is assigned
+            assignmentFilter['$or'] = [
+                { createdBy: userId },
+                { teams: { $in: managedTeams } }
+            ];
+            
+            // Managers see tasks they assigned OR assigned to their team members
+            taskFilter['$or'] = [
+                { assignedTo: { $in: managedMembers } },
+                { createdBy: userId }, // Case where they assigned a task directly
+                { assignedTo: userId } // Case where they are working on a task
+            ];
+            
             activityFilter['$or'] = [
                 { team: { $in: managedTeams } },
                 { user: { $in: managedMembers } },

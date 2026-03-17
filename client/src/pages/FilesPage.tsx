@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 const FilesPage: React.FC = () => {
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
 
     useEffect(() => {
         const fetch = async () => {
@@ -21,12 +23,21 @@ const FilesPage: React.FC = () => {
     const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
+        setIsUploading(true);
+        setUploadingFileName(file.name);
+        
         const formData = new FormData();
         formData.append('file', file);
         try {
             const { data } = await api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setFiles(prev => [data.attachment, ...prev]);
         } catch { }
+        finally {
+            setIsUploading(false);
+            setUploadingFileName(null);
+            if (e.target) e.target.value = '';
+        }
     };
 
     const downloadFile = async (fileId: string, originalName: string) => {
@@ -65,10 +76,21 @@ const FilesPage: React.FC = () => {
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Files</h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>{files.length} files</p>
                 </div>
-                <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-                    <Upload size={16} /> Upload File
-                    <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
-                </label>
+                {isUploading ? (
+                    <div style={{ 
+                        display: 'flex', alignItems: 'center', gap: 12, 
+                        background: 'var(--color-primary-light)', padding: '8px 16px', 
+                        borderRadius: 12, color: 'var(--color-primary)', fontWeight: 500, fontSize: '0.875rem' 
+                    }}>
+                        <div style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        Uploading: {uploadingFileName}
+                    </div>
+                ) : (
+                    <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+                        <Upload size={16} /> Upload File
+                        <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
+                    </label>
+                )}
             </div>
 
             {loading ? (

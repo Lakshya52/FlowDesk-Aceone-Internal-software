@@ -6,10 +6,10 @@ const router = Router();
 
 router.use(authenticate);
 
-router.post('/', authorize('admin'), createAssignment);
+router.post('/', authorize('admin', 'manager'), createAssignment);
 router.get('/', getAssignments);
 router.get('/:id', getAssignment);
 router.put('/:id', authorize('admin', 'manager'), updateAssignment);
-router.delete('/:id', authorize('admin'), deleteAssignment);
+router.delete('/:id', authorize('admin', 'manager'), deleteAssignment);
 
 export default router;

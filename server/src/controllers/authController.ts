@@ -155,6 +155,8 @@ export const permanentDeleteUser = async (req: AuthRequest, res: Response): Prom
     }
 };
 
+import { uploadToGridFS, deleteFromGridFS } from '../utils/gridfs';
+
 export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         if (!req.file) {
@@ -169,18 +171,19 @@ export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<voi
         }
 
         // Delete old avatar if exists in GridFS
-        if (user.avatar && user.avatar.startsWith('/uploads/') && mongoose.connection.db) {
+        if (user.avatar && user.avatar.startsWith('/uploads/')) {
             const oldFilename = user.avatar.replace('/uploads/', '');
-            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-                bucketName: 'uploads'
-            });
-            const files = await bucket.find({ filename: oldFilename }).toArray();
-            if (files && files.length > 0) {
-                await bucket.delete(files[0]._id);
-            }
+            await deleteFromGridFS(oldFilename);
         }
 
-        user.avatar = `/uploads/${req.file.filename}`;
+        // Manual upload to GridFS from buffer
+        const { filename } = await uploadToGridFS(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype
+        );
+
+        user.avatar = `/uploads/${filename}`;
         await user.save();
 
         res.json({ message: 'Avatar updated successfully', user: { ...user.toObject(), password: '' } });
@@ -198,15 +201,9 @@ export const removeAvatar = async (req: AuthRequest, res: Response): Promise<voi
         }
 
         // Delete from GridFS
-        if (user.avatar && user.avatar.startsWith('/uploads/') && mongoose.connection.db) {
+        if (user.avatar && user.avatar.startsWith('/uploads/')) {
             const oldFilename = user.avatar.replace('/uploads/', '');
-            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-                bucketName: 'uploads'
-            });
-            const files = await bucket.find({ filename: oldFilename }).toArray();
-            if (files && files.length > 0) {
-                await bucket.delete(files[0]._id);
-            }
+            await deleteFromGridFS(oldFilename);
         }
 
         user.avatar = undefined;

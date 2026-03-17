@@ -23,6 +23,8 @@ const AssignmentsPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
 
     const isAdmin = user?.role === 'admin';
+    const isManager = user?.role === 'manager';
+    const canCreate = isAdmin || isManager;
 
     const fetchAssignments = async () => {
         try {
@@ -53,10 +55,15 @@ const AssignmentsPage: React.FC = () => {
         e.preventDefault();
         setSaving(true);
         try {
-            await api.post('/assignments', form);
+            const { data } = await api.post('/assignments', form);
             setShowCreate(false);
             setForm({ title: '', clientName: '', description: '', priority: 'medium', startDate: '', dueDate: '', team: [], teams: [] });
-            fetchAssignments();
+            // Redirect to the newly created project
+            if (data.assignment?._id) {
+                navigate(`/assignments/${data.assignment._id}`);
+            } else {
+                fetchAssignments();
+            }
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
         finally { setSaving(false); }
     };
@@ -85,7 +92,7 @@ const AssignmentsPage: React.FC = () => {
                         {assignments.length} Project{assignments.length !== 1 ? 's' : ''}
                     </p>
                 </div>
-                {isAdmin && (
+                {canCreate && (
                     <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
                         <Plus size={16} /> New Project
                     </button>

@@ -11,9 +11,8 @@ import {
     TrendingUp,
     Users,
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Line, LineChart } from 'recharts';
 import { format } from 'date-fns';
-import { LineChart } from 'recharts';
 
 
 
@@ -79,8 +78,8 @@ const DashboardPage: React.FC = () => {
     const statCards = [
         {
             label: 'Active Projects',
-            value: data.activeAssignments,
-            total: data.totalAssignments,
+            value: data.stats?.activeAssignments,
+            total: data.stats?.totalAssignments,
             icon: FolderKanban,
             color: '#6366f1',
             bg: 'var(--color-primary-light)',
@@ -88,7 +87,7 @@ const DashboardPage: React.FC = () => {
         },
         {
             label: 'Due Today',
-            value: data.tasksDueToday,
+            value: data.stats?.tasksDueToday,
             icon: Clock,
             color: '#3b82f6',
             bg: 'var(--color-info-light)',
@@ -96,7 +95,7 @@ const DashboardPage: React.FC = () => {
         },
         {
             label: 'Overdue Tasks',
-            value: data.overdueTasks,
+            value: data.stats?.overdueTasks,
             icon: AlertTriangle,
             color: '#ef4444',
             bg: 'var(--color-danger-light)',
@@ -104,7 +103,7 @@ const DashboardPage: React.FC = () => {
         },
         {
             label: 'Completed This Week',
-            value: data.completedThisWeek,
+            value: data.stats?.completedThisWeek,
             icon: CheckCircle2,
             color: '#22c55e',
             bg: 'var(--color-success-light)',
