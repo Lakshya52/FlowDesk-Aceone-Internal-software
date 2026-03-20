@@ -29,7 +29,7 @@ import {
   LayoutGrid,
   Cpu,
   Wand2,
-  ChevronRight,
+  // ChevronRight,
   Layers,
   Box,
 } from "lucide-react";
@@ -195,7 +195,7 @@ const CustomReportBuilder = ({
                   <Cell
                     key={`cell-${index}`}
                     fill={COLORS[index % COLORS.length]}
-                    cornerRadius={4}
+                    // cornerRadius={4}
                   />
                 ))}
               </Pie>

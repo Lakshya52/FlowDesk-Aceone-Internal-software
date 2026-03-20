@@ -247,7 +247,7 @@ export const getCustomReport = async (req: AuthRequest, res: Response) => {
 export const exportReport = async (req: AuthRequest, res: Response) => {
     try {
         const { type, reportType } = req.query;
-        const url = meta.process.env.CLIENT_URL;
+        const url = process.env.CLIENT_URL;
         res.json({ 
             message: `Exporting ${reportType} as ${type}...`,
             url: `${url}/download/${reportType}_${Date.now()}.${type}` 

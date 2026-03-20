@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { X, Table, Download, Search, FileSpreadsheet } from 'lucide-react';
+import { X, Download, Search, FileSpreadsheet } from 'lucide-react';
 
 interface DrilldownModalProps {
     isOpen: boolean;
