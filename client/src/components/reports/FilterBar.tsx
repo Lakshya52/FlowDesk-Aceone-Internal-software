@@ -1,0 +1,156 @@
+import * as React from 'react';
+import { RotateCcw, Calendar, Users, Target, User, Activity } from 'lucide-react';
+
+interface FilterBarProps {
+    filters: any;
+    setFilters: (filters: any) => void;
+    filterOptions: { teams: any[], employees: any[], assignments: any[] };
+    onReset: () => void;
+    user: any;
+}
+
+const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: FilterBarProps) => {
+    // Dependent filtering logic
+    const filteredEmployees = React.useMemo(() => {
+        if (!filters.teamId || !Array.isArray(filterOptions.employees)) return filterOptions.employees || [];
+        return filterOptions.employees.filter((emp: any) => emp.teamId === filters.teamId || emp.team === filters.teamId);
+    }, [filters.teamId, filterOptions.employees]);
+
+    const filteredProjects = React.useMemo(() => {
+        if (!Array.isArray(filterOptions.assignments)) return [];
+        let projects = filterOptions.assignments;
+        
+        if (filters.teamId) {
+            projects = projects.filter((p: any) => p.teamId === filters.teamId || p.team === filters.teamId);
+        }
+        
+        if (filters.employeeId) {
+            projects = projects.filter((p: any) => 
+                p.employeeId === filters.employeeId || 
+                p.employee === filters.employeeId || 
+                (Array.isArray(p.assignedTo) && p.assignedTo.includes(filters.employeeId))
+            );
+        }
+        
+        return projects;
+    }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
+
+    return (
+        <div className="card p-6  border-border/80 shadow-md">
+            <div className="flex flex-wrap items-end gap-10">
+                {/* Date Range Group */}    
+                <div className="flex flex-col gap-2 min-w-[280px]">
+                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                        <Calendar size={14} className="text-primary" />
+                        Time Period
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            value={filters.startDate || ''}
+                            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                            className="input h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                        />
+                        <span className="text-text-tertiary font-bold px-1 text-xs">TO</span>
+                        <input
+                            type="date"
+                            value={filters.endDate || ''}
+                            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                            className="input h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                        />
+                    </div>
+                </div>
+
+                {/* Team Filter */}
+                {(user.role === 'admin' || user.role === 'manager') && (
+                    <div className="flex flex-col gap-2 min-w-[180px]">
+                        <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                            <Users size={14} className="text-primary" />
+                            Team
+                        </label>
+                        <select
+                            value={filters.teamId || ''}
+                            onChange={(e) => setFilters({ ...filters, teamId: e.target.value, employeeId: '', projectId: '' })}
+                            className="select h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                        >
+                            <option value="">All Teams</option>
+                            {Array.isArray(filterOptions.teams) && filterOptions.teams.map(team => (
+                                <option key={team._id} value={team._id}>{team.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* Employee Filter */}
+                {(user.role === 'admin' || user.role === 'manager') && (
+                    <div className="flex flex-col gap-2 min-w-[180px]">
+                        <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                            <User size={14} className="text-primary" />
+                            Member
+                        </label>
+                        <select
+                            value={filters.employeeId || ''}
+                            onChange={(e) => setFilters({ ...filters, employeeId: e.target.value, projectId: '' })}
+                            className="select h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                        >
+                            <option value="">All Personnel</option>
+                            {filteredEmployees.map((emp: any) => (
+                                <option key={emp._id} value={emp._id}>{emp.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* Project Filter */}
+                <div className="flex flex-col gap-2 min-w-[200px]">
+                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                        <Target size={14} className="text-primary" />
+                        Project
+                    </label>
+                    <select
+                        value={filters.projectId || ''}
+                        onChange={(e) => setFilters({ ...filters, projectId: e.target.value })}
+                        className="select h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                    >
+                        <option value="">Global Overview</option>
+                        {filteredProjects.map((asgn: any) => (
+                            <option key={asgn._id} value={asgn._id}>{asgn.title}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex flex-col gap-2 min-w-[150px]">
+                    <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                        <Activity size={14} className="text-primary" />
+                        Status
+                    </label>
+                    <select
+                        value={filters.status || ''}
+                        onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                        className="select h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
+                    >
+                        <option value="">Any Status</option>
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="review">Review</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+
+                {/* Reset Button */}
+                <div className="ml-auto flex items-center h-10 mb-0.5">
+                    <button 
+                        onClick={onReset}
+                        className="flex items-center gap-2 px-4 h-full text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger-light rounded-lg border border-transparent hover:border-danger/10 transition-all active:scale-95 group/reset"
+                    >
+                        <RotateCcw size={14} className="group-hover/reset:rotate-180 transition-transform duration-500" /> 
+                        Reset Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default FilterBar;

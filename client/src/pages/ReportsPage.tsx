@@ -1,292 +1,282 @@
-import React, { useEffect, useState } from 'react';
-import api from '../lib/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { format } from 'date-fns';
-import { Download, Users, User as UserIcon } from 'lucide-react';
+import * as React from "react";
+import { useEffect, useState } from "react";
+import api from "../lib/api";
+import FilterBar from "../components/reports/FilterBar";
+import TimeTrackingReport from "../components/reports/TimeTrackingReport";
+import WorkloadReport from "../components/reports/WorkloadReport";
+import ActivityReport from "../components/reports/ActivityReport";
+import CustomReportBuilder from "../components/reports/CustomReportBuilder";
+import DrilldownModal from "../components/reports/DrilldownModal";
+import {
+  Download,
+  FileText,
+  BarChart3,
+  PieChart,
+  Settings2,
+  Calendar as CalendarIcon,
+  ChevronDown,
+  LayoutDashboard,
+  Clock,
+  Activity,
+  Wand2,
+} from "lucide-react";
 
-const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
-const STATUS_LABELS: Record<string, string> = { not_started: 'Not Started', in_progress: 'In Progress', completed: 'Completed', delayed: 'Delayed' };
+const TABS = [
+  {
+    id: "time",
+    label: "Time Tracking",
+    icon: <Clock size={18} />,
+    component: TimeTrackingReport,
+    description: "Efficiency & estimates",
+  },
+  {
+    id: "workload",
+    label: "Workload",
+    icon: <LayoutDashboard size={18} />,
+    component: WorkloadReport,
+    description: "Capacity & distribution",
+  },
+  {
+    id: "activity",
+    label: "Activity",
+    icon: <Activity size={18} />,
+    component: ActivityReport,
+    description: "Interactions & files",
+  },
+  {
+    id: "custom",
+    label: "Custom Builder",
+    icon: <Wand2 size={18} />,
+    component: CustomReportBuilder,
+    description: "Personalized metrics",
+  },
+];
 
-const ReportsPage: React.FC = () => {
-    const [data, setData] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
-    const [filters, setFilters] = useState({ teamId: '', employeeId: '' });
-    const [filterOptions, setFilterOptions] = useState<{ teams: any[], employees: any[] }>({ teams: [], employees: [] });
-    const user = JSON.parse(localStorage.getItem('flowdesk_user') || '{}');
+const ReportsPage = (): React.JSX.Element => {
+  const [activeTab, setActiveTab] = useState("time");
+  const [filters, setFilters] = useState<any>({
+    startDate: "",
+    endDate: "",
+    teamId: "",
+    employeeId: "",
+    projectId: "",
+    status: "",
+  });
+  const [filterOptions, setFilterOptions] = useState<{
+    teams: any[];
+    employees: any[];
+    assignments: any[];
+  }>({
+    teams: [],
+    employees: [],
+    assignments: [],
+  });
 
-    useEffect(() => {
-        const fetchFilters = async () => {
-            if (user.role === 'admin' || user.role === 'manager') {
-                try {
-                    const { data: f } = await api.get('/dashboard/report-filters');
-                    setFilterOptions(f);
-                } catch { }
-            }
-        };
-        fetchFilters();
-    }, []);
+  const [drilldown, setDrilldown] = useState<{
+    open: boolean;
+    title: string;
+    data: any[];
+  }>({
+    open: false,
+    title: "",
+    data: [],
+  });
 
-    useEffect(() => {
-        const fetch = async () => {
-            setLoading(true);
-            try {
-                const params: any = { ...filters };
-                if (dateRange.startDate) params.startDate = dateRange.startDate;
-                if (dateRange.endDate) params.endDate = dateRange.endDate;
-                const { data: d } = await api.get('/dashboard/reports', { params });
-                setData(d);
-            } catch { }
-            finally { setLoading(false); }
-        };
-        fetch();
-    }, [dateRange, filters]);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
-    const exportCSV = (items: any[], filename: string) => {
-        if (!items || !items.length) return;
-        const headers = Object.keys(items[0]).join(',');
-        const rows = items.map(item => Object.values(item).join(','));
-        const csv = [headers, ...rows].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${filename}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+  const user = JSON.parse(localStorage.getItem("flowdesk_user") || "{}");
+
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const { data: filterData } = await api.get("/dashboard/report-filters");
+        const { data: assignments } = await api.get("/assignments");
+        setFilterOptions({
+          teams: filterData.teams || [],
+          employees: filterData.employees || [],
+          assignments: assignments.assignments || [],
+        });
+      } catch (err) {
+        console.error("Failed to fetch filter options", err);
+      }
     };
+    fetchFilters();
+  }, []);
 
-    const exportToExcel = () => {
-        if (!data) return;
-        // Simple CSV that Excel opens well
-        const items = data.userProductivity?.length > 0 ? data.userProductivity : [];
-        if (items.length === 0) {
-            alert('No data to export');
-            return;
-        }
-        exportCSV(items, `Productivity_Report_${format(new Date(), 'yyyy-MM-dd')}`);
-    };
+  const handleExport = async (type: "csv" | "pdf" | "excel") => {
+    try {
+      const { data } = await api.get("/reports/export", {
+        params: { type, reportType: activeTab, ...filters },
+      });
+      window.open(data.url, "_blank");
+    } catch (err) {
+      alert("Export failed. Please try again.");
+    } finally {
+      setIsExportOpen(false);
+    }
+  };
 
-    const exportToPDF = () => {
-        window.print();
-    };
+  const handleDrilldown = (title: string, data: any[]) => {
+    setDrilldown({ open: true, title, data });
+  };
 
-    const assignmentPieData = (data?.assignmentStats || []).map((s: any) => ({
-        name: STATUS_LABELS[s._id] || s._id,
-        value: s.count,
-    }));
+  const activeTabData = TABS.find((t) => t.id === activeTab);
+  const ActiveComponent = activeTabData?.component || TimeTrackingReport;
 
-    const totalTasks = data?.assignmentStats?.reduce((acc: number, s: any) => acc + s.count, 0) || 0;
-    const completedTasksCount = data?.assignmentStats?.find((s: any) => s._id === 'completed')?.count || 0;
-    const completionRate = totalTasks > 0 ? Math.round((completedTasksCount / totalTasks) * 100) : 0;
+  return (
+    <div className="min-h-screen bg-[var(--color-bg)] pb-20">
+      {/* Page Header */}
+      <div className="bg-surface border-b border-border sticky top-0 z-30 card-glass rounded-2xl px-8 lg:px-16 py-10">
+        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8" style={{
+            padding:"20px"
+          }}>
+          <div>
+            <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-4">
+              <div className="">
+                <BarChart3 className="text-primary" size={28} />
+              </div>
+              Reports & Analytics
+            </h1>
+            <p className="text-base text-text-secondary mt-2 font-medium">
+              Comprehensive insights across projects, teams, and individual
+              performance.
+            </p>
+          </div>
 
-    return (
-        <div style={{ maxWidth: 1100 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-                <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Reports</h1>
-                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                        {user.role === 'admin' ? 'Organization-wide' : user.role === 'manager' ? 'Team' : 'Personal'} analytics and productivity insights
-                    </p>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', padding: '4px 12px', borderRadius: 8 }}>
-                        <input className="input-minimal" type="date" value={dateRange.startDate} onChange={e => setDateRange({ ...dateRange, startDate: e.target.value })} />
-                        <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem' }}>to</span>
-                        <input className="input-minimal" type="date" value={dateRange.endDate} onChange={e => setDateRange({ ...dateRange, endDate: e.target.value })} />
-                    </div>
-                    {user.role === 'admin' && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn btn-primary btn-sm" onClick={exportToExcel} title="Export to Excel">
-                                <Download size={14} /> Excel
-                            </button>
-                            <button className="btn btn-secondary btn-sm" onClick={exportToPDF} title="Export to PDF/Print">
-                                <Download size={14} /> PDF
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <button
+                onClick={() => setIsExportOpen(!isExportOpen)}
+                className="btn btn-primary h-12 px-6 gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all font-bold text-sm"
+              >
+                <Download size={18} />
+                <span>Export Report</span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-300 ${isExportOpen ? "rotate-180" : ""}`}
+                />
+              </button>
 
-            {(user.role === 'admin' || user.role === 'manager') && (
-                <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                        <Users size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-                        <select
-                            className="input"
-                            style={{ paddingLeft: 36 }}
-                            value={filters.teamId}
-                            onChange={e => setFilters({ ...filters, teamId: e.target.value, employeeId: '' })}
-                        >
-                            <option value="">All Teams</option>
-                            {filterOptions.teams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                        <UserIcon size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-                        <select
-                            className="input"
-                            style={{ paddingLeft: 36 }}
-                            value={filters.employeeId}
-                            onChange={e => setFilters({ ...filters, employeeId: e.target.value, teamId: '' })}
-                        >
-                            <option value="">All Employees</option>
-                            {filterOptions.employees.map(e => <option key={e._id} value={e._id}>{e.name} </option>)}
-                        </select>
-                    </div>
-                    <button className="btn btn-ghost" onClick={() => { setFilters({ teamId: '', employeeId: '' }); setDateRange({ startDate: '', endDate: '' }); }}>
-                        Reset
-                    </button>
-                </div>
-            )}
-
-            {loading ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-                    {[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 200, borderRadius: 12 }} />)}
-                </div>
-            ) : data ? (
+              {isExportOpen && (
                 <>
-                    {/* Summary Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-                        <div className="card" style={{ padding: 20, textAlign: 'center' }}>
-                            <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Total Tasks</div>
-                            <div style={{ fontSize: '1.75rem', fontWeight: 700 }}>{totalTasks}</div>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsExportOpen(false)}
+                  ></div>
+                  <div className="absolute right-0 mt-4 w-60 bg-indigo-400 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-50 animate-fade-in p-2.5 backdrop-blur-xl bg-surface/95">
+                    <button
+                      onClick={() => handleExport("csv")}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-text-secondary hover:bg-(--color-primary)/5 hover:text-primary transition-all rounded-2xl group/item"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-(--color-primary)/10 flex items-center justify-center text-primary group-hover/item:scale-110 transition-transform">
+                          <FileText size={18} />
                         </div>
-                        <div className="card" style={{ padding: 20, textAlign: 'center' }}>
-                            <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Completed</div>
-                            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--color-success)' }}>{completedTasksCount}</div>
+                        CSV Data
+                      </div>
+                      <div className="w-1.5 h-1.5 rounded-full bg-(--color-primary)/30 group-hover/item:bg-(--color-primary) transition-colors"></div>
+                    </button>
+                    <button
+                      onClick={() => handleExport("excel")}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-text-secondary hover:bg-success/5 hover:text-success transition-all rounded-2xl group/item"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center text-success group-hover/item:scale-110 transition-transform">
+                          <BarChart3 size={18} />
                         </div>
-                        <div className="card" style={{ padding: 20, textAlign: 'center' }}>
-                            <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Completion Rate</div>
-                            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--color-primary)' }}>{completionRate}%</div>
+                        Excel Sheet
+                      </div>
+                      <div className="w-1.5 h-1.5 rounded-full bg-success/30 group-hover/item:bg-success transition-colors"></div>
+                    </button>
+                    <button
+                      onClick={() => handleExport("pdf")}
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-text-secondary hover:bg-danger/5 hover:text-danger transition-all rounded-2xl group/item"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center text-danger group-hover/item:scale-110 transition-transform">
+                          <PieChart size={18} />
                         </div>
-                        <div className="card" style={{ padding: 20, textAlign: 'center' }}>
-                            <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Overdue</div>
-                            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--color-danger)' }}>{data.delayedTasks?.length || 0}</div>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, marginBottom: 20 }}>
-                        {/* Productivity Chart */}
-                        <div className="card" style={{ padding: 20 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Tasks Completed Over Time</h3>
-                                <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.completedTasks, 'productivity_report')}>
-                                    <Download size={14} /> Export
-                                </button>
-                            </div>
-                            {data.completedTasks?.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={250}>
-                                    <LineChart data={data.completedTasks}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                                        <XAxis dataKey="_id" tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} />
-                                        <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
-                                        <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.8125rem' }} />
-                                        <Line type="monotone" dataKey="count" stroke="var(--color-primary)" strokeWidth={2} dot={{ fill: 'var(--color-primary)', r: 4 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div style={{ height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>
-                                    No data available
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Assignment Status Pie */}
-                        <div className="card" style={{ padding: 20 }}>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: 16 }}>Task Distribution by Status</h3>
-                            {assignmentPieData.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <PieChart>
-                                            <Pie data={assignmentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                                {assignmentPieData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                                            </Pie>
-                                            <Tooltip />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
-                                        {assignmentPieData.map((item: any, i: number) => (
-                                            <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem' }}>
-                                                <div style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[i % COLORS.length] }} />
-                                                <span style={{ color: 'var(--color-text-secondary)' }}>{item.name}: {item.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div style={{ height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No data available</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* User Productivity */}
-                    {user.role !== 'member' && data.userProductivity?.length > 0 && (
-                        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Employee Performance</h3>
-                                <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.userProductivity, 'employee_productivity')}>
-                                    <Download size={14} /> Export
-                                </button>
-                            </div>
-                            <ResponsiveContainer width="100%" height={250}>
-                                <BarChart data={data.userProductivity}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} />
-                                    <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-secondary)' }} allowDecimals={false} />
-                                    <Tooltip
-                                        contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}
-                                        formatter={(value, _name, props) => [value, 'Tasks Completed', `ID: ${props.payload.employeeId}`]}
-                                    />
-                                    <Bar dataKey="completed" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-
-                    {/* Overdue Tasks */}
-                    <div className="card" style={{ padding: 20 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Overdue / Delayed</h3>
-                            <span className="badge badge-urgent">{data.delayedTasks?.length || 0} Urgent</span>
-                        </div>
-                        {data.delayedTasks?.length === 0 ? (
-                            <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No overdue tasks 🎉</div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {data.delayedTasks?.map((t: any) => (
-                                    <div key={t._id} style={{
-                                        padding: '12px 16px', borderRadius: 10, background: 'var(--color-danger-light)',
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        border: '1px solid rgba(239, 68, 68, 0.1)'
-                                    }}>
-                                        <div>
-                                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-danger)' }}>
-                                                {t.title}
-                                            </div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                                                {t.assignment?.title} · <strong>{t.assignedTo?.name}</strong> ({t.assignedTo?.employeeId})
-                                            </div>
-                                        </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-danger)' }}>
-                                                Due {format(new Date(t.dueDate), 'MMM d, yyyy')}
-                                            </div>
-                                            <div style={{ fontSize: '0.625rem', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                                                {Math.ceil((new Date().getTime() - new Date(t.dueDate).getTime()) / (1000 * 3600 * 24))} days overdue
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                        PDF Report
+                      </div>
+                      <div className="w-1.5 h-1.5 rounded-full bg-danger/30 group-hover/item:bg-danger transition-colors"></div>
+                    </button>
+                  </div>
                 </>
-            ) : (
-                <div style={{ padding: 48, textAlign: 'center', color: 'var(--color-text-tertiary)' }}>Failed to load data</div>
-            )}
+              )}
+            </div>
+          </div>
         </div>
-    );
+      </div>
+
+      <div className="max-w-[1400px] mx-auto px-6 lg:px-12 mt-8">
+        {/* Tabs Navigation - Segmented Control Style */}
+        <div className="bg-surface/50 border border-border rounded-2xl mb-12 flex items-center w-fit max-w-full h-fit shadow-sm " style={{
+  
+  padding: "10px",
+  gap:"10px",
+  marginTop: "20px",
+  marginBottom:"20px",
+}}>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding:"10px",
+                cursor: "pointer"
+              }}
+              className={`px-6 py-3 text-sm font-bold transition-all rounded-xl whitespace-nowrap flex items-center gap-3 ${
+                activeTab === tab.id
+                  ? "bg-(--color-primary) text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover"
+              }`}
+            >
+              <span
+                className={`transition-all ${activeTab === tab.id ? "text-white" : "text-text-tertiary"}`}
+              >
+                {tab.icon}
+              </span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters Section */}
+        <div className="" style={{
+            marginBottom:"20px",
+        }} > 
+          <FilterBar
+            filters={filters}
+            setFilters={setFilters}
+            filterOptions={filterOptions}
+            onReset={() =>
+              setFilters({
+                startDate: "",
+                endDate: "",
+                teamId: "",
+                employeeId: "",
+                projectId: "",
+                status: "",
+              })
+            }
+            user={user}
+          />
+        </div>
+
+        {/* Report Content */}
+        <div className="animate-fade-in" key={activeTab}>
+          <ActiveComponent filters={filters} onDrilldown={handleDrilldown} />
+        </div>
+      </div>
+
+      <DrilldownModal
+        isOpen={drilldown.open}
+        onClose={() => setDrilldown({ ...drilldown, open: false })}
+        title={drilldown.title}
+        data={drilldown.data}
+      />
+    </div>
+  );
 };
 
 export default ReportsPage;
