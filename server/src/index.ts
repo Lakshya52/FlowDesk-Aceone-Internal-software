@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notifications';
 import dashboardRoutes from './routes/dashboard';
 import teamRoutes from './routes/teams';
 import chatRoutes from './routes/chat';
+import reportRoutes from './routes/reports';
 import { errorHandler, notFound } from './middlewares/errorHandler';
 
 dotenv.config();
@@ -113,6 +114,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Socket.io connection logic
 io.on('connection', (socket) => {

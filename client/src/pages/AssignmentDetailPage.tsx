@@ -1,4 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+/// <reference types="react" />
+/// <reference types="react-dom" />
+import * as React from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
@@ -11,7 +14,7 @@ const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', 
 const STATUS_LABELS: Record<string, string> = { not_started: 'Not Started', in_progress: 'In Progress', completed: 'Completed', delayed: 'Delayed' };
 const TASK_STATUS_LABELS: Record<string, string> = { todo: 'To Do', in_progress: 'In Progress', review: 'Review', completed: 'Completed' };
 
-const AssignmentDetailPage: React.FC = () => {
+const AssignmentDetailPage = (): React.JSX.Element | null => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuthStore();
@@ -332,9 +335,9 @@ const AssignmentDetailPage: React.FC = () => {
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const progressPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
 
-    if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}><div className="skeleton" style={{ height: 120 }} /><div className="skeleton" style={{ height: 400 }} /></div>;
+    if (loading) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 } as React.CSSProperties}><div className="skeleton" style={{ height: 120 }} /><div className="skeleton" style={{ height: 400 }} /></div>;
     if (!assignment) return (
-        <div style={{ padding: 64, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <div style={{ padding: 64, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 } as React.CSSProperties}>
             <FolderKanban size={48} style={{ opacity: 0.2 }} />
             <div>
                 <h2 style={{ fontWeight: 700 }}>Project not found</h2>
@@ -377,7 +380,7 @@ const AssignmentDetailPage: React.FC = () => {
                     </div>
                     {canEdit && (
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <select className="select" style={{ width: 160 }} value={assignment.status} onChange={e => updateStatus(e.target.value)}>
+                            <select className="select" style={{ width: 160 }} value={assignment.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateStatus(e.target.value)}>
                                 {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
                             {isAdmin && (
@@ -428,8 +431,8 @@ const AssignmentDetailPage: React.FC = () => {
                 )}
 
                 {/* Team Members */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } as React.CSSProperties}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' } as React.CSSProperties}>
                         {assignment.team?.map((m: any) => (
                             <span key={m._id} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
@@ -477,16 +480,16 @@ const AssignmentDetailPage: React.FC = () => {
                         </button>
                     )}
                     {showTaskForm && (
-                        <form onSubmit={createTask} className="card" style={{ padding: 20, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <input className="input" required placeholder="Task title" value={taskForm.title} onChange={e => setTaskForm({ ...taskForm, title: e.target.value })} />
-                            <textarea className="input" rows={2} placeholder="Description..." value={taskForm.description} onChange={e => setTaskForm({ ...taskForm, description: e.target.value })} />
+                        <form onSubmit={createTask} className="card" style={{ padding: 20, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 } as React.CSSProperties}>
+                            <input className="input" required placeholder="Task title" value={taskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, title: e.target.value })} />
+                            <textarea className="input" rows={2} placeholder="Description..." value={taskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTaskForm({ ...taskForm, description: e.target.value })} />
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                                <select className="select" required value={taskForm.assignedTo} onChange={e => setTaskForm({ ...taskForm, assignedTo: e.target.value })}>
+                                <select className="select" required value={taskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, assignedTo: e.target.value })}>
                                     <option value="">Assign to...</option>
                                     {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
                                 </select>
-                                <input className="input" type="date" required value={taskForm.dueDate} onChange={e => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
-                                <select className="select" value={taskForm.priority} onChange={e => setTaskForm({ ...taskForm, priority: e.target.value })}>
+                                <input className="input" type="date" required value={taskForm.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
+                                <select className="select" value={taskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, priority: e.target.value })}>
                                     {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                 </select>
                             </div>
@@ -509,14 +512,14 @@ const AssignmentDetailPage: React.FC = () => {
                             .map(t => (
                                 <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
                                     {editingTask === t._id ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                            <input className="input" value={editTaskForm.title} onChange={e => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 } as React.CSSProperties}>
+                                            <input className="input" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                                                <select className="select" value={editTaskForm.assignedTo} onChange={e => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
+                                                <select className="select" value={editTaskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
                                                     {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
                                                 </select>
-                                                <input className="input" type="date" value={editTaskForm.dueDate?.split('T')[0]} onChange={e => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
-                                                <select className="select" value={editTaskForm.priority} onChange={e => setEditTaskForm({ ...editTaskForm, priority: e.target.value })}>
+                                                <input className="input" type="date" value={editTaskForm.dueDate?.split('T')[0]} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
+                                                <select className="select" value={editTaskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, priority: e.target.value })}>
                                                     {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                                 </select>
                                             </div>
@@ -544,7 +547,7 @@ const AssignmentDetailPage: React.FC = () => {
                                                         className="select"
                                                         style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
                                                         value={t.status}
-                                                        onChange={e => updateTaskStatus(t._id, e.target.value)}
+                                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateTaskStatus(t._id, e.target.value)}
                                                     >
                                                         {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
                                                             // Employees can only move to Review or In Progress, not directly to Completed
@@ -588,9 +591,9 @@ const AssignmentDetailPage: React.FC = () => {
                     <div style={{
                         flex: 1, overflowY: 'auto', padding: '16px 0',
                         display: 'flex', flexDirection: 'column', gap: 12,
-                    }}>
+                    } as React.CSSProperties}>
                         {chatMessages.length === 0 ? (
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--color-text-tertiary)' }}>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'var(--color-text-tertiary)' } as React.CSSProperties}>
                                 <MessageSquare size={40} style={{ opacity: 0.2, marginBottom: 12 }} />
                                 <div style={{ fontSize: '0.875rem' }}>No messages yet. Start the conversation!</div>
                             </div>
@@ -600,7 +603,7 @@ const AssignmentDetailPage: React.FC = () => {
                                 return (
                                     <div key={msg._id} style={{
                                         display: 'flex', gap: 10,
-                                        flexDirection: isOwnMessage ? 'row-reverse' : 'row',
+                                        flexDirection: (isOwnMessage ? 'row-reverse' : 'row') as any,
                                     }}>
                                         <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={32} />
                                         <div style={{ maxWidth: '60%', width: 'fit-content' }}>
@@ -639,7 +642,7 @@ const AssignmentDetailPage: React.FC = () => {
                                                             background: isOwnMessage ? 'rgba(255,255,255,0.1)' : 'var(--color-surface)',
                                                             border: '1px solid var(--color-border)',
                                                             display: 'flex',
-                                                            flexDirection: 'column',
+                                                            flexDirection: 'column' as any,
                                                             gap: 4,
                                                             cursor: 'pointer',
                                                             maxWidth: '100%',
@@ -793,9 +796,9 @@ const AssignmentDetailPage: React.FC = () => {
                         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                         background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
                     }} onClick={() => setShowTeamModal(false)}>
-                        <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={e => e.stopPropagation()}>
+                        <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 } as React.CSSProperties}>
                                 {users.filter(u => {
                                     if (isAdmin) return true;
                                     if (isManager) {
