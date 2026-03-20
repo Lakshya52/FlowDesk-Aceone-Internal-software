@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { 
     ResponsiveContainer, PieChart, Pie, Cell, Tooltip as ReTooltip, 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, 
 } from 'recharts';
 import api from '../../lib/api';
 import { Activity, Box, History, Send, Archive, MessageSquare, Info, Layers, CheckCircle } from 'lucide-react';
@@ -88,7 +88,9 @@ const ActivityReport = ({ filters, onDrilldown }: ActivityReportProps): React.JS
                                     stroke="none"
                                 >
                                     {(data.activityDistribution || []).map((_: any, index: number) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cornerRadius={4} />
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]}
+                                        //  cornerRadius={4}
+                                          />
                                     ))}
                                 </Pie>
                                 <ReTooltip 
