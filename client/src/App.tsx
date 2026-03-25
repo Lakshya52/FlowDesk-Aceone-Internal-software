@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -36,7 +36,8 @@ const App: React.FC = () => {
             <Route path="/assignments/:id" element={<AssignmentDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports" element={<Navigate to="/reports/employee" replace />} />
+            <Route path="/reports/:reportType" element={<ReportsPage />} />
             <Route path="/files" element={<FilesPage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

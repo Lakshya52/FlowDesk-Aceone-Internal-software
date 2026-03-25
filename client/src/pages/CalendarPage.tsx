@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import {
     format,
     startOfMonth,
@@ -107,6 +107,7 @@ const CalendarPage: React.FC = () => {
                         return (
                             <div
                                 key={idx}
+                                className="calendar-day"
                                 style={{
                                     minHeight: 100,
                                     padding: 8,
@@ -114,6 +115,8 @@ const CalendarPage: React.FC = () => {
                                     borderRight: (idx + 1) % 7 !== 0 ? '1px solid var(--color-border)' : 'none',
                                     opacity: isCurrentMonth ? 1 : 0.4,
                                     background: today ? 'var(--color-primary-light)' : 'transparent',
+                                    transition: 'all 0.2s ease',
+                                    cursor: 'pointer'
                                 }}
                                 onClick={() => setSelectedDay(date)}
                             >
@@ -146,7 +149,7 @@ const CalendarPage: React.FC = () => {
                                             title={ev.title}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                const path = ev.type === 'task' 
+                                                const path = ev.type === 'task'
                                                     ? `/assignments/${ev.assignment}/tasks/${ev._id}`
                                                     : `/assignments/${ev._id}`;
                                                 navigate(path);
@@ -176,7 +179,7 @@ const CalendarPage: React.FC = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{format(selectedDay, 'MMMM d, yyyy')}</h2>
                             <button className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
-                                < ChevronRight size={20} style={{ transform: 'rotate(90deg)' }} />
+                                <X size={20} style={{ transform: 'rotate(90deg)' }} />
                             </button>
                         </div>
 
@@ -191,30 +194,30 @@ const CalendarPage: React.FC = () => {
                                     </div>
                                 ) : (
                                     getEventsForDay(selectedDay).map((ev, i) => (
-                                        <div 
-                                            key={i} 
-                                            className="card" 
-                                            style={{ 
-                                                padding: '12px', 
-                                                display: 'flex', 
-                                                justifyContent: 'space-between', 
+                                        <div
+                                            key={i}
+                                            className="card"
+                                            style={{
+                                                padding: '12px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
                                                 alignItems: 'center',
                                                 cursor: 'pointer'
                                             }}
                                             onClick={() => {
-                                                const path = ev.type === 'task' 
+                                                const path = ev.type === 'task'
                                                     ? `/assignments/${ev.assignment}/tasks/${ev._id}`
                                                     : `/assignments/${ev._id}`;
                                                 navigate(path);
                                             }}
                                         >
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div style={{ 
-                                                    width: 8, height: 8, borderRadius: '50%', 
-                                                    background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' 
+                                                <div style={{
+                                                    width: 8, height: 8, borderRadius: '50%',
+                                                    background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'
                                                 }} />
                                                 <div>
-                                                    <div style={{ 
+                                                    <div style={{
                                                         fontSize: '0.875rem', fontWeight: 600,
                                                         textDecoration: ev.status === 'completed' ? 'line-through' : 'none',
                                                         opacity: ev.status === 'completed' ? 0.6 : 1

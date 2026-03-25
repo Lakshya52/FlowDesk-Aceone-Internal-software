@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, CheckCircle, BarChart3, Users, FolderKanban, ArrowRight, Star, Plus, Minus } from 'lucide-react';
+import { Zap, CheckCircle, BarChart3, Users, FolderKanban, ArrowRight, Plus, Minus } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const LandingPage: React.FC = () => {
@@ -121,8 +121,8 @@ const LandingPage: React.FC = () => {
 
                 <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
                     <a href="#features" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Features</a>
-                    <a href="#pricing" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Pricing</a>
-                    <button
+                    {/* <a href="#pricing" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Pricing</a> */}
+                    {/* <button
                         onClick={() => navigate('/login')}
                         style={{
                             background: 'none',
@@ -134,7 +134,7 @@ const LandingPage: React.FC = () => {
                         }}
                     >
                         Login
-                    </button>
+                    </button> */}
                     <button
                         onClick={() => navigate('/login')}
                         className="btn btn-primary"
@@ -147,7 +147,7 @@ const LandingPage: React.FC = () => {
 
             {/* Hero Section */}
             <section className="hero-gradient" style={{
-                padding: '120px 8% 160px',
+                padding: '50px 8% 160px',
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden'
@@ -272,7 +272,7 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Testimonials */}
-            <section style={{ padding: '120px 8%', background: 'white' }}>
+            {/* <section style={{ padding: '120px 8%', background: 'white' }}>
                 <div style={{ textAlign: 'center', marginBottom: 80 }}>
                     <p style={{ color: '#6366f1', fontWeight: 700, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Testimonials</p>
                     <h2 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.04em' }}>Loved by industry leaders.</h2>
@@ -304,10 +304,10 @@ const LandingPage: React.FC = () => {
                         avatar="https://ui-avatars.com/api/?name=Elena+Rodriguez&background=f59e0b&color=fff"
                     />
                 </div>
-            </section>
+            </section> */}
 
             {/* Pricing Section */}
-            <section id="pricing" style={{ padding: '120px 8%', background: '#fafafa' }}>
+            {/* <section id="pricing" style={{ padding: '120px 8%', background: '#fafafa' }}>
                 <div style={{ textAlign: 'center', marginBottom: 80 }}>
                     <h2 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.04em' }}>Simple, transparent pricing.</h2>
                     <p style={{ color: '#525252', fontSize: '1.2rem', marginTop: 16 }}>Choose the plan that's right for your team's scale.</p>
@@ -343,7 +343,7 @@ const LandingPage: React.FC = () => {
                         cta="Contact Sales"
                     />
                 </div>
-            </section>
+            </section> */}
 
             {/* FAQ Section */}
             <section style={{ padding: '120px 8%', background: 'white' }}>
@@ -452,45 +452,45 @@ const FeatureCard: React.FC<{ icon: React.ReactNode, title: string, description:
     </div>
 );
 
-const TestimonialCard: React.FC<{ quote: string, author: string, role: string, avatar: string }> = ({ quote, author, role, avatar }) => (
-    <div className="glass-card" style={{ padding: 40, borderRadius: 28, position: 'relative' }}>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
-            {[1, 2, 3, 4, 5].map(i => <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />)}
-        </div>
-        <p style={{ fontSize: '1.15rem', fontWeight: 500, lineHeight: 1.6, color: '#171717', marginBottom: 32 }}>"{quote}"</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <img src={avatar} alt={author} style={{ width: 48, height: 48, borderRadius: '50%' }} />
-            <div>
-                <p style={{ fontWeight: 700, fontSize: '1rem', color: '#171717' }}>{author}</p>
-                <p style={{ fontSize: '0.875rem', color: '#737373' }}>{role}</p>
-            </div>
-        </div>
-    </div>
-);
+// const TestimonialCard: React.FC<{ quote: string, author: string, role: string, avatar: string }> = ({ quote, author, role, avatar }) => (
+//     <div className="glass-card" style={{ padding: 40, borderRadius: 28, position: 'relative' }}>
+//         <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+//             {[1, 2, 3, 4, 5].map(i => <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />)}
+//         </div>
+//         <p style={{ fontSize: '1.15rem', fontWeight: 500, lineHeight: 1.6, color: '#171717', marginBottom: 32 }}>"{quote}"</p>
+//         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+//             <img src={avatar} alt={author} style={{ width: 48, height: 48, borderRadius: '50%' }} />
+//             <div>
+//                 <p style={{ fontWeight: 700, fontSize: '1rem', color: '#171717' }}>{author}</p>
+//                 <p style={{ fontSize: '0.875rem', color: '#737373' }}>{role}</p>
+//             </div>
+//         </div>
+//     </div>
+// );
 
-const PricingCard: React.FC<{ title: string, price: string, description: string, features: string[], cta: string, popular?: boolean }> = ({ title, price, description, features, cta, popular }) => (
-    <div className={`glass-card ${popular ? 'pricing-card-popular' : ''}`} style={{ padding: 48, borderRadius: 32, display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 12 }}>{title}</h3>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
-            <span style={{ fontSize: '3rem', fontWeight: 800 }}>{price}</span>
-            {price !== 'Custom' && <span style={{ color: '#737373', fontWeight: 500 }}>/month</span>}
-        </div>
-        <p style={{ color: '#525252', marginBottom: 32, fontSize: '1rem' }}>{description}</p>
+// const PricingCard: React.FC<{ title: string, price: string, description: string, features: string[], cta: string, popular?: boolean }> = ({ title, price, description, features, cta, popular }) => (
+//     <div className={`glass-card ${popular ? 'pricing-card-popular' : ''}`} style={{ padding: 48, borderRadius: 32, display: 'flex', flexDirection: 'column' }}>
+//         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 12 }}>{title}</h3>
+//         <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
+//             <span style={{ fontSize: '3rem', fontWeight: 800 }}>{price}</span>
+//             {price !== 'Custom' && <span style={{ color: '#737373', fontWeight: 500 }}>/month</span>}
+//         </div>
+//         <p style={{ color: '#525252', marginBottom: 32, fontSize: '1rem' }}>{description}</p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 48, flex: 1 }}>
-            {features.map(f => (
-                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: '0.95rem', color: '#171717' }}>
-                    <CheckCircle size={18} color="#10b981" />
-                    {f}
-                </div>
-            ))}
-        </div>
+//         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 48, flex: 1 }}>
+//             {features.map(f => (
+//                 <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: '0.95rem', color: '#171717' }}>
+//                     <CheckCircle size={18} color="#10b981" />
+//                     {f}
+//                 </div>
+//             ))}
+//         </div>
 
-        <button className={`btn ${popular ? 'btn-primary' : 'btn-secondary'}`} style={{ width: '100%', padding: '16px', borderRadius: 14, fontWeight: 700 }}>
-            {cta}
-        </button>
-    </div>
-);
+//         <button className={`btn ${popular ? 'btn-primary' : 'btn-secondary'}`} style={{ width: '100%', padding: '16px', borderRadius: 14, fontWeight: 700 }}>
+//             {cta}
+//         </button>
+//     </div>
+// );
 
 const FaqItem: React.FC<{ index: number, active: boolean, onClick: () => void, question: string, answer: string }> = ({ active, onClick, question, answer }) => (
     <div className="faq-item" style={{ padding: '24px 0' }}>

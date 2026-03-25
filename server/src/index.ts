@@ -25,8 +25,7 @@ const server = http.createServer(app);
 const clientUrls = [
     process.env.CLIENT_URL,
     'https://flowdesk-frontend-g35x.onrender.com',
-    'http://localhost:5173',
-    'http://localhost:5174',
+    'http://localhost:5173'
 ].filter(Boolean) as string[];
 
 const io = new Server(server, {

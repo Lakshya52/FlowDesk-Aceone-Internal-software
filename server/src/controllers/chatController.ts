@@ -9,10 +9,15 @@ import { uploadToGridFS } from '../utils/gridfs';
 
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { content, assignmentId } = req.body;
+        const { content, assignmentId, attachments: bodyAttachments } = req.body;
         let attachmentIds: string[] = [];
 
-        // If file was uploaded with the message
+        // Accept pre-uploaded attachment IDs from the frontend
+        if (Array.isArray(bodyAttachments) && bodyAttachments.length > 0) {
+            attachmentIds.push(...bodyAttachments);
+        }
+
+        // If file was uploaded with the message (single-file via multer)
         if (req.file) {
             const { filename } = await uploadToGridFS(
                 req.file.buffer,

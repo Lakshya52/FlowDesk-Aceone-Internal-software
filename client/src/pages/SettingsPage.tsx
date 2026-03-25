@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
-import { Sun, Moon, Shield, Users, UserPlus, Trash2 } from 'lucide-react';
+import { Sun, Moon, Shield, Users, UserPlus, Trash2, Eye, EyeOff, Lock } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Admin', manager: 'Manager', member: 'Team Member' };
 
@@ -16,6 +16,12 @@ const SettingsPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState('');
 
     const isAdmin = user?.role === 'admin';
 
@@ -80,6 +86,32 @@ const SettingsPage: React.FC = () => {
             alert(error.response?.data?.message || 'Failed to remove avatar');
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPasswordError('');
+        setPasswordSuccess('');
+        
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setPasswordError('Passwords do not match');
+            return;
+        }
+        if (passwordData.newPassword.length < 6) {
+            setPasswordError('Password must be at least 6 characters long');
+            return;
+        }
+
+        setPasswordLoading(true);
+        try {
+            await api.put('/auth/change-password', { newPassword: passwordData.newPassword });
+            setPasswordSuccess('Password changed successfully');
+            setPasswordData({ newPassword: '', confirmPassword: '' });
+        } catch (error: any) {
+            setPasswordError(error.response?.data?.message || 'Failed to change password');
+        } finally {
+            setPasswordLoading(false);
         }
     };
 
@@ -211,6 +243,66 @@ const SettingsPage: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            </div>
+
+            {/* Security */}
+            <div className="card" style={{ padding: 24, marginBottom: 16 }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Lock size={18} /> Security
+                </h3>
+                <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400 }}>
+                    {passwordError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{passwordError}</div>}
+                    {passwordSuccess && <div style={{ color: 'var(--color-success)', fontSize: '0.875rem' }}>{passwordSuccess}</div>}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>New Password</label>
+                        <div style={{ position: 'relative' }}>
+                            <input 
+                                className="input" 
+                                type={showNewPassword ? 'text' : 'password'} 
+                                required 
+                                minLength={6}
+                                value={passwordData.newPassword} 
+                                onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
+                                style={{ width: '100%', paddingRight: 40 }}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                            >
+                                {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Confirm New Password</label>
+                        <div style={{ position: 'relative' }}>
+                            <input 
+                                className="input" 
+                                type={showConfirmPassword ? 'text' : 'password'} 
+                                required 
+                                minLength={6}
+                                value={passwordData.confirmPassword} 
+                                onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
+                                style={{ width: '100%', paddingRight: 40 }}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                            >
+                                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 8 }}>
+                        <button type="submit" className="btn btn-primary" disabled={passwordLoading}>
+                            {passwordLoading ? 'Updating...' : 'Change Password'}
+                        </button>
+                    </div>
+                </form>
             </div>
 
             {/* User Management (Admin only) */}

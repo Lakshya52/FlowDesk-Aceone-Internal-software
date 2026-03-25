@@ -50,11 +50,31 @@ const WorkloadReport = ({ filters, onDrilldown }: WorkloadReportProps): React.JS
         </div>
     );
 
-    const heatmapDays = Array.from({ length: 28 }, (_, i) => ({
-        day: i + 1,
-        tasks: Math.floor(Math.random() * 8),
-        intensity: Math.random()
-    }));
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const last28Dates = Array.from({ length: 28 }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (27 - i));
+        return d;
+    });
+
+    const maxTasks = data?.heatmapRaw?.reduce((max: number, current: any) => Math.max(max, current.tasks), 1) || 1;
+
+    const heatmapDays = last28Dates.map((date, i) => {
+        const dateStr = date.toISOString().split('T')[0];
+        const dayData = (data?.heatmapRaw || []).find((h: any) => h._id === dateStr);
+        const tasks = dayData ? dayData.tasks : 0;
+        return {
+            date: dateStr,
+            day: i + 1,
+            tasks,
+            intensity: tasks / maxTasks
+        };
+    });
+
+    const startingDayOfWeek = last28Dates[0].getDay(); // 0 is Sun, 1 is Mon
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekHeaders = Array.from({length: 7}, (_, i) => dayNames[(startingDayOfWeek + i) % 7]);
 
     const COLORS = ['#f8fafc', '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6'];
 
@@ -140,7 +160,7 @@ const WorkloadReport = ({ filters, onDrilldown }: WorkloadReportProps): React.JS
                     </div>
                     
                     <div className="grid grid-cols-7 gap-2 relative z-10">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                        {weekHeaders.map(day => (
                             <div key={day} className="text-[10px] font-bold text-text-tertiary text-center mb-1 uppercase tracking-widest">{day}</div>
                         ))}
                         {heatmapDays.map((d, i) => (
@@ -152,10 +172,10 @@ const WorkloadReport = ({ filters, onDrilldown }: WorkloadReportProps): React.JS
                                     hoveredDay === i ? 'scale-110 z-10 shadow-lg ring-2 ring-primary/40' : 'scale-100'
                                 }`}
                                 style={{ 
-                                    backgroundColor: COLORS[Math.floor(d.intensity * COLORS.length)],
+                                    backgroundColor: COLORS[Math.min(Math.floor(d.intensity * COLORS.length), COLORS.length - 1)],
                                     border: '1px solid var(--color-border)'
                                 }}
-                                title={`Day ${d.day}: ${d.tasks} focused checkpoints`}
+                                title={`${d.date}: ${d.tasks} focused checkpoints`}
                             />
                         ))}
                     </div>

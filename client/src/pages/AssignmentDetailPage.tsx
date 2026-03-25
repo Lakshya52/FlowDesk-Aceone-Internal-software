@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2  } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -292,22 +292,61 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         }
     };
 
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+    const ALLOWED_EXTENSIONS = new Set([
+        // Images
+        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif',
+        // Documents
+        '.pdf', '.doc', '.docx', '.odt', '.rtf', '.txt', '.md',
+        // Spreadsheets & Financial
+        '.xls', '.xlsx', '.xlsm', '.xlsb', '.csv', '.tsv', '.ods',
+        '.xbrl', '.ixbrl', '.ofx', '.qfx', '.qif', '.qbo', '.iif',
+        // Presentations
+        '.ppt', '.pptx', '.odp',
+        // Archives
+        '.zip', '.rar', '.7z', '.tar', '.gz',
+        // Web / Code
+        '.html', '.htm', '.css', '.js', '.ts', '.tsx', '.jsx', '.json', '.xml', '.yaml', '.yml',
+        '.php', '.py', '.java', '.c', '.cpp', '.cs', '.rb', '.go', '.rs', '.sql', '.sh', '.bat',
+        // Design
+        '.fig', '.sketch', '.psd', '.ai', '.eps', '.indd',
+        // Misc
+        '.ics', '.vcf', '.eml', '.msg',
+    ]);
+
     const sendChatFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = e.target.files;
         if (!selectedFiles || selectedFiles.length === 0) return;
-        
+
         const newStagedFiles = [...stagedFiles];
+        const rejected: string[] = [];
+
         for (let i = 0; i < selectedFiles.length; i++) {
             const file = selectedFiles[i];
+            const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+
+            if (file.size > MAX_FILE_SIZE) {
+                rejected.push(`"${file.name}" exceeds the 10 MB size limit`);
+                continue;
+            }
+            if (!ALLOWED_EXTENSIONS.has(ext)) {
+                rejected.push(`"${file.name}" is not an allowed file type (${ext})`);
+                continue;
+            }
+
             newStagedFiles.push({
-                id: Math.random().toString(36).substr(2, 9), // Temp ID for list rendering
+                id: Math.random().toString(36).substr(2, 9),
                 file: file,
                 originalName: file.name,
                 fileType: file.type,
                 fileSize: file.size
             });
         }
-        
+
+        if (rejected.length > 0) {
+            alert('The following files were not added:\n\n' + rejected.join('\n'));
+        }
+
         setStagedFiles(newStagedFiles);
         if (chatFileRef.current) chatFileRef.current.value = '';
     };
@@ -480,18 +519,33 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         </button>
                     )}
                     {showTaskForm && (
-                        <form onSubmit={createTask} className="card" style={{ padding: 20, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 } as React.CSSProperties}>
-                            <input className="input" required placeholder="Task title" value={taskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, title: e.target.value })} />
-                            <textarea className="input" rows={2} placeholder="Description..." value={taskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTaskForm({ ...taskForm, description: e.target.value })} />
+                        <form onSubmit={createTask} className="card" style={{ padding: 20, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 } as React.CSSProperties}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Task Title *</label>
+                                <input className="input" required placeholder="Enter task title" value={taskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, title: e.target.value })} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Description</label>
+                                <textarea className="input" rows={2} placeholder="Enter task description..." value={taskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTaskForm({ ...taskForm, description: e.target.value })} />
+                            </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                                <select className="select" required value={taskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, assignedTo: e.target.value })}>
-                                    <option value="">Assign to...</option>
-                                    {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
-                                </select>
-                                <input className="input" type="date" required value={taskForm.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
-                                <select className="select" value={taskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, priority: e.target.value })}>
-                                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                </select>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Assign To *</label>
+                                    <select className="select" required value={taskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, assignedTo: e.target.value })}>
+                                        <option value="">Select member...</option>
+                                        {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                                    </select>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Due Date *</label>
+                                    <input className="input" type="date" required value={taskForm.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Priority</label>
+                                    <select className="select" value={taskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTaskForm({ ...taskForm, priority: e.target.value })}>
+                                        {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                    </select>
+                                </div>
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowTaskForm(false)}>Cancel</button>
@@ -651,16 +705,33 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         onClick={() => window.open(fileUrl, '_blank')}
                                                     >
                                                         {isImage ? (
-                                                            <img 
-                                                                src={fileUrl} 
-                                                                alt={att.originalName} 
-                                                                style={{ 
-                                                                    width: '100%', 
-                                                                    maxWidth: 240, 
-                                                                    borderRadius: 6, 
-                                                                    display: 'block' 
-                                                                }} 
-                                                            />
+                                                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                                                                <img 
+                                                                    src={fileUrl} 
+                                                                    alt={att.originalName} 
+                                                                    style={{ 
+                                                                        maxHeight: 100, 
+                                                                        maxWidth: 240, 
+                                                                        borderRadius: 6, 
+                                                                        display: 'block',
+                                                                        objectFit: 'cover'
+                                                                    }} 
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); window.open(fileUrl, '_blank'); }}
+                                                                    style={{
+                                                                        position: 'absolute', bottom: 6, right: 6,
+                                                                        background: 'rgba(0,0,0,0.6)', color: 'white',
+                                                                        border: 'none', borderRadius: 6, cursor: 'pointer',
+                                                                        padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4,
+                                                                        fontSize: '0.6875rem', fontWeight: 500,
+                                                                        backdropFilter: 'blur(4px)'
+                                                                    }}
+                                                                >
+                                                                    <Eye size={12} /> Preview
+                                                                </button>
+                                                            </div>
                                                         ) : (
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                                 <div style={{ 
@@ -723,7 +794,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         </button>
                         {isUploadingFile ? (
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
-                                <div style={{ width: 18, height: 18, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                <Loader2 className="animate-spin" size={18} />
                                 Sending {stagedFiles.length > 0 ? stagedFiles[0].originalName + (stagedFiles.length > 1 ? ` (+${stagedFiles.length - 1} more)` : '') : 'message'}...
                             </div>
                         ) : (
@@ -758,10 +829,15 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 Uploading: <span style={{ textDecoration: 'underline' }}>{uploadingFileName}</span>
                             </div>
                         ) : (
-                            <label className="btn btn-secondary btn-sm" style={{ marginBottom: 16, cursor: 'pointer' }}>
-                                <Upload size={14} /> Upload File
-                                <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
-                            </label>
+                            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                                    <Upload size={14} /> Upload File
+                                    <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
+                                </label>
+                                <button className="btn btn-ghost btn-sm" onClick={async () => { const { data } = await api.get(`/files?assignmentId=${id}`); setFiles(data.attachments || []); }} title="Refresh files">
+                                    <RefreshCw size={14} /> Refresh
+                                </button>
+                            </div>
                         )}
                         {files.length === 0 ? (
                             <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>No files uploaded</div>

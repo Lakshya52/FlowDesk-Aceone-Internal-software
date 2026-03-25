@@ -215,3 +215,25 @@ export const removeAvatar = async (req: AuthRequest, res: Response): Promise<voi
     }
 };
 
+export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            res.status(400).json({ message: 'Password must be at least 6 characters long' });
+            return;
+        }
+
+        const user = await User.findById(req.user!._id);
+        if (!user) {
+            res.status(404).json({ message: 'User not found' });
+            return;
+        }
+
+        user.password = newPassword;
+        await user.save(); // Trigger bcryptjs hash via save hook
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message || 'Failed to change password' });
+    }
+};

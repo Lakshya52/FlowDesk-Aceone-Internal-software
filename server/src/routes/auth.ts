@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe, getUsers, permanentDeleteUser, deleteUser, updateUser, uploadAvatar, removeAvatar } from '../controllers/authController';
+import { register, login, getMe, getUsers, permanentDeleteUser, deleteUser, updateUser, uploadAvatar, removeAvatar, changePassword } from '../controllers/authController';
 import { authenticate, authorize } from '../middlewares/auth';
 import { upload } from '../middlewares/upload';
 
@@ -14,5 +14,6 @@ router.delete('/users/:id', authorize('admin'), deleteUser);
 router.put('/users/:id/avatar', upload.single('avatar'), uploadAvatar);
 router.delete('/users/:id/avatar', removeAvatar);
 router.delete('/users/:id/permanent', authorize('admin'), permanentDeleteUser);
+router.put('/change-password', authenticate, changePassword);
 
 export default router;
