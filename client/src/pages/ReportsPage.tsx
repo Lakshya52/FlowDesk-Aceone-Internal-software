@@ -25,7 +25,7 @@ import {
 const TABS = [
   {
     id: "employee",
-    label: "Employee Tracking",
+    label: "Tracking",
     icon: <Users size={18} />,
     component: EmployeeTrackingReport,
     description: "Assignments & Active Days",
