@@ -1,5 +1,10 @@
 import * as React from 'react';
-import { RotateCcw, Calendar, Users, Target, User, Activity } from 'lucide-react';
+import {
+    RotateCcw, Calendar, Users,
+    //  Target,
+    User,
+    //    Activity 
+} from 'lucide-react';
 
 interface FilterBarProps {
     filters: any;
@@ -13,41 +18,41 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
     // Dependent filtering logic
     const filteredEmployees = React.useMemo(() => {
         if (!filters.teamId || !Array.isArray(filterOptions.employees)) return filterOptions.employees || [];
-        
+
         const selectedTeam = filterOptions.teams.find((t: any) => String(t._id) === String(filters.teamId));
         if (!selectedTeam) return [];
 
         const membersList = Array.isArray(selectedTeam.members) ? selectedTeam.members : [];
         const roster = [...membersList, selectedTeam.manager].filter(Boolean);
 
-        return filterOptions.employees.filter((emp: any) => 
+        return filterOptions.employees.filter((emp: any) =>
             roster.some((memberId: any) => String(memberId) === String(emp._id))
         );
     }, [filters.teamId, filterOptions.employees, filterOptions.teams]);
 
-    const filteredProjects = React.useMemo(() => {
-        if (!Array.isArray(filterOptions.assignments)) return [];
-        let projects = filterOptions.assignments;
-        
-        if (filters.teamId) {
-            projects = projects.filter((p: any) => p.teamId === filters.teamId || p.team === filters.teamId);
-        }
-        
-        if (filters.employeeId) {
-            projects = projects.filter((p: any) => 
-                p.employeeId === filters.employeeId || 
-                p.employee === filters.employeeId || 
-                (Array.isArray(p.assignedTo) && p.assignedTo.includes(filters.employeeId))
-            );
-        }
-        
-        return projects;
-    }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
+    // const filteredProjects = React.useMemo(() => {
+    //     if (!Array.isArray(filterOptions.assignments)) return [];
+    //     let projects = filterOptions.assignments;
+
+    //     if (filters.teamId) {
+    //         projects = projects.filter((p: any) => p.teamId === filters.teamId || p.team === filters.teamId);
+    //     }
+
+    //     if (filters.employeeId) {
+    //         projects = projects.filter((p: any) =>
+    //             p.employeeId === filters.employeeId ||
+    //             p.employee === filters.employeeId ||
+    //             (Array.isArray(p.assignedTo) && p.assignedTo.includes(filters.employeeId))
+    //         );
+    //     }
+
+    //     return projects;
+    // }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
 
     return (
-        <div className="card p-6  border-border/80 shadow-md " style={{marginTop:"20px"}}>
+        <div className="card p-6  border-border/80 shadow-md " style={{ marginTop: "20px" }}>
             <div className="flex flex-wrap items-end gap-10">
-                {/* Date Range Group */}    
+                {/* Date Range Group */}
                 <div className="flex flex-col gap-2 min-w-[280px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Calendar size={14} className="text-primary" />
@@ -149,11 +154,11 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
 
                 {/* Reset Button */}
                 <div className="ml-auto flex items-center h-10 mb-0.5">
-                    <button 
+                    <button
                         onClick={onReset}
                         className="flex items-center gap-2 px-4 h-full text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger-light rounded-lg border border-transparent hover:border-danger/10 transition-all active:scale-95 group/reset"
                     >
-                        <RotateCcw size={14} className="group-hover/reset:rotate-180 transition-transform duration-500" /> 
+                        <RotateCcw size={14} className="group-hover/reset:rotate-180 transition-transform duration-500" />
                         Reset Filters
                     </button>
                 </div>

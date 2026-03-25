@@ -25,7 +25,7 @@ import {
 const TABS = [
   {
     id: "employee",
-    label: "Employee Tracking",
+    label: "Tracking",
     icon: <Users size={18} />,
     component: EmployeeTrackingReport,
     description: "Assignments & Active Days",
@@ -138,7 +138,7 @@ const ReportsPage = (): React.JSX.Element => {
             <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-4">
               <div className="">
                 {activeTabData?.icon 
-                  ? React.cloneElement(activeTabData.icon as React.ReactElement, { size: 28, className: "text-primary" })
+                  ? React.cloneElement(activeTabData.icon as React.ReactElement)
                   : <BarChart3 className="text-primary" size={28} />
                 }
               </div>

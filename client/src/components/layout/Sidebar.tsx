@@ -31,7 +31,7 @@ const navItems = [
         icon: BarChart3, 
         label: 'Reports',
         subItems: [
-            { to: '/reports/employee', label: 'Employee Tracking' },
+            { to: '/reports/employee', label: 'Tracking' },
             { to: '/reports/workload', label: 'Workload' },
             { to: '/reports/activity', label: 'User Activity' }
         ]

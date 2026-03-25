@@ -5,7 +5,9 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip 
 } from 'recharts';
 import api from '../../lib/api';
-import { Users, TrendingUp, Target, Zap, Activity, Info, Calendar } from 'lucide-react';
+import { Users, TrendingUp, Target, Zap, 
+    // Activity,
+     Info, Calendar } from 'lucide-react';
 
 interface EmployeeTrackingReportProps {
     filters: any;
