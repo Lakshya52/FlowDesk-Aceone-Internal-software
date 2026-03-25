@@ -28,8 +28,7 @@ const server = http_1.default.createServer(app);
 const clientUrls = [
     process.env.CLIENT_URL,
     'https://flowdesk-frontend-g35x.onrender.com',
-    'http://localhost:5173',
-    'http://localhost:5174',
+    'http://localhost:5173'
 ].filter(Boolean);
 const io = new socket_io_1.Server(server, {
     cors: {

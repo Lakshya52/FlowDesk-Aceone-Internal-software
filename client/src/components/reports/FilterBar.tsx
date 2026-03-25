@@ -13,8 +13,17 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
     // Dependent filtering logic
     const filteredEmployees = React.useMemo(() => {
         if (!filters.teamId || !Array.isArray(filterOptions.employees)) return filterOptions.employees || [];
-        return filterOptions.employees.filter((emp: any) => emp.teamId === filters.teamId || emp.team === filters.teamId);
-    }, [filters.teamId, filterOptions.employees]);
+        
+        const selectedTeam = filterOptions.teams.find((t: any) => String(t._id) === String(filters.teamId));
+        if (!selectedTeam) return [];
+
+        const membersList = Array.isArray(selectedTeam.members) ? selectedTeam.members : [];
+        const roster = [...membersList, selectedTeam.manager].filter(Boolean);
+
+        return filterOptions.employees.filter((emp: any) => 
+            roster.some((memberId: any) => String(memberId) === String(emp._id))
+        );
+    }, [filters.teamId, filterOptions.employees, filterOptions.teams]);
 
     const filteredProjects = React.useMemo(() => {
         if (!Array.isArray(filterOptions.assignments)) return [];
@@ -36,7 +45,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
     }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
 
     return (
-        <div className="card p-6  border-border/80 shadow-md">
+        <div className="card p-6  border-border/80 shadow-md " style={{marginTop:"20px"}}>
             <div className="flex flex-wrap items-end gap-10">
                 {/* Date Range Group */}    
                 <div className="flex flex-col gap-2 min-w-[280px]">
@@ -102,7 +111,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 )}
 
                 {/* Project Filter */}
-                <div className="flex flex-col gap-2 min-w-[200px]">
+                {/* <div className="flex flex-col gap-2 min-w-[200px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Target size={14} className="text-primary" />
                         Project
@@ -117,10 +126,10 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                             <option key={asgn._id} value={asgn._id}>{asgn.title}</option>
                         ))}
                     </select>
-                </div>
+                </div> */}
 
                 {/* Status Filter */}
-                <div className="flex flex-col gap-2 min-w-[150px]">
+                {/* <div className="flex flex-col gap-2 min-w-[150px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Activity size={14} className="text-primary" />
                         Status
@@ -136,7 +145,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                         <option value="review">Review</option>
                         <option value="completed">Completed</option>
                     </select>
-                </div>
+                </div> */}
 
                 {/* Reset Button */}
                 <div className="ml-auto flex items-center h-10 mb-0.5">

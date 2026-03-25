@@ -26,7 +26,16 @@ const navItems = [
     { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
     { to: '/teams', icon: Users, label: 'Teams' },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
-    { to: '/reports', icon: BarChart3, label: 'Reports' },
+    { 
+        to: '/reports', 
+        icon: BarChart3, 
+        label: 'Reports',
+        subItems: [
+            { to: '/reports/employee', label: 'Employee Tracking' },
+            { to: '/reports/workload', label: 'Workload' },
+            { to: '/reports/activity', label: 'User Activity' }
+        ]
+    },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -108,42 +117,112 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
             {/* Navigation */}
             <nav style={{ flex: 1, padding: isOpen ? '12px' : '12px 8px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.to}
-                            to={item.to}
-                            end={item.to === '/dashboard'}
-                            style={({ isActive }) => ({
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: isOpen ? 'flex-start' : 'center',
-                                gap: '12px',
-                                padding: isOpen ? '10px 12px' : '12px',
-                                borderRadius: '8px',
-                                fontSize: '0.875rem',
-                                fontWeight: isActive ? 600 : 400,
-                                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                                background: isActive ? 'var(--color-primary-light)' : 'transparent',
-                                textDecoration: 'none',
-                                transition: 'all 0.15s ease',
-                            })}
-                            onMouseEnter={(e) => {
-                                const el = e.currentTarget;
-                                if (!el.classList.contains('active')) {
-                                    el.style.background = 'var(--color-surface-hover)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                const el = e.currentTarget;
-                                if (!el.classList.contains('active')) {
-                                    el.style.background = 'transparent';
-                                }
-                            }}
-                        >
-                            <item.icon size={20} style={{ flexShrink: 0 }} />
-                            {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
-                        </NavLink>
-                    ))}
+                    {navItems.map((item) => {
+                        return (
+                            <div key={item.to} style={{ display: 'flex', flexDirection: 'column' }}>
+                                <NavLink
+                                    to={item.to}
+                                    end={item.to === '/dashboard'}
+                                    style={({ isActive }) => ({
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: isOpen ? 'flex-start' : 'center',
+                                        gap: '12px',
+                                        padding: isOpen ? '10px 12px' : '12px',
+                                        borderRadius: '8px',
+                                        fontSize: '0.875rem',
+                                        fontWeight: isActive ? 600 : 400,
+                                        color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                        background: isActive ? 'var(--color-primary-light)' : 'transparent',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.15s ease',
+                                    })}
+                                    onMouseEnter={(e) => {
+                                        const el = e.currentTarget;
+                                        if (!el.classList.contains('active')) {
+                                            el.style.background = 'var(--color-surface-hover)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        const el = e.currentTarget;
+                                        if (!el.classList.contains('active')) {
+                                            el.style.background = 'transparent';
+                                        }
+                                    }}
+                                >
+                                    <item.icon size={20} style={{ flexShrink: 0 }} />
+                                    {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                                </NavLink>
+                                
+                                {item.subItems && isOpen && (
+                                    <div style={{ 
+                                        display: 'flex', 
+                                        flexDirection: 'column', 
+                                        marginLeft: '21px', // Aligns directly under the center of the 20px icon (12px padding + 10px half icon - 1px border)
+                                        marginTop: '4px',
+                                        marginBottom: '4px'
+                                    }}>
+                                        {item.subItems.map((sub, idx) => {
+                                            const isLast = idx === item.subItems!.length - 1;
+                                            return (
+                                                <div key={sub.to} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                    {/* Vertical & Horizontal Branching Line */}
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        left: 0,
+                                                        top: 0,
+                                                        bottom: isLast ? '50%' : '-4px', // negative connects to next gap
+                                                        borderLeft: '2px solid var(--color-border)',
+                                                        borderBottom: isLast ? '2px solid var(--color-border)' : 'none',
+                                                        borderBottomLeftRadius: isLast ? '8px' : '0',
+                                                        width: isLast ? '20px' : '0'
+                                                    }} />
+                                                    {!isLast && (
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            left: 0,
+                                                            top: '50%',
+                                                            width: '20px',
+                                                            borderTop: '2px solid var(--color-border)',
+                                                        }} />
+                                                    )}
+                                                    
+                                                    <NavLink
+                                                        to={sub.to}
+                                                        style={({ isActive }) => ({
+                                                            marginLeft: '24px', // Push text past the horizontal line
+                                                            padding: '8px 12px',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.8125rem',
+                                                            fontWeight: isActive ? 600 : 400,
+                                                            color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                                            textDecoration: 'none',
+                                                            width: '100%',
+                                                            transition: 'all 0.15s ease',
+                                                        })}
+                                                        onMouseEnter={(e) => {
+                                                            const el = e.currentTarget;
+                                                            if (!el.classList.contains('active')) {
+                                                                el.style.color = 'var(--color-text)';
+                                                            }
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            const el = e.currentTarget;
+                                                            if (!el.classList.contains('active')) {
+                                                                el.style.color = 'var(--color-text-secondary)';
+                                                            }
+                                                        }}
+                                                    >
+                                                        {sub.label}
+                                                    </NavLink>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </nav>
 

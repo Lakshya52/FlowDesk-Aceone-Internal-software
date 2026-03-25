@@ -260,13 +260,13 @@ export const getReportFilters = async (req: AuthRequest, res: Response): Promise
         let employees: any[] = [];
 
         if (userRole === 'admin') {
-            teams = await Team.find().select('name');
+            teams = await Team.find().select('name members manager');
             employees = await User.find().select('name email employeeId');
         } else if (userRole === 'manager') {
-            teams = await Team.find({ manager: userId }).select('name');
+            teams = await Team.find({ manager: userId }).select('name members manager');
             const teamIds = teams.map(t => t._id);
             const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
-            employees = await User.find({ _id: { $in: teamMembers } }).select('name email employeeId');
+            employees = await User.find({ _id: { $in: [...teamMembers, userId] } }).select('name email employeeId');
         }
 
         res.json({ teams, employees });

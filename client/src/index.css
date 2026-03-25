@@ -354,6 +354,27 @@ body {
   border-radius: 6px;
 }
 
+/* ===== Date input – open picker on full-field click ===== */
+input[type="date"] {
+    position: relative;
+    cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ===== Calendar page ===== */
+.calendar-day:hover {
+    background: var(--color-primary-light) !important;
+    transform: scale(1.02);
+}
+
 @keyframes skeleton-loading {
   0% {
     background-position: 200% 0;

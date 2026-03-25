@@ -1,11 +1,12 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import api from "../lib/api";
 import FilterBar from "../components/reports/FilterBar";
-import TimeTrackingReport from "../components/reports/TimeTrackingReport";
+import EmployeeTrackingReport from "../components/reports/EmployeeTrackingReport";
 import WorkloadReport from "../components/reports/WorkloadReport";
 import ActivityReport from "../components/reports/ActivityReport";
-import CustomReportBuilder from "../components/reports/CustomReportBuilder";
+
 import DrilldownModal from "../components/reports/DrilldownModal";
 import {
   Download,
@@ -16,18 +17,18 @@ import {
   // Calendar as CalendarIcon,
   ChevronDown,
   LayoutDashboard,
-  Clock,
+  // Clock,
   Activity,
-  Wand2,
+  Users,
 } from "lucide-react";
 
 const TABS = [
   {
-    id: "time",
-    label: "Time Tracking",
-    icon: <Clock size={18} />,
-    component: TimeTrackingReport,
-    description: "Efficiency & estimates",
+    id: "employee",
+    label: "Employee Tracking",
+    icon: <Users size={18} />,
+    component: EmployeeTrackingReport,
+    description: "Assignments & Active Days",
   },
   {
     id: "workload",
@@ -43,17 +44,11 @@ const TABS = [
     component: ActivityReport,
     description: "Interactions & files",
   },
-  {
-    id: "custom",
-    label: "Custom Builder",
-    icon: <Wand2 size={18} />,
-    component: CustomReportBuilder,
-    description: "Personalized metrics",
-  },
 ];
 
 const ReportsPage = (): React.JSX.Element => {
-  const [activeTab, setActiveTab] = useState("time");
+  const { reportType } = useParams<{ reportType: string }>();
+  const activeTab = reportType || "employee";
   const [filters, setFilters] = useState<any>({
     startDate: "",
     endDate: "",
@@ -105,11 +100,20 @@ const ReportsPage = (): React.JSX.Element => {
 
   const handleExport = async (type: "csv" | "pdf" | "excel") => {
     try {
-      const { data } = await api.get("/reports/export", {
+      const response = await api.get("/reports/export", {
         params: { type, reportType: activeTab, ...filters },
+        responseType: "blob",
       });
-      window.open(data.url, "_blank");
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      const extension = type === "excel" ? "xlsx" : type;
+      link.setAttribute("download", `report-${activeTab}-${Date.now()}.${extension}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
     } catch (err) {
+      console.error(err);
       alert("Export failed. Please try again.");
     } finally {
       setIsExportOpen(false);
@@ -121,25 +125,27 @@ const ReportsPage = (): React.JSX.Element => {
   };
 
   const activeTabData = TABS.find((t) => t.id === activeTab);
-  const ActiveComponent = activeTabData?.component || TimeTrackingReport;
+  const ActiveComponent = activeTabData?.component || EmployeeTrackingReport;
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] pb-20">
       {/* Page Header */}
-      <div className="bg-surface border-b border-border sticky top-0 z-30 card-glass rounded-2xl px-8 lg:px-16 py-10">
+      <div className="bg-surface border-b border-border top-0 z-30 card rounded-2xl px-8 lg:px-16 py-10">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8" style={{
             padding:"20px"
           }}>
           <div>
             <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-4">
               <div className="">
-                <BarChart3 className="text-primary" size={28} />
+                {activeTabData?.icon 
+                  ? React.cloneElement(activeTabData.icon as React.ReactElement, { size: 28, className: "text-primary" })
+                  : <BarChart3 className="text-primary" size={28} />
+                }
               </div>
-              Reports & Analytics
+              {activeTabData?.label || "Reports & Analytics"}
             </h1>
             <p className="text-base text-text-secondary mt-2 font-medium">
-              Comprehensive insights across projects, teams, and individual
-              performance.
+              {activeTabData?.description || "Comprehensive insights across projects, teams, and individual performance."}
             </p>
           </div>
 
@@ -209,37 +215,7 @@ const ReportsPage = (): React.JSX.Element => {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 lg:px-12 mt-8">
-        {/* Tabs Navigation - Segmented Control Style */}
-        <div className="bg-surface/50 border border-border rounded-2xl mb-12 flex items-center w-fit max-w-full h-fit shadow-sm " style={{
-  
-  padding: "10px",
-  gap:"10px",
-  marginTop: "20px",
-  marginBottom:"20px",
-}}>
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding:"10px",
-                cursor: "pointer"
-              }}
-              className={`px-6 py-3 text-sm font-bold transition-all rounded-xl whitespace-nowrap flex items-center gap-3 ${
-                activeTab === tab.id
-                  ? "bg-(--color-primary) text-white shadow-lg shadow-primary/20 scale-[1.02]"
-                  : "text-text-tertiary hover:text-text-secondary hover:bg-surface-hover"
-              }`}
-            >
-              <span
-                className={`transition-all ${activeTab === tab.id ? "text-white" : "text-text-tertiary"}`}
-              >
-                {tab.icon}
-              </span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+
 
         {/* Filters Section */}
         <div className="" style={{
