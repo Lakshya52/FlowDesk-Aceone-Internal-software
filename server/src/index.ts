@@ -122,6 +122,11 @@ io.on('connection', (socket) => {
         console.log(`User joined assignment room: assignment_${assignmentId}`);
     });
 
+    socket.on('join_user', (userId) => {
+        socket.join(`user_${userId}`);
+        console.log(`User joined personal room: user_${userId}`);
+    });
+
     socket.on('typing', ({ assignmentId, userName }) => {
         socket.to(`assignment_${assignmentId}`).emit('user_typing', { userName, userId: socket.id });
     });

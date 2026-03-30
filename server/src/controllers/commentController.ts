@@ -1,9 +1,10 @@
 import { Response } from 'express';
 import Comment from '../models/Comment';
-import Notification, { NotificationType } from '../models/Notification';
+import { NotificationType } from '../models/Notification';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import User from '../models/User';
 import { AuthRequest } from '../middlewares/auth';
+import { createNotifications } from '../services/notificationService';
 
 export const createComment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -19,16 +20,16 @@ export const createComment = async (req: AuthRequest, res: Response): Promise<vo
 
         // Notify mentioned users
         if (mentions && mentions.length > 0) {
-            const mentionNotifications = mentions.map((m: any) => ({
+            const payloads = mentions.map((m: any) => ({
                 user: m.user,
                 type: NotificationType.MENTION,
-                title: 'You were mentioned',
+                title: 'New Mention',
                 message: `${req.user!.name} mentioned you in a comment`,
                 link: taskId
-                    ? `/assignments/${assignmentId}/tasks/${taskId}`
+                    ? `/assignments/${assignmentId}?taskId=${taskId}`
                     : `/assignments/${assignmentId}`,
             }));
-            await Notification.insertMany(mentionNotifications);
+            await createNotifications(payloads);
         }
 
         await ActivityLog.create({

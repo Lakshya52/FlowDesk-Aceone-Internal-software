@@ -7,6 +7,8 @@ export enum NotificationType {
     FILE_UPLOADED = 'file_uploaded',
     MENTION = 'mention',
     COMMENT_ADDED = 'comment_added',
+    REPLY = 'reply',
+    DIRECT_MESSAGE = 'direct_message',
 }
 
 export interface INotification extends Document {

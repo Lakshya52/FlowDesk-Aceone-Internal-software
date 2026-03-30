@@ -5,6 +5,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { Bell, Sun, Moon, LogOut, Search, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import Avatar from '../common/Avatar';
+import { io } from 'socket.io-client';
 
 const Header: React.FC = () => {
     const { user, logout } = useAuthStore();
@@ -21,6 +22,7 @@ const Header: React.FC = () => {
     const [searchResults, setSearchResults] = useState<any>(null);
     const [showSearch, setShowSearch] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+    const socketRef = useRef<any>(null);
 
     useEffect(() => {
         const fetchNotifications = async () => {
@@ -31,9 +33,27 @@ const Header: React.FC = () => {
             } catch { }
         };
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
-    }, []);
+
+        // Socket connection for notifications
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+        const socket = io(socketUrl);
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            if (user?._id) {
+                socket.emit('join_user', user._id);
+            }
+        });
+
+        socket.on('new_notification', (notification: any) => {
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [user?._id]);
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {

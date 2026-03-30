@@ -1,40 +1,37 @@
 import { Response } from 'express';
 import ChatMessage from '../models/ChatMessage';
 import Attachment from '../models/Attachment';
-import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
 import { io } from '../index';
+import { createNotification } from '../services/notificationService';
+import { NotificationType } from '../models/Notification';
 
 import { uploadToGridFS } from '../utils/gridfs';
 
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { content, assignmentId, attachments: bodyAttachments } = req.body;
+        const { content, assignmentId, attachments: bodyAttachments, mentions, parentMessageId } = req.body;
         let attachmentIds: string[] = [];
-
-        // Accept pre-uploaded attachment IDs from the frontend
-        if (Array.isArray(bodyAttachments) && bodyAttachments.length > 0) {
-            attachmentIds.push(...bodyAttachments);
-        }
-
-        // If file was uploaded with the message (single-file via multer)
-        if (req.file) {
-            const { filename } = await uploadToGridFS(
-                req.file.buffer,
-                req.file.originalname,
-                req.file.mimetype
-            );
-
-            const attachment = await Attachment.create({
-                fileName: filename,
-                originalName: req.file.originalname,
-                fileType: req.file.mimetype,
-                fileSize: req.file.size,
-                filePath: `/uploads/${filename}`,
-                uploadedBy: req.user!._id,
-                assignment: assignmentId,
-            });
-            attachmentIds.push(attachment._id.toString());
+        if (bodyAttachments && Array.isArray(bodyAttachments) && bodyAttachments.length > 0) {
+            for (const att of bodyAttachments) {
+                if (typeof att === 'string') {
+                    attachmentIds.push(att);
+                } else if (att.buffer && att.originalName) {
+                    const { filename } = await uploadToGridFS(
+                        Buffer.from(att.buffer, 'base64'),
+                        att.originalName,
+                        att.fileType
+                    );
+                    const attachment = await Attachment.create({
+                        fileName: filename,
+                        originalName: att.originalName,
+                        fileType: att.fileType,
+                        fileSize: att.fileSize,
+                        uploadedBy: req.user!._id,
+                    });
+                    attachmentIds.push(attachment._id.toString());
+                }
+            }
         }
 
         const message = await ChatMessage.create({
@@ -42,17 +39,55 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             sender: req.user!._id,
             assignment: assignmentId,
             attachments: attachmentIds,
+            mentions: mentions || [],
+            parentMessage: parentMessageId,
         });
 
         const populated = await ChatMessage.findById(message._id)
             .populate('sender', 'name email avatar')
+            .populate('mentions', 'name avatar')
             .populate({
                 path: 'attachments',
                 populate: { path: 'uploadedBy', select: 'name email' },
+            })
+            .populate({
+                path: 'parentMessage',
+                populate: { path: 'sender', select: 'name' }
             });
 
         // Emit to all users in the assignment room
         io.to(`assignment_${assignmentId}`).emit('new_message', populated);
+
+        // Notify mentioned users
+        if (mentions && Array.isArray(mentions)) {
+            const mentionPromises = mentions.map((userId: string) => {
+                // Don't notify yourself
+                if (userId === req.user!._id.toString()) return Promise.resolve();
+                
+                return createNotification({
+                    user: userId,
+                    type: NotificationType.MENTION,
+                    title: 'New Mention',
+                    message: `${req.user!.name} mentioned you in a message`,
+                    link: `/assignments/${assignmentId}?tab=chat`,
+                });
+            });
+            await Promise.all(mentionPromises);
+        }
+
+        // Notify reply recipient
+        if (parentMessageId) {
+            const parentMsg = await ChatMessage.findById(parentMessageId);
+            if (parentMsg && parentMsg.sender.toString() !== req.user!._id.toString()) {
+                await createNotification({
+                    user: parentMsg.sender.toString(),
+                    type: NotificationType.REPLY,
+                    title: 'New Reply',
+                    message: `${req.user!.name} replied to your message`,
+                    link: `/assignments/${assignmentId}?tab=chat`,
+                });
+            }
+        }
 
         res.status(201).json({ message: populated });
     } catch (error: any) {
@@ -76,9 +111,14 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
 
         const messages = await ChatMessage.find({ assignment: assignmentId })
             .populate('sender', 'name email avatar')
+            .populate('mentions', 'name avatar')
             .populate({
                 path: 'attachments',
                 populate: { path: 'uploadedBy', select: 'name email' },
+            })
+            .populate({
+                path: 'parentMessage',
+                populate: { path: 'sender', select: 'name' }
             })
             .sort({ createdAt: 1 })
             .skip(skip)

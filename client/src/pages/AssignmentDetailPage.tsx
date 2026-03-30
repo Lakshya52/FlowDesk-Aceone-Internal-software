@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2  } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -42,6 +42,30 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const socketRef = useRef<any>(null);
     const [typingUsers, setTypingUsers] = useState<any>({});
     const typingTimeoutRef = useRef<any>(null);
+    const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+    const [selectedMentions, setSelectedMentions] = useState<Set<string>>(new Set());
+    const [replyTo, setReplyTo] = useState<any>(null);
+    const [mentionIndex, setMentionIndex] = useState(0);
+
+    const filteredMentionUsers = React.useMemo(() => {
+        return (users || []).filter((u: any) => u.name.toLowerCase().includes(mentionQuery.toLowerCase()));
+    }, [users, mentionQuery]);
+
+    useEffect(() => {
+        setMentionIndex(0);
+    }, [mentionQuery, showMentionDropdown]);
+
+    const handleMentionSelect = (u: any) => {
+        const lastAtIndex = chatInput.lastIndexOf('@');
+        const beforeMention = chatInput.substring(0, lastAtIndex);
+        const afterMention = chatInput.substring(lastAtIndex + mentionQuery.length + 1);
+        const newVal = beforeMention + `@${u.name} ` + afterMention;
+        setChatInput(newVal);
+        setSelectedMentions(prev => new Set(prev).add(u._id));
+        setShowMentionDropdown(false);
+    };
 
     const isAdmin = user?.role === 'admin';
     const isManager = user?.role === 'manager';
@@ -55,7 +79,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         if (type.includes('word') || type.includes('document')) return '📝';
         return '📎';
     };
-    
+
 
     const getDueDateColor = (dueDate: string) => {
         const due = new Date(dueDate);
@@ -258,11 +282,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const sendChatMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!chatInput.trim() && stagedFiles.length === 0) return;
-        
+
         setIsUploadingFile(true);
         try {
             let attachmentIds: string[] = [];
-            
+
             // Upload files only on send
             if (stagedFiles.length > 0) {
                 const uploadPromises = stagedFiles.map(fileObject => {
@@ -271,7 +295,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     formData.append('assignmentId', id!);
                     return api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
                 });
-                
+
                 const uploadResults = await Promise.all(uploadPromises);
                 attachmentIds = uploadResults.map(res => res.data.attachment._id);
             }
@@ -279,10 +303,14 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             await api.post('/chat', {
                 content: chatInput,
                 assignmentId: id,
-                attachments: attachmentIds
+                attachments: attachmentIds,
+                mentions: Array.from(selectedMentions),
+                parentMessageId: replyTo?._id
             });
-            
+
             setChatInput('');
+            setSelectedMentions(new Set());
+            setReplyTo(null);
             setStagedFiles([]);
             localStorage.removeItem(`chat_draft_${id}`);
         } catch (error: any) {
@@ -353,12 +381,28 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
     const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
+        const cursorPosition = e.target.selectionStart || 0;
         setChatInput(val);
         localStorage.setItem(`chat_draft_${id}`, val);
-        
+
+        // Mention logic
+        const lastAtIndex = val.lastIndexOf('@', cursorPosition - 1);
+        if (lastAtIndex !== -1) {
+            const query = val.substring(lastAtIndex + 1, cursorPosition).toLowerCase();
+            if (!query.includes(' ')) {
+                setMentionQuery(query);
+                setShowMentionDropdown(true);
+                setMentionPosition({ top: -150, left: Math.min(cursorPosition * 8, 300) });
+            } else {
+                setShowMentionDropdown(false);
+            }
+        } else {
+            setShowMentionDropdown(false);
+        }
+
         if (socketRef.current) {
             socketRef.current.emit('typing', { assignmentId: id, userName: user?.name });
-            
+
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = setTimeout(() => {
                 socketRef.current.emit('stop_typing', { assignmentId: id });
@@ -558,81 +602,81 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {tasks
-                            .filter(t => {
-                                // Admin/Manager see all tasks. Employees only see their own.
-                                if (canEdit) return true;
-                                return t.assignedTo?._id === user?._id || t.assignedTo === user?._id;
-                            })
-                            .map(t => (
-                                <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
-                                    {editingTask === t._id ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 } as React.CSSProperties}>
-                                            <input className="input" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                                                <select className="select" value={editTaskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
-                                                    {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
-                                                </select>
-                                                <input className="input" type="date" value={editTaskForm.dueDate?.split('T')[0]} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
-                                                <select className="select" value={editTaskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, priority: e.target.value })}>
-                                                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                                                </select>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                                <button className="btn btn-ghost btn-xs" onClick={() => setEditingTask(null)}>Cancel</button>
-                                                <button className="btn btn-primary btn-xs" onClick={() => updateTask(t._id, editTaskForm)}>Save</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                    <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{t.title}</span>
-                                                    <span className={`badge badge-${t.priority}`}>{PRIORITY_LABELS[t.priority]}</span>
-                                                    <span className={`badge badge-${t.status}`}>{TASK_STATUS_LABELS[t.status]}</span>
-                                                </div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                                    Assigned to {t.assignedTo?.name} · <span style={{ color: getDueDateColor(t.dueDate) }}>Due {format(new Date(t.dueDate), 'MMM d')}</span>
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                {/* Anyone assigned or admin/manager can change status */}
-                                                {(canEdit || t.assignedTo?._id === user?._id) && t.status !== 'completed' && (
-                                                    <select
-                                                        className="select"
-                                                        style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
-                                                        value={t.status}
-                                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateTaskStatus(t._id, e.target.value)}
-                                                    >
-                                                        {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
-                                                            // Employees can only move to Review or In Progress, not directly to Completed
-                                                            if (isEmployee && k === 'completed') return null;
-                                                            return <option key={k} value={k}>{v}</option>;
-                                                        })}
+                                .filter(t => {
+                                    // Admin/Manager see all tasks. Employees only see their own.
+                                    if (canEdit) return true;
+                                    return t.assignedTo?._id === user?._id || t.assignedTo === user?._id;
+                                })
+                                .map(t => (
+                                    <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
+                                        {editingTask === t._id ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 } as React.CSSProperties}>
+                                                <input className="input" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                                                    <select className="select" value={editTaskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
+                                                        {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
                                                     </select>
-                                                )}
-                                                {canEdit && (
-                                                    <>
-                                                        <button className="btn btn-ghost btn-xs" onClick={() => {
-                                                            setEditingTask(t._id);
-                                                            setEditTaskForm({
-                                                                title: t.title,
-                                                                assignedTo: t.assignedTo?._id,
-                                                                dueDate: t.dueDate,
-                                                                priority: t.priority,
-                                                            });
-                                                        }}>
-                                                            <Edit3 size={13} />
-                                                        </button>
-                                                        <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }} onClick={() => deleteTask(t._id)}>
-                                                            <Trash2 size={13} />
-                                                        </button>
-                                                    </>
-                                                )}
+                                                    <input className="input" type="date" value={editTaskForm.dueDate?.split('T')[0]} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
+                                                    <select className="select" value={editTaskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, priority: e.target.value })}>
+                                                        {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                                    <button className="btn btn-ghost btn-xs" onClick={() => setEditingTask(null)}>Cancel</button>
+                                                    <button className="btn btn-primary btn-xs" onClick={() => updateTask(t._id, editTaskForm)}>Save</button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                        ) : (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                        <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{t.title}</span>
+                                                        <span className={`badge badge-${t.priority}`}>{PRIORITY_LABELS[t.priority]}</span>
+                                                        <span className={`badge badge-${t.status}`}>{TASK_STATUS_LABELS[t.status]}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                                        Assigned to {t.assignedTo?.name} · <span style={{ color: getDueDateColor(t.dueDate) }}>Due {format(new Date(t.dueDate), 'MMM d')}</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {/* Anyone assigned or admin/manager can change status */}
+                                                    {(canEdit || t.assignedTo?._id === user?._id) && t.status !== 'completed' && (
+                                                        <select
+                                                            className="select"
+                                                            style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
+                                                            value={t.status}
+                                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateTaskStatus(t._id, e.target.value)}
+                                                        >
+                                                            {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
+                                                                // Employees can only move to Review or In Progress, not directly to Completed
+                                                                if (isEmployee && k === 'completed') return null;
+                                                                return <option key={k} value={k}>{v}</option>;
+                                                            })}
+                                                        </select>
+                                                    )}
+                                                    {canEdit && (
+                                                        <>
+                                                            <button className="btn btn-ghost btn-xs" onClick={() => {
+                                                                setEditingTask(t._id);
+                                                                setEditTaskForm({
+                                                                    title: t.title,
+                                                                    assignedTo: t.assignedTo?._id,
+                                                                    dueDate: t.dueDate,
+                                                                    priority: t.priority,
+                                                                });
+                                                            }}>
+                                                                <Edit3 size={13} />
+                                                            </button>
+                                                            <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }} onClick={() => deleteTask(t._id)}>
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
                         </div>
                     )}
                 </div>
@@ -667,6 +711,23 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                             }}>
                                                 {msg.sender?.name} · {format(new Date(msg.createdAt), 'h:mm a')}
                                             </div>
+                                            {msg.parentMessage && (
+                                                <div style={{
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--color-text-tertiary)',
+                                                    background: 'rgba(0,0,0,0.05)',
+                                                    padding: '4px 8px',
+                                                    borderRadius: 4,
+                                                    marginBottom: 4,
+                                                    borderLeft: '2px solid var(--color-primary)',
+                                                    maxWidth: '100%',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    Replying to {msg.parentMessage.sender?.name}: {msg.parentMessage.content}
+                                                </div>
+                                            )}
                                             {msg.content && (
                                                 <div
                                                     className="chat-bubble"
@@ -676,19 +737,68 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         color: isOwnMessage ? 'white' : 'var(--color-text)',
                                                         borderTopRightRadius: isOwnMessage ? 4 : 12,
                                                         borderTopLeftRadius: isOwnMessage ? 12 : 4,
+                                                        position: 'relative'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        const btn = e.currentTarget.querySelector('.reply-btn') as HTMLElement;
+                                                        if (btn) btn.style.display = 'flex';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        const btn = e.currentTarget.querySelector('.reply-btn') as HTMLElement;
+                                                        if (btn) btn.style.display = 'none';
                                                     }}
                                                 >
-                                                    {msg.content}
+                                                    {(() => {
+                                                        const mentionNames = (msg.mentions || []).map((m: any) => typeof m === 'string' ? '' : m.name).filter(Boolean);
+                                                        if (mentionNames.length === 0) {
+                                                            return msg.content.split(/(@\w+)/g).map((part: string, i: number) => {
+                                                                if (part.startsWith('@')) {
+                                                                    return <span key={i} style={{ fontWeight: 700, color: isOwnMessage ? 'white' : 'var(--color-primary)' }}>{part}</span>;
+                                                                }
+                                                                return part;
+                                                            });
+                                                        }
+                                                        const regex = new RegExp(`(@(${mentionNames.map((n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g');
+                                                        return msg.content.split(regex).map((part: string, i: number) => {
+                                                            if (part.startsWith('@')) {
+                                                                const name = part.substring(1);
+                                                                if (mentionNames.includes(name)) {
+                                                                    return <span key={i} style={{ fontWeight: 700, color: isOwnMessage ? 'white' : 'var(--color-primary)' }}>{part}</span>;
+                                                                }
+                                                            }
+                                                            return part;
+                                                        });
+                                                    })()}
+                                                    <button
+                                                        className="reply-btn"
+                                                        onClick={() => setReplyTo(msg)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: -10,
+                                                            right: isOwnMessage ? 'auto' : -30,
+                                                            left: isOwnMessage ? -30 : 'auto',
+                                                            display: 'none',
+                                                            background: 'var(--color-surface)',
+                                                            border: '1px solid var(--color-border)',
+                                                            borderRadius: '50%',
+                                                            padding: 4,
+                                                            cursor: 'pointer',
+                                                            boxShadow: 'var(--shadow-sm)'
+                                                        }}
+                                                        title="Reply"
+                                                    >
+                                                        <MessageSquare size={12} />
+                                                    </button>
                                                 </div>
                                             )}
                                             {/* Attachments in message */}
                                             {msg.attachments?.map((att: any) => {
                                                 const isImage = att.fileType?.startsWith('image/');
                                                 const fileUrl = `${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'}/uploads/${att.fileName}`;
-                                                
+
                                                 return (
-                                                    <div 
-                                                        key={att._id} 
+                                                    <div
+                                                        key={att._id}
                                                         style={{
                                                             marginTop: 6,
                                                             padding: isImage ? '4px' : '8px 12px',
@@ -701,21 +811,21 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             cursor: 'pointer',
                                                             maxWidth: '100%',
                                                             boxShadow: 'var(--shadow-sm)'
-                                                        }} 
+                                                        }}
                                                         onClick={() => window.open(fileUrl, '_blank')}
                                                     >
                                                         {isImage ? (
                                                             <div style={{ position: 'relative', display: 'inline-block' }}>
-                                                                <img 
-                                                                    src={fileUrl} 
-                                                                    alt={att.originalName} 
-                                                                    style={{ 
-                                                                        maxHeight: 100, 
-                                                                        maxWidth: 240, 
-                                                                        borderRadius: 6, 
+                                                                <img
+                                                                    src={fileUrl}
+                                                                    alt={att.originalName}
+                                                                    style={{
+                                                                        maxHeight: 100,
+                                                                        maxWidth: 240,
+                                                                        borderRadius: 6,
                                                                         display: 'block',
                                                                         objectFit: 'cover'
-                                                                    }} 
+                                                                    }}
                                                                 />
                                                                 <button
                                                                     type="button"
@@ -734,8 +844,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             </div>
                                                         ) : (
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                                <div style={{ 
-                                                                    width: 32, height: 32, borderRadius: 8, 
+                                                                <div style={{
+                                                                    width: 32, height: 32, borderRadius: 8,
                                                                     background: 'var(--color-surface-hover)',
                                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                                     color: 'var(--color-primary)'
@@ -769,6 +879,17 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         <div ref={chatEndRef} />
                     </div>
 
+                    {/* Reply Preview */}
+                    {replyTo && (
+                        <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-primary-light)', borderTop: '1px solid var(--color-border)' }}>
+                            <div style={{ fontSize: '0.75rem' }}>
+                                <span style={{ fontWeight: 600 }}>Replying to {replyTo.sender?.name}</span>
+                                <div style={{ color: 'var(--color-text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.content}</div>
+                            </div>
+                            <button className="btn btn-ghost btn-xs" onClick={() => setReplyTo(null)}>Cancel</button>
+                        </div>
+                    )}
+
                     {/* Staged files area */}
                     {stagedFiles.length > 0 && (
                         <div style={{ padding: '8px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface-hover)' }}>
@@ -786,7 +907,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
                     {/* Chat input */}
                     <form onSubmit={sendChatMessage} style={{
-                        display: 'flex', gap: 8, padding: '12px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center'
+                        display: 'flex', gap: 8, padding: '12px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center',
+                        position: 'relative'
                     }}>
                         <input type="file" ref={chatFileRef} style={{ display: 'none' }} multiple onChange={sendChatFile} />
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => chatFileRef.current?.click()} title="Attach files" disabled={isUploadingFile}>
@@ -798,13 +920,68 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 Sending {stagedFiles.length > 0 ? stagedFiles[0].originalName + (stagedFiles.length > 1 ? ` (+${stagedFiles.length - 1} more)` : '') : 'message'}...
                             </div>
                         ) : (
-                            <input
-                                className="input"
-                                style={{ flex: 1 }}
-                                placeholder="Type a message..."
-                                value={chatInput}
-                                onChange={handleChatInputChange}
-                            />
+                            <>
+                                {showMentionDropdown && (
+                                    <div className="card shadow-lg animate-fade-in" style={{
+                                        position: 'absolute',
+                                        bottom: 'calc(100% + 10px)',
+                                        left: mentionPosition.left,
+                                        width: 220,
+                                        zIndex: 100,
+                                        padding: '4px 0',
+                                        maxHeight: 200,
+                                        overflow: 'auto'
+                                    }}>
+                                        {filteredMentionUsers.length === 0 ? (
+                                            <div style={{ padding: '8px 12px', fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>No users found</div>
+                                        ) : (
+                                            filteredMentionUsers.map((u: any, idx: number) => (
+                                                <div
+                                                    key={u._id}
+                                                    style={{ 
+                                                        padding: '8px 12px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        gap: 8, 
+                                                        cursor: 'pointer', 
+                                                        transition: 'background 0.15s',
+                                                        background: mentionIndex === idx ? 'var(--color-surface-hover)' : 'transparent'
+                                                    }}
+                                                    onClick={() => handleMentionSelect(u)}
+                                                    onMouseEnter={() => setMentionIndex(idx)}
+                                                >
+                                                    <Avatar src={u.avatar} name={u.name} size={24} />
+                                                    <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+
+                                <input
+                                    className="input"
+                                    style={{ flex: 1 }}
+                                    placeholder="Type a message..."
+                                    value={chatInput}
+                                    onChange={handleChatInputChange}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            setShowMentionDropdown(false);
+                                        } else if (e.key === 'ArrowDown' && showMentionDropdown) {
+                                            e.preventDefault();
+                                            setMentionIndex(prev => (prev + 1) % filteredMentionUsers.length);
+                                        } else if (e.key === 'ArrowUp' && showMentionDropdown) {
+                                            e.preventDefault();
+                                            setMentionIndex(prev => (prev - 1 + filteredMentionUsers.length) % filteredMentionUsers.length);
+                                        } else if (e.key === 'Enter' && showMentionDropdown) {
+                                            e.preventDefault();
+                                            if (filteredMentionUsers[mentionIndex]) {
+                                                handleMentionSelect(filteredMentionUsers[mentionIndex]);
+                                            }
+                                        }
+                                    }}
+                                />
+                            </>
                         )}
                         <button type="submit" className="btn btn-primary btn-sm" disabled={(!chatInput.trim() && stagedFiles.length === 0) || isUploadingFile}>
                             <Send size={14} /> Send
@@ -819,8 +996,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                 activeTab === 'files' && (
                     <div>
                         {isUploadingFile && activeTab === 'files' ? (
-                            <div style={{ 
-                                marginBottom: 16, padding: '12px 16px', borderRadius: 12, 
+                            <div style={{
+                                marginBottom: 16, padding: '12px 16px', borderRadius: 12,
                                 background: 'var(--color-primary-light)', color: 'var(--color-primary)',
                                 display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, fontSize: '0.875rem',
                                 border: '1px solid var(--color-primary)'
