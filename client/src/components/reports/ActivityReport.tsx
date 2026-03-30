@@ -206,7 +206,9 @@ const ActivityReport = ({ filters, onDrilldown }: ActivityReportProps): React.JS
 
                 {/* Activity Timeline */}
                 <div className="lg:col-span-2 card p-8 border-border/60 bg-surface/50 h-[600px] flex flex-col">
-                    <div className="flex items-center justify-between mb-10">
+                    <div style={{
+                        marginBottom: "20px"
+                    }} className="flex items-center justify-between mb-10">
                         <div>
                             <h3 className="text-lg font-bold tracking-tight text-text flex items-center gap-2">
                                 <History size={20} className="text-primary" />
@@ -214,15 +216,15 @@ const ActivityReport = ({ filters, onDrilldown }: ActivityReportProps): React.JS
                             </h3>
                             <p className="text-sm text-text-secondary mt-1">Real-time trace of organizational actions.</p>
                         </div>
-                        <button 
+                        {/* <button 
                             onClick={() => onDrilldown('Recent Activity History', data.recentActivities || [])}
                             className="btn btn-primary btn-sm rounded-lg"
                         >
                             History Node
-                        </button>
+                        </button> */}
                     </div>
 
-                    <div className="space-y-6 flex-1 overflow-y-auto pr-4 custom-scrollbar pl-2">
+                    <div className="space-y-6 flex flex-col gap-4 flex-1 overflow-y-auto pr-4 custom-scrollbar pl-2">
                         {(data.recentActivities || []).slice(0, 10).map((act: any, i: number) => (
                             <div key={i} className="flex gap-6 group/item relative">
                                 <div className="flex flex-col items-center relative z-10">
@@ -249,7 +251,7 @@ const ActivityReport = ({ filters, onDrilldown }: ActivityReportProps): React.JS
                                     <div className="p-4 bg-surface/60 rounded-xl border border-transparent group-hover/item:border-border group-hover/item:bg-surface transition-all">
                                         <p className="text-sm text-text-secondary">
                                             <span className="font-bold text-text mr-1.5">{act.user?.name || 'Automated System'}</span> 
-                                            processed <span className="font-bold text-primary">{act.entityType}</span> transaction
+                                            &nbsp;processed <span className="font-bold text-primary">{act.entityType}</span> transaction
                                         </p>
                                     </div>
                                 </div>
