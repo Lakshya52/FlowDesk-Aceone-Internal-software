@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2, Reply } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -49,9 +49,21 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [replyTo, setReplyTo] = useState<any>(null);
     const [mentionIndex, setMentionIndex] = useState(0);
 
+    const assignmentMembers = React.useMemo(() => {
+        if (!assignment) return [];
+        const individualMembers = assignment.team || [];
+        const teamManagers = (assignment.teams || []).map((t: any) => t.manager).filter(Boolean);
+        const teamMembers = (assignment.teams || []).flatMap((t: any) => t.members || []);
+        
+        // Combine all members and deduplicate by _id
+        const all = [...individualMembers, ...teamManagers, ...teamMembers];
+        const unique = Array.from(new Map(all.map(u => [u?._id, u])).values()).filter(Boolean);
+        return unique;
+    }, [assignment]);
+
     const filteredMentionUsers = React.useMemo(() => {
-        return (users || []).filter((u: any) => u.name.toLowerCase().includes(mentionQuery.toLowerCase()));
-    }, [users, mentionQuery]);
+        return assignmentMembers.filter((u: any) => u.name.toLowerCase().includes(mentionQuery.toLowerCase()));
+    }, [assignmentMembers, mentionQuery]);
 
     useEffect(() => {
         setMentionIndex(0);
@@ -65,6 +77,34 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         setChatInput(newVal);
         setSelectedMentions(prev => new Set(prev).add(u._id));
         setShowMentionDropdown(false);
+    };
+
+    const scrollToOriginalMessage = (parentId: string) => {
+        const el = document.getElementById(`chat-msg-${parentId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Wait for the message to be in view before blinking
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    el.style.transition = 'background-color 0.4s ease';
+                    const blink = () => {
+                        el.style.backgroundColor = 'var(--color-chat-highlight)';
+                        setTimeout(() => {
+                            el.style.backgroundColor = 'transparent';
+                        }, 400);
+                    };
+
+                    setTimeout(() => {
+                        blink();
+                        setTimeout(blink, 800);
+                    }, 100); // Small extra delay to be sure scroll finished
+
+                    observer.disconnect();
+                }
+            }, { threshold: 0.5 });
+            observer.observe(el);
+        }
     };
 
     const isAdmin = user?.role === 'admin';
@@ -699,7 +739,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             chatMessages.map((msg: any) => {
                                 const isOwnMessage = msg.sender?._id === user?._id;
                                 return (
-                                    <div key={msg._id} style={{
+                                    <div key={msg._id} id={`chat-msg-${msg._id}`} style={{
                                         display: 'flex', gap: 10,
                                         flexDirection: (isOwnMessage ? 'row-reverse' : 'row') as any,
                                     }}>
@@ -712,19 +752,27 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                 {msg.sender?.name} · {format(new Date(msg.createdAt), 'h:mm a')}
                                             </div>
                                             {msg.parentMessage && (
-                                                <div style={{
-                                                    fontSize: '0.75rem',
-                                                    color: 'var(--color-text-tertiary)',
-                                                    background: 'rgba(0,0,0,0.05)',
-                                                    padding: '4px 8px',
-                                                    borderRadius: 4,
-                                                    marginBottom: 4,
-                                                    borderLeft: '2px solid var(--color-primary)',
-                                                    maxWidth: '100%',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                }}>
+                                                <div 
+                                                    style={{
+                                                        fontSize: '0.75rem',
+                                                        color: 'var(--color-text-tertiary)',
+                                                        background: 'rgba(0,0,0,0.05)',
+                                                        padding: '4px 8px',
+                                                        borderRadius: 4,
+                                                        marginBottom: 4,
+                                                        borderLeft: '2px solid var(--color-primary)',
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        cursor: 'pointer',
+                                                        transition: 'background 0.2s'
+                                                    }}
+                                                    onClick={() => scrollToOriginalMessage(msg.parentMessage._id)}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.1)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                                                    title="Go to message"
+                                                >
                                                     Replying to {msg.parentMessage.sender?.name}: {msg.parentMessage.content}
                                                 </div>
                                             )}
@@ -741,11 +789,17 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     }}
                                                     onMouseEnter={(e) => {
                                                         const btn = e.currentTarget.querySelector('.reply-btn') as HTMLElement;
-                                                        if (btn) btn.style.display = 'flex';
+                                                        if (btn) {
+                                                            btn.style.opacity = '1';
+                                                            btn.style.visibility = 'visible';
+                                                        }
                                                     }}
                                                     onMouseLeave={(e) => {
                                                         const btn = e.currentTarget.querySelector('.reply-btn') as HTMLElement;
-                                                        if (btn) btn.style.display = 'none';
+                                                        if (btn) {
+                                                            btn.style.opacity = '0';
+                                                            btn.style.visibility = 'hidden';
+                                                        }
                                                     }}
                                                 >
                                                     {(() => {
@@ -758,7 +812,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                 return part;
                                                             });
                                                         }
-                                                        const regex = new RegExp(`(@(${mentionNames.map((n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g');
+                                                        const regex = new RegExp(`(@(?:${mentionNames.map((n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g');
                                                         return msg.content.split(regex).map((part: string, i: number) => {
                                                             if (part.startsWith('@')) {
                                                                 const name = part.substring(1);
@@ -774,20 +828,29 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         onClick={() => setReplyTo(msg)}
                                                         style={{
                                                             position: 'absolute',
-                                                            top: -10,
-                                                            right: isOwnMessage ? 'auto' : -30,
-                                                            left: isOwnMessage ? -30 : 'auto',
-                                                            display: 'none',
+                                                            top: '50%',
+                                                            transform: 'translateY(-50%)',
+                                                            right: isOwnMessage ? 'auto' : -36,
+                                                            left: isOwnMessage ? -36 : 'auto',
+                                                            display: 'flex',
                                                             background: 'var(--color-surface)',
                                                             border: '1px solid var(--color-border)',
                                                             borderRadius: '50%',
-                                                            padding: 4,
+                                                            width: 28,
+                                                            height: 28,
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
                                                             cursor: 'pointer',
-                                                            boxShadow: 'var(--shadow-sm)'
+                                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                                            color: 'var(--color-primary)',
+                                                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            zIndex: 10,
+                                                            opacity: 0,
+                                                            visibility: 'hidden'
                                                         }}
                                                         title="Reply"
                                                     >
-                                                        <MessageSquare size={12} />
+                                                        <Reply size={14} />
                                                     </button>
                                                 </div>
                                             )}
@@ -883,8 +946,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     {replyTo && (
                         <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-primary-light)', borderTop: '1px solid var(--color-border)' }}>
                             <div style={{ fontSize: '0.75rem' }}>
-                                <span style={{ fontWeight: 600 }}>Replying to {replyTo.sender?.name}</span>
-                                <div style={{ color: 'var(--color-text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.content}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--color-primary)', marginBottom: 2 }}>
+                                    <Reply size={12} />
+                                    <span>Replying to {replyTo.sender?.name}</span>
+                                </div>
+                                <div style={{ color: 'var(--color-text-secondary)', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.75rem' }}>{replyTo.content}</div>
                             </div>
                             <button className="btn btn-ghost btn-xs" onClick={() => setReplyTo(null)}>Cancel</button>
                         </div>
