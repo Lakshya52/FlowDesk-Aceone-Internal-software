@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -17,6 +17,7 @@ const TASK_STATUS_LABELS: Record<string, string> = { todo: 'To Do', in_progress:
 const AssignmentDetailPage = (): React.JSX.Element | null => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuthStore();
     const [assignment, setAssignment] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
@@ -48,6 +49,31 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [selectedMentions, setSelectedMentions] = useState<Set<string>>(new Set());
     const [replyTo, setReplyTo] = useState<any>(null);
     const [mentionIndex, setMentionIndex] = useState(0);
+
+    // Auto-switch tabs and scroll based on URL params
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
+        if (tab === 'chat' || tab === 'tasks' || tab === 'files') {
+            setActiveTab(tab as any);
+        }
+    }, [location.search]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const msgId = params.get('msgId');
+        
+        if (activeTab === 'chat' && msgId && chatMessages.length > 0) {
+            // Need a slight delay to ensure elements are mounted
+            setTimeout(() => {
+                scrollToOriginalMessage(msgId);
+                
+                // Clear the msgId from URL so it doesn't repeatedly scroll on re-renders,
+                // but keep the tab
+                window.history.replaceState(null, '', `/assignments/${id}?tab=chat`);
+            }, 500);
+        }
+    }, [location.search, activeTab, chatMessages.length, id]);
 
     const assignmentMembers = React.useMemo(() => {
         if (!assignment) return [];
@@ -191,11 +217,28 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     useEffect(() => {
         const draft = localStorage.getItem(`chat_draft_${id}`);
         if (draft) setChatInput(draft);
+        
+        const replyDraft = localStorage.getItem(`reply_draft_${id}`);
+        if (replyDraft) {
+            try {
+                setReplyTo(JSON.parse(replyDraft));
+            } catch (e) {
+                console.error('Failed to parse reply draft');
+            }
+        }
     }, [id]);
 
     useEffect(() => {
         localStorage.setItem(`chat_draft_${id}`, chatInput);
     }, [id, chatInput]);
+
+    useEffect(() => {
+        if (replyTo) {
+            localStorage.setItem(`reply_draft_${id}`, JSON.stringify(replyTo));
+        } else {
+            localStorage.removeItem(`reply_draft_${id}`);
+        }
+    }, [id, replyTo]);
 
     useEffect(() => {
         if (activeTab === 'chat') {
@@ -345,6 +388,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             setReplyTo(null);
             setStagedFiles([]);
             localStorage.removeItem(`chat_draft_${id}`);
+            localStorage.removeItem(`reply_draft_${id}`);
         } catch (error: any) {
             alert(error.response?.data?.message || 'Failed to send message');
         } finally {

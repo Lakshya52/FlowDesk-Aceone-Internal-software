@@ -69,7 +69,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                     type: NotificationType.MENTION,
                     title: 'New Mention',
                     message: `${req.user!.name} mentioned you in a message`,
-                    link: `/assignments/${assignmentId}?tab=chat`,
+                    link: `/assignments/${assignmentId}?tab=chat&msgId=${message._id}`,
                 });
             });
             await Promise.all(mentionPromises);
@@ -84,7 +84,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                     type: NotificationType.REPLY,
                     title: 'New Reply',
                     message: `${req.user!.name} replied to your message`,
-                    link: `/assignments/${assignmentId}?tab=chat`,
+                    link: `/assignments/${assignmentId}?tab=chat&msgId=${message._id}`,
                 });
             }
         }
