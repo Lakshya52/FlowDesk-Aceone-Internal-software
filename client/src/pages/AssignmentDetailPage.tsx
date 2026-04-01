@@ -84,26 +84,18 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
-            // Wait for the message to be in view before blinking
-            const observer = new IntersectionObserver((entries) => {
-                if (entries[0].isIntersecting) {
-                    el.style.transition = 'background-color 0.4s ease';
-                    const blink = () => {
-                        el.style.backgroundColor = 'var(--color-chat-highlight)';
-                        setTimeout(() => {
-                            el.style.backgroundColor = 'transparent';
-                        }, 400);
-                    };
+            // Double blink effect for the entire message row just like WhatsApp
+            el.style.transition = 'background-color 0.4s ease';
+            
+            const blink = () => {
+                el.style.backgroundColor = 'var(--color-chat-highlight)';
+                setTimeout(() => {
+                    el.style.backgroundColor = 'transparent';
+                }, 150);
+            };
 
-                    setTimeout(() => {
-                        blink();
-                        setTimeout(blink, 800);
-                    }, 100); // Small extra delay to be sure scroll finished
-
-                    observer.disconnect();
-                }
-            }, { threshold: 0.5 });
-            observer.observe(el);
+            blink();
+            setTimeout(blink, 400); // for twice blinking effect
         }
     };
 
