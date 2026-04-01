@@ -281,7 +281,13 @@ const Header: React.FC = () => {
                                 notifications.slice(0, 10).map((n) => (
                                     <div
                                         key={n._id}
-                                        onClick={() => !n.isRead && markAsRead(n._id)}
+                                        onClick={() => {
+                                            if (!n.isRead) markAsRead(n._id);
+                                            if (n.link) {
+                                                navigate(n.link);
+                                                setShowNotif(false);
+                                            }
+                                        }}
                                         style={{
                                             padding: '12px 16px',
                                             borderBottom: '1px solid var(--color-border)',
