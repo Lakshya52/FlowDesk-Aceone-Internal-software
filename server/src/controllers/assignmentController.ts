@@ -12,8 +12,12 @@ export const createAssignment = async (req: AuthRequest, res: Response): Promise
         if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
             const Team = (await import('../models/Team')).default;
             const teams = await Team.find({ _id: { $in: teamIds } });
-            const teamMemberIds = teams.flatMap(t => t.members.map(m => m.toString()));
-            allMemberIds = Array.from(new Set([...allMemberIds, ...teamMemberIds]));
+            // Include both team manager and all members
+            const teamInvites = teams.flatMap(t => [
+                t.manager.toString(),
+                ...t.members.map(m => m.toString())
+            ]);
+            allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
         }
 
         const assignment = await Assignment.create({
@@ -157,8 +161,12 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
                 const Team = (await import('../models/Team')).default;
                 const teams = await Team.find({ _id: { $in: teamIds } });
-                const teamMemberIds = teams.flatMap(t => t.members.map(m => m.toString()));
-                allMemberIds = Array.from(new Set([...allMemberIds, ...teamMemberIds]));
+                // Include both team manager and all members
+                const teamInvites = teams.flatMap(t => [
+                    t.manager.toString(),
+                    ...t.members.map(m => m.toString())
+                ]);
+                allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
             }
             assignment.team = allMemberIds as any;
             assignment.teams = teamIds as any;

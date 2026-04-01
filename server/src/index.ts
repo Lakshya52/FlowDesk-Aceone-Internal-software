@@ -5,6 +5,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import http from 'http';
+import dns from 'node:dns';
+
+// Force DNS to resolve IPv4 first to avoid Atlas connection issues on Windows
+dns.setDefaultResultOrder('ipv4first');
 
 import authRoutes from './routes/auth';
 import assignmentRoutes from './routes/assignments';
@@ -153,7 +157,10 @@ app.use(errorHandler);
 const startServer = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/flowdesk';
-        await mongoose.connect(mongoUri);
+        await mongoose.connect(mongoUri, {
+            serverSelectionTimeoutMS: 5000,
+            family: 4, // Force IPv4
+        });
         console.log('✅ Connected to MongoDB');
 
         server.listen(PORT, () => {
