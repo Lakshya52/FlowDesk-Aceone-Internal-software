@@ -33,7 +33,7 @@ export const createNotification = async (payload: NotificationPayload): Promise<
  * Bulk create notifications and emit them
  */
 export const createNotifications = async (payloads: NotificationPayload[]): Promise<INotification[]> => {
-    const notifications = await Notification.insertMany(payloads);
+    const notifications = await Notification.insertMany(payloads) as unknown as INotification[];
 
     // Emit to each user
     notifications.forEach((notif) => {
