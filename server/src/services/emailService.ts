@@ -43,7 +43,7 @@ export const sendOtpEmail = async (to: string, otp: string) => {
         // console.log(`==========================================\n`);
 
         const mailOptions = {
-            from: process.env.EMAIL_FROM || '"FlowDesk Team" <noreply@flowdesk.app>',
+            from: process.env.EMAIL_FROM || '"FlowDesk Support Team" <noreply@flowdesk.app>',
             to,
             subject: 'Password Reset Verification Code - FlowDesk',
             html: `
@@ -63,14 +63,14 @@ export const sendOtpEmail = async (to: string, otp: string) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        // console.log(`Password reset email sent successfully to ${to}`);
+        console.log(`Password reset email sent successfully to ${to}`);
 
         // Log preview URL if not using a real configured SMTP host
-        // if (!process.env.SMTP_HOST) {
-        //     console.log(`\n==========================================`);
-        //     console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
-        //     console.log(`==========================================\n`);
-        // }
+        if (!process.env.SMTP_HOST) {
+            console.log(`\n==========================================`);
+            console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
+            console.log(`==========================================\n`);
+        }
     } catch (error) {
         console.error('Error sending password reset email:', error);
         throw new Error('Failed to send password reset email');
