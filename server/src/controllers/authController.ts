@@ -2,6 +2,7 @@ import { Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { AuthRequest } from '../middlewares/auth';
+import { sendOtpEmail } from '../services/emailService';
 
 const generateToken = (userId: string): string => {
     return jwt.sign({ userId }, process.env.JWT_SECRET || 'fallback_secret', {
@@ -235,5 +236,69 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<v
         res.json({ message: 'Password changed successfully' });
     } catch (error: any) {
         res.status(500).json({ message: error.message || 'Failed to change password' });
+    }
+};
+
+export const forgotPassword = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        
+        if (!user) {
+            // For security, don't reveal that the user does not exist.
+            res.status(200).json({ message: 'If that email exists in our system, we have sent a password reset OTP to it.' });
+            return;
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+        user.resetPasswordOtp = otp;
+        user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+        
+        // Since we are not updating password, save hook might skip, but it is safe.
+        await user.save();
+
+        await sendOtpEmail(user.email, otp);
+
+        res.status(200).json({ message: 'If that email exists in our system, we have sent a password reset OTP to it.' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message || 'Failed to process password reset request' });
+    }
+};
+
+export const verifyForgotPasswordOtp = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { email, otp } = req.body;
+        
+        if (!email || !otp) {
+            res.status(400).json({ message: 'Email and OTP are required' });
+            return;
+        }
+
+        const user = await User.findOne({ 
+            email, 
+            resetPasswordOtp: otp,
+            resetPasswordExpires: { $gt: new Date() } 
+        });
+
+        if (!user) {
+            res.status(400).json({ message: 'Invalid or expired OTP' });
+            return;
+        }
+
+        // Clear OTP to prevent reuse
+        user.resetPasswordOtp = undefined;
+        user.resetPasswordExpires = undefined;
+        user.lastLogin = new Date(); // Update last login since they are receiving a session token
+        await user.save();
+
+        const token = generateToken(user._id.toString());
+
+        res.json({
+            message: 'OTP verified successfully',
+            token,
+            user: user.toJSON(),
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message || 'Failed to verify OTP' });
     }
 };

@@ -18,6 +18,9 @@ interface AuthState {
     register: (name: string, email: string, password: string) => Promise<void>;
     logout: () => void;
     loadUser: () => Promise<void>;
+    forgotPassword: (email: string) => Promise<void>;
+    verifyForgotPasswordOtp: (email: string, otp: string) => Promise<void>;
+    changePassword: (newPassword: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -66,6 +69,41 @@ export const useAuthStore = create<AuthState>((set) => ({
             localStorage.removeItem('flowdesk_token');
             localStorage.removeItem('flowdesk_user');
             set({ user: null, token: null });
+        }
+    },
+
+    forgotPassword: async (email: string) => {
+        set({ isLoading: true });
+        try {
+            await api.post('/auth/forgot-password', { email });
+            set({ isLoading: false });
+        } catch (error: any) {
+            set({ isLoading: false });
+            throw new Error(error.response?.data?.message || 'Failed to send OTP');
+        }
+    },
+
+    verifyForgotPasswordOtp: async (email: string, otp: string) => {
+        set({ isLoading: true });
+        try {
+            const { data } = await api.post('/auth/verify-forgot-password-otp', { email, otp });
+            localStorage.setItem('flowdesk_token', data.token);
+            localStorage.setItem('flowdesk_user', JSON.stringify(data.user));
+            set({ user: data.user, token: data.token, isLoading: false });
+        } catch (error: any) {
+            set({ isLoading: false });
+            throw new Error(error.response?.data?.message || 'Failed to verify OTP');
+        }
+    },
+
+    changePassword: async (newPassword: string) => {
+        set({ isLoading: true });
+        try {
+            await api.put('/auth/change-password', { newPassword });
+            set({ isLoading: false });
+        } catch (error: any) {
+            set({ isLoading: false });
+            throw new Error(error.response?.data?.message || 'Failed to change password');
         }
     },
 }));
