@@ -42,7 +42,7 @@ const User_1 = __importStar(require("./models/User"));
 dotenv_1.default.config();
 const seedAdmin = async () => {
     try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/flowdesk';
+        const mongoUri = process.env.MONGODB_URI || 'mongodb://AceoneSupport:A!ceone-mongocluster@ac-c2bzbo0-shard-00-00.dffbzkm.mongodb.net:27017,ac-c2bzbo0-shard-00-01.dffbzkm.mongodb.net:27017,ac-c2bzbo0-shard-00-02.dffbzkm.mongodb.net:27017/?ssl=true&replicaSet=atlas-10c7ui-shard-0&authSource=admin&appName=Cluster0';
         await mongoose_1.default.connect(mongoUri);
         console.log('Connected to MongoDB');
         // Clear existing users
