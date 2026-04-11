@@ -156,7 +156,7 @@ const Buddy: React.FC = () => {
     setIsLoading(false);
   };
 
-  const quickQuestions = ["What does this page do?", "How do I create a task?", "How to invite team members?", "Where can I upload files?"];
+  // const quickQuestions = ["What does this page do?", "How do I create a task?", "How to invite team members?", "Where can I upload files?"];
 
   return (
     <>
