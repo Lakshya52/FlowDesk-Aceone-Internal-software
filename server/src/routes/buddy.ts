@@ -369,7 +369,7 @@ Use this context to provide relevant guidance. If they're asking about "this pag
             }),
         });
 
-        const data = await response.json();
+        const data = await response.json() as any;
 
         if (!response.ok) {
             console.error("OpenAI API Error:", data);
