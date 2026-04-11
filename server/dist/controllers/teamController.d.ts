@@ -6,4 +6,7 @@ export declare const getTeam: (req: AuthRequest, res: Response) => Promise<void>
 export declare const updateTeam: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const deleteTeam: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const updateTeamMembers: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const requestJoinTeam: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const approveJoinRequest: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const rejectJoinRequest: (req: AuthRequest, res: Response) => Promise<void>;
 //# sourceMappingURL=teamController.d.ts.map

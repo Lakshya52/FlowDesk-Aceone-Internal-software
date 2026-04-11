@@ -5,9 +5,22 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   reload: () => ipcRenderer.send('reload-app'),
-  // You can add more APIs here if the React app needs to call desktop-specific functions
-  // Example:
-  // sendMessage: (message: string) => ipcRenderer.send('message', message)
+
+  // ----- Auto-updater bridge -----
+  // Renderer → Main: trigger restart & install
+  restartAndInstall: () => ipcRenderer.send('update-action', 'restart'),
+  // Renderer → Main: dismiss the update banner
+  dismissUpdate: () => ipcRenderer.send('update-action', 'dismiss'),
+
+  // Main → Renderer: receive download progress { percent, bytesPerSecond, total, transferred }
+  onDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('download-progress', (_event, data) => callback(data));
+  },
+
+  // Main → Renderer: update fully downloaded, ready to install
+  onUpdateDownloaded: (callback: (info: any) => void) => {
+    ipcRenderer.on('update-downloaded', (_event, info) => callback(info));
+  },
 });
 
 console.log('FlowDesk Preload Bridge Initialized');

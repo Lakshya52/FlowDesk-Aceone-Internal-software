@@ -4,6 +4,8 @@ export interface IChatMessage extends Document {
     sender: mongoose.Types.ObjectId;
     assignment: mongoose.Types.ObjectId;
     attachments: mongoose.Types.ObjectId[];
+    mentions: mongoose.Types.ObjectId[];
+    parentMessage?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }

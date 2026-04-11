@@ -48,6 +48,13 @@ const createTask = async (req, res) => {
             ...req.body,
             createdBy: req.user._id,
         });
+        // Sync project status to "In Progress" if it's currently "Not Started"
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment = await AssignmentModel.findById(task.assignment);
+        if (assignment && assignment.status === 'not_started') {
+            assignment.status = 'in_progress';
+            await assignment.save();
+        }
         // Notify assigned user
         if (task.assignedTo.toString() !== req.user._id.toString()) {
             await Notification_1.default.create({
@@ -78,10 +85,10 @@ const createTask = async (req, res) => {
 exports.createTask = createTask;
 const getTasks = async (req, res) => {
     try {
-        const { assignment, status, priority, assignedTo, search } = req.query;
+        const { assignment: assignmentId, status, priority, assignedTo, search } = req.query;
         const filter = {};
-        if (assignment)
-            filter.assignment = assignment;
+        if (assignmentId)
+            filter.assignment = assignmentId;
         if (status)
             filter.status = status;
         if (priority)
@@ -91,9 +98,19 @@ const getTasks = async (req, res) => {
         if (search) {
             filter.title = { $regex: search, $options: 'i' };
         }
-        // Members only see their tasks
+        // Roles and permissions
         if (req.user.role === 'member') {
-            filter.assignedTo = req.user._id;
+            if (assignmentId) {
+                const AssignmentModel = mongoose.model('Assignment');
+                const assignment = await AssignmentModel.findById(assignmentId);
+                const isPartOfTeam = assignment?.team?.some((id) => id.toString() === req.user._id.toString());
+                if (!isPartOfTeam) {
+                    filter.assignedTo = req.user._id;
+                }
+            }
+            else {
+                filter.assignedTo = req.user._id;
+            }
         }
         const tasks = await Task_1.default.find(filter)
             .populate('assignedTo', 'name email avatar')
@@ -132,6 +149,28 @@ const updateTask = async (req, res) => {
             res.status(404).json({ message: 'Task not found' });
             return;
         }
+        const userRole = req.user.role;
+        const userId = req.user._id.toString();
+        // Permission check
+        if (userRole === 'member') {
+            // Member can only update tasks assigned to them
+            if (oldTask.assignedTo.toString() !== userId) {
+                res.status(403).json({ message: 'You can only update tasks assigned to you.' });
+                return;
+            }
+            // Member can only update status or spent time/subtasks
+            const allowedUpdates = ['status', 'timeSpent', 'subtasks'];
+            const updates = Object.keys(req.body);
+            const isAllowed = updates.every(u => allowedUpdates.includes(u));
+            if (!isAllowed) {
+                res.status(403).json({ message: 'You only have permission to update task status and progress.' });
+                return;
+            }
+        }
+        // Completion workflow: If member marks as completed, set to review
+        if (userRole === 'member' && req.body.status === 'completed') {
+            req.body.status = 'review';
+        }
         const task = await Task_1.default.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
             .populate('assignedTo', 'name email avatar')
             .populate('createdBy', 'name email')
@@ -147,7 +186,7 @@ const updateTask = async (req, res) => {
                 link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
             });
             // Notify task creator (manager) if someone else updated it
-            if (req.user._id.toString() !== oldTask.createdBy.toString()) {
+            if (userId !== oldTask.createdBy.toString()) {
                 await Notification_1.default.create({
                     user: oldTask.createdBy,
                     type: Notification_1.NotificationType.STATUS_CHANGED,
@@ -156,37 +195,13 @@ const updateTask = async (req, res) => {
                     link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
                 });
             }
-            // Notify assignment creator (admin) if they are different from task creator and updater
-            const AssignmentModel = mongoose.model('Assignment');
-            const assignment = await AssignmentModel.findById(oldTask.assignment);
-            if (assignment &&
-                assignment.createdBy.toString() !== oldTask.createdBy.toString() &&
-                assignment.createdBy.toString() !== req.user._id.toString()) {
-                await Notification_1.default.create({
-                    user: assignment.createdBy,
-                    type: Notification_1.NotificationType.STATUS_CHANGED,
-                    title: 'Project Task Updated',
-                    message: `Task "${oldTask.title}" in project "${assignment.title}" changed to ${req.body.status} by ${req.user.name}`,
-                    link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
-                });
-            }
-        }
-        // Notify on reassignment
-        if (req.body.assignedTo && req.body.assignedTo !== oldTask.assignedTo.toString()) {
-            await Notification_1.default.create({
-                user: req.body.assignedTo,
-                type: Notification_1.NotificationType.TASK_ASSIGNED,
-                title: 'Task Assigned to You',
-                message: `You have been assigned task: ${oldTask.title}`,
-                link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
-            });
         }
         await ActivityLog_1.default.create({
             action: 'Task updated',
             user: req.user._id,
             entityType: ActivityLog_1.EntityType.TASK,
             entityId: oldTask._id,
-            metadata: { updates: Object.keys(req.body) },
+            metadata: { updates: Object.keys(req.body), status: req.body.status },
         });
         res.json({ task });
     }

@@ -39,6 +39,7 @@ const teamSchema = new mongoose_1.Schema({
     description: { type: String, default: '' },
     manager: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     members: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+    joinRequests: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 teamSchema.index({ manager: 1 });

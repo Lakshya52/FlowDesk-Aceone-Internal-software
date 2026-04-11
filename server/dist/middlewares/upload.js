@@ -5,23 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.upload = void 0;
 const multer_1 = __importDefault(require("multer"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
-// Ensure upload directory exists
-if (!fs_1.default.existsSync(uploadDir)) {
-    fs_1.default.mkdirSync(uploadDir, { recursive: true });
-}
-const storage = multer_1.default.diskStorage({
-    destination: (_req, _file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (_req, file, cb) => {
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        const ext = path_1.default.extname(file.originalname);
-        cb(null, `${uniqueSuffix}${ext}`);
-    },
-});
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+// Use memory storage - files are held in buffer, then manually written to GridFS in controllers
+const storage = multer_1.default.memoryStorage();
 const fileFilter = (_req, file, cb) => {
     const allowedMimes = [
         'image/jpeg',

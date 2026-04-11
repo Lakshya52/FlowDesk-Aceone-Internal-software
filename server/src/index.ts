@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import http from 'http';
 import dns from 'node:dns';
+import buddyRoute from "./routes/buddy";
 
 // Force DNS to resolve IPv4 first to avoid Atlas connection issues on Windows
 dns.setDefaultResultOrder('ipv4first');
@@ -66,6 +67,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+
 // Serve files from GridFS
 app.get('/uploads/:filename', async (req, res) => {
     try {
@@ -75,14 +77,14 @@ app.get('/uploads/:filename', async (req, res) => {
         const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
             bucketName: 'uploads'
         });
-
+        
         const filename = req.params.filename;
         const files = await bucket.find({ filename }).toArray();
-
+        
         if (!files || files.length === 0) {
             return res.status(404).json({ message: 'File not found' });
         }
-
+        
         const file = files[0];
         if (file.contentType) {
             res.set('Content-Type', file.contentType);
@@ -93,13 +95,13 @@ app.get('/uploads/:filename', async (req, res) => {
             else if (ext === 'jpg' || ext === 'jpeg') res.set('Content-Type', 'image/jpeg');
             else if (ext === 'pdf') res.set('Content-Type', 'application/pdf');
         }
-
+        
         const downloadStream = bucket.openDownloadStreamByName(filename);
         
         downloadStream.on('error', () => {
             res.status(404).json({ message: 'Error downloading file' });
         });
-
+        
         downloadStream.pipe(res);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -108,6 +110,7 @@ app.get('/uploads/:filename', async (req, res) => {
 
 
 // API Routes
+app.use("/api/buddy", buddyRoute);
 app.use('/api/auth', authRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/tasks', taskRoutes);

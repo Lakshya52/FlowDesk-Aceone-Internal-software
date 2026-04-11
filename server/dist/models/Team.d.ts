@@ -4,6 +4,7 @@ export interface ITeam extends Document {
     description: string;
     manager: mongoose.Types.ObjectId;
     members: mongoose.Types.ObjectId[];
+    joinRequests: mongoose.Types.ObjectId[];
     createdBy: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;

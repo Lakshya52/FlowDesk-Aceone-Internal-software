@@ -37,6 +37,13 @@
       "package.json",
       ".env"
     ],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": [
         "nsis",

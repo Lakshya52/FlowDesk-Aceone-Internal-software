@@ -13,6 +13,8 @@ export interface IUser extends Document {
     avatar?: string;
     isActive: boolean;
     lastLogin?: Date;
+    resetPasswordOtp?: string;
+    resetPasswordExpires?: Date;
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;
