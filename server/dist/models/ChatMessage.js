@@ -39,6 +39,8 @@ const chatMessageSchema = new mongoose_1.Schema({
     sender: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     assignment: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     attachments: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Attachment' }],
+    mentions: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+    parentMessage: { type: mongoose_1.Schema.Types.ObjectId, ref: 'ChatMessage' },
 }, { timestamps: true });
 chatMessageSchema.index({ assignment: 1, createdAt: -1 });
 exports.default = mongoose_1.default.model('ChatMessage', chatMessageSchema);

@@ -38,9 +38,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchUsers = exports.deleteComment = exports.getComments = exports.createComment = void 0;
 const Comment_1 = __importDefault(require("../models/Comment"));
-const Notification_1 = __importStar(require("../models/Notification"));
+const Notification_1 = require("../models/Notification");
 const ActivityLog_1 = __importStar(require("../models/ActivityLog"));
 const User_1 = __importDefault(require("../models/User"));
+const notificationService_1 = require("../services/notificationService");
 const createComment = async (req, res) => {
     try {
         const { content, assignmentId, taskId, mentions } = req.body;
@@ -53,16 +54,16 @@ const createComment = async (req, res) => {
         });
         // Notify mentioned users
         if (mentions && mentions.length > 0) {
-            const mentionNotifications = mentions.map((m) => ({
+            const payloads = mentions.map((m) => ({
                 user: m.user,
                 type: Notification_1.NotificationType.MENTION,
-                title: 'You were mentioned',
+                title: 'New Mention',
                 message: `${req.user.name} mentioned you in a comment`,
                 link: taskId
-                    ? `/assignments/${assignmentId}/tasks/${taskId}`
+                    ? `/assignments/${assignmentId}?taskId=${taskId}`
                     : `/assignments/${assignmentId}`,
             }));
-            await Notification_1.default.insertMany(mentionNotifications);
+            await (0, notificationService_1.createNotifications)(payloads);
         }
         await ActivityLog_1.default.create({
             action: 'Comment added',

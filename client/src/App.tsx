@@ -21,12 +21,14 @@ const queryClient = new QueryClient({
 
 import LandingPage from './pages/LandingPage';
 import NotFoundPage from './pages/NotFoundPage';
+import Buddy from './components/common/Buddy';
 
 const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <Buddy />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />

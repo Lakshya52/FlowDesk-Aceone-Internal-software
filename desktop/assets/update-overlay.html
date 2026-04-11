@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: no-drag;
+    }
+
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      border-bottom: 1px solid rgba(99, 179, 237, 0.3);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      gap: 12px;
+      height: 56px;
+      width: 100%;
+    }
+
+    .left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .icon { font-size: 18px; flex-shrink: 0; }
+
+    .text-block { flex: 1; min-width: 0; }
+
+    .title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Progress */
+    .progress-wrap {
+      width: 160px;
+      height: 5px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 99px;
+      overflow: hidden;
+      display: none;
+      flex-shrink: 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4facfe, #00f2fe);
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    .progress-label {
+      font-size: 11px;
+      color: #63b3ed;
+      font-weight: 500;
+      display: none;
+      flex-shrink: 0;
+      min-width: 34px;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(99, 179, 237, 0.2);
+      border-top-color: #63b3ed;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Buttons */
+    .actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      color: #0a0a1a;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.07);
+      color: #94a3b8;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.13); color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="banner">
+    <div class="left">
+      <span class="icon" id="icon">⬇️</span>
+      <div class="text-block">
+        <div class="title" id="title">Update Available</div>
+        <div class="subtitle" id="subtitle">Downloading the latest version of FlowDesk...</div>
+      </div>
+      <div class="spinner" id="spinner"></div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <span class="progress-label" id="progressLabel"></span>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="laterBtn" onclick="handleLater()">Later</button>
+      <button class="btn btn-primary" id="actionBtn" disabled>Downloading...</button>
+    </div>
+  </div>
+
+  <script>
+    const api = window.electronAPI;
+
+    function handleLater() {
+      api.dismissUpdate();
+    }
+
+    function handleRestart() {
+      api.restartAndInstall();
+    }
+
+    // Listen for download progress from main process
+    api.onDownloadProgress((progress) => {
+      const pct = Math.round(progress.percent);
+
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('progressWrap').style.display = 'block';
+      document.getElementById('progressLabel').style.display = 'block';
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressLabel').textContent = pct + '%';
+      document.getElementById('subtitle').textContent =
+        `Downloading... ${pct}% (${formatBytes(progress.bytesPerSecond)}/s)`;
+    });
+
+    // Listen for update-downloaded
+    api.onUpdateDownloaded((info) => {
+      document.getElementById('icon').textContent = '✅';
+      document.getElementById('title').textContent = 'Update Ready';
+      document.getElementById('subtitle').textContent =
+        `v${info.version} is ready. Restart FlowDesk to apply the update.`;
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('progressLabel').style.display = 'none';
+
+      const btn = document.getElementById('actionBtn');
+      btn.textContent = '🔁 Restart & Update';
+      btn.disabled = false;
+      btn.onclick = handleRestart;
+
+      document.getElementById('laterBtn').textContent = 'Later';
+    });
+
+    function formatBytes(bytes) {
+      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+      return bytes + ' B';
+    }
+  </script>
+</body>
+</html>

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTeamMembers = exports.deleteTeam = exports.updateTeam = exports.getTeam = exports.getTeams = exports.createTeam = void 0;
+exports.rejectJoinRequest = exports.approveJoinRequest = exports.requestJoinTeam = exports.updateTeamMembers = exports.deleteTeam = exports.updateTeam = exports.getTeam = exports.getTeams = exports.createTeam = void 0;
 const Team_1 = __importDefault(require("../models/Team"));
 const ActivityLog_1 = __importStar(require("../models/ActivityLog"));
 const createTeam = async (req, res) => {
@@ -65,18 +65,21 @@ const createTeam = async (req, res) => {
 exports.createTeam = createTeam;
 const getTeams = async (req, res) => {
     try {
-        const filter = {};
-        // Managers only see their own teams
-        if (req.user.role === 'manager') {
-            filter.manager = req.user._id;
+        const userRole = req.user.role;
+        const userId = req.user._id;
+        let query = {};
+        if (userRole !== 'admin') {
+            query = {
+                $or: [
+                    { manager: userId },
+                    { members: userId }
+                ]
+            };
         }
-        // Members see teams they belong to
-        if (req.user.role === 'member') {
-            filter.members = req.user._id;
-        }
-        const teams = await Team_1.default.find(filter)
+        const teams = await Team_1.default.find(query)
             .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
         res.json({ teams });
@@ -193,4 +196,99 @@ const updateTeamMembers = async (req, res) => {
     }
 };
 exports.updateTeamMembers = updateTeamMembers;
+const requestJoinTeam = async (req, res) => {
+    try {
+        const team = await Team_1.default.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+        if (team.members.includes(req.user._id) || team.manager.toString() === req.user._id.toString()) {
+            res.status(400).json({ message: 'Already a member of this team' });
+            return;
+        }
+        if (team.joinRequests.includes(req.user._id)) {
+            res.status(400).json({ message: 'Join request already sent' });
+            return;
+        }
+        team.joinRequests.push(req.user._id);
+        await team.save();
+        const populated = await Team_1.default.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+        res.json({ team: populated, message: 'Join request sent successfully.' });
+    }
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+exports.requestJoinTeam = requestJoinTeam;
+const approveJoinRequest = async (req, res) => {
+    try {
+        const team = await Team_1.default.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+        if (req.user.role !== 'admin' && team.manager.toString() !== req.user._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to approve join requests.' });
+            return;
+        }
+        const userId = req.params.userId;
+        const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
+        if (requestIndex === -1) {
+            res.status(400).json({ message: 'Join request not found' });
+            return;
+        }
+        team.joinRequests.splice(requestIndex, 1);
+        if (!team.members.find(id => id.toString() === userId)) {
+            //@ts-ignore
+            team.members.push(userId);
+        }
+        await team.save();
+        const populated = await Team_1.default.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+        res.json({ team: populated, message: 'Request approved.' });
+    }
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+exports.approveJoinRequest = approveJoinRequest;
+const rejectJoinRequest = async (req, res) => {
+    try {
+        const team = await Team_1.default.findById(req.params.id);
+        if (!team) {
+            res.status(404).json({ message: 'Team not found' });
+            return;
+        }
+        if (req.user.role !== 'admin' && team.manager.toString() !== req.user._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to reject join requests.' });
+            return;
+        }
+        const userId = req.params.userId;
+        const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
+        if (requestIndex === -1) {
+            res.status(400).json({ message: 'Join request not found' });
+            return;
+        }
+        team.joinRequests.splice(requestIndex, 1);
+        await team.save();
+        const populated = await Team_1.default.findById(team._id)
+            .populate('manager', 'name email avatar')
+            .populate('members', 'name email avatar role')
+            .populate('joinRequests', 'name email avatar role')
+            .populate('createdBy', 'name email');
+        res.json({ team: populated, message: 'Request rejected.' });
+    }
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+exports.rejectJoinRequest = rejectJoinRequest;
 //# sourceMappingURL=teamController.js.map

@@ -38,7 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserRole = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 var UserRole;
 (function (UserRole) {
     UserRole["ADMIN"] = "admin";
@@ -54,6 +54,8 @@ const userSchema = new mongoose_1.Schema({
     avatar: { type: String },
     isActive: { type: Boolean, default: true },
     lastLogin: { type: Date },
+    resetPasswordOtp: { type: String },
+    resetPasswordExpires: { type: Date },
 }, { timestamps: true });
 const Counter_1 = __importDefault(require("./Counter"));
 userSchema.pre('save', async function (next) {
@@ -68,12 +70,12 @@ userSchema.pre('save', async function (next) {
     }
     if (!this.isModified('password'))
         return next();
-    const salt = await bcrypt_1.default.genSalt(12);
-    this.password = await bcrypt_1.default.hash(this.password, salt);
+    const salt = await bcryptjs_1.default.genSalt(12);
+    this.password = await bcryptjs_1.default.hash(this.password, salt);
     next();
 });
 userSchema.methods.comparePassword = async function (candidatePassword) {
-    return bcrypt_1.default.compare(candidatePassword, this.password);
+    return bcryptjs_1.default.compare(candidatePassword, this.password);
 };
 userSchema.set('toJSON', {
     transform: (_doc, ret) => {

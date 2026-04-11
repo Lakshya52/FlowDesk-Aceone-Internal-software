@@ -41,8 +41,22 @@ const Assignment_1 = __importDefault(require("../models/Assignment"));
 const ActivityLog_1 = __importStar(require("../models/ActivityLog"));
 const createAssignment = async (req, res) => {
     try {
+        const { teams: teamIds, team: memberIds = [], ...rest } = req.body;
+        let allMemberIds = [...memberIds];
+        if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+            const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
+            const teams = await Team.find({ _id: { $in: teamIds } });
+            // Include both team manager and all members
+            const teamInvites = teams.flatMap(t => [
+                t.manager.toString(),
+                ...t.members.map(m => m.toString())
+            ]);
+            allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
+        }
         const assignment = await Assignment_1.default.create({
-            ...req.body,
+            ...rest,
+            teams: teamIds,
+            team: allMemberIds,
             createdBy: req.user._id,
         });
         await ActivityLog_1.default.create({
@@ -77,17 +91,40 @@ const getAssignments = async (req, res) => {
             filter.status = status;
         if (priority)
             filter.priority = priority;
+        let searchFilter = {};
         if (search) {
-            filter.$or = [
+            searchFilter.$or = [
                 { title: { $regex: search, $options: 'i' } },
                 { clientName: { $regex: search, $options: 'i' } },
             ];
         }
-        // Members only see assignments they're on
+        let roleFilter = {};
         if (req.user.role === 'member') {
-            filter.team = req.user._id;
+            roleFilter.$or = [
+                { team: req.user._id },
+                { createdBy: req.user._id }
+            ];
         }
-        const assignments = await Assignment_1.default.find(filter)
+        else if (req.user.role === 'manager') {
+            const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
+            const managedTeams = await Team.find({ manager: req.user._id }).distinct('_id');
+            roleFilter.$or = [
+                { createdBy: req.user._id },
+                { teams: { $in: managedTeams } },
+                { team: req.user._id }
+            ];
+        }
+        // Combine all filters using $and to avoid overwriting $or
+        const finalFilter = { ...filter };
+        const conditions = [];
+        if (Object.keys(searchFilter).length > 0)
+            conditions.push(searchFilter);
+        if (Object.keys(roleFilter).length > 0)
+            conditions.push(roleFilter);
+        if (conditions.length > 0) {
+            finalFilter.$and = conditions;
+        }
+        const assignments = await Assignment_1.default.find(finalFilter)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
             .populate({
@@ -141,6 +178,23 @@ const updateAssignment = async (req, res) => {
             return;
         }
         Object.assign(assignment, req.body);
+        // Auto-assign Team Members if teams were updated
+        if (req.body.teams || req.body.team) {
+            let allMemberIds = [...(req.body.team || assignment.team.map((id) => id.toString()))];
+            const teamIds = req.body.teams || assignment.teams;
+            if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+                const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
+                const teams = await Team.find({ _id: { $in: teamIds } });
+                // Include both team manager and all members
+                const teamInvites = teams.flatMap(t => [
+                    t.manager.toString(),
+                    ...t.members.map(m => m.toString())
+                ]);
+                allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
+            }
+            assignment.team = allMemberIds;
+            assignment.teams = teamIds;
+        }
         await assignment.save();
         const updated = await Assignment_1.default.findById(assignment._id)
             .populate('createdBy', 'name email')

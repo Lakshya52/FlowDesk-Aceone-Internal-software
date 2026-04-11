@@ -9,5 +9,6 @@ router.get('/stats', dashboardController_1.getDashboardStats);
 router.get('/calendar', dashboardController_1.getCalendarEvents);
 router.get('/report-filters', dashboardController_1.getReportFilters);
 router.get('/reports', (0, auth_1.authorize)('admin', 'manager', 'member'), dashboardController_1.getReports);
+router.get('/search', dashboardController_1.globalSearch);
 exports.default = router;
 //# sourceMappingURL=dashboard.js.map
