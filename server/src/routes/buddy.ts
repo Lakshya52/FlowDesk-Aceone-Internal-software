@@ -355,10 +355,80 @@ Use this to provide contextually relevant help. If they ask about "this page", "
       }),
     });
 
+<<<<<<< HEAD
     const data = (await response.json()) as any;
     if (!response.ok) {
       console.error("OpenAI API Error:", data);
       return res.json({ reply: getFallbackResponse(message, path) });
+=======
+This way, your team gets instant Slack messages for:
+- New task assignments
+- Mention notifications
+- Deadline reminders
+- Project updates
+
+If you don't see this option yet, it might be under development. You can also use FlowDesk's email notifications as an alternative! 🔔"
+
+User: "What's the keyboard shortcut for creating tasks?"
+You: "Quick keyboard shortcuts in FlowDesk:
+- Ctrl+N: Create new (creates a task on Tasks page, assignment on Assignments page)
+- Ctrl+K: Open quick search to find anything fast
+- Esc: Close any open modal or dialog
+- Enter: Save or confirm in any form
+
+Pro tip: You can also click the 'Create Task' button in the top right of the Tasks page! ⌨️"
+
+CURRENT USER LOCATION: ${path}
+
+Use this context to provide relevant guidance. If they're asking about "this page" or "here", refer to the page they're on.
+`;
+
+        // Use gpt-4o for better reasoning (still fast)
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: "gpt-4o",
+                temperature: 0.7,
+                max_tokens: 1000,
+                messages: [
+                    { role: "system", content: systemPrompt.trim() },
+                    ...history,
+                    { role: "user", content: message },
+                ],
+            }),
+        });
+
+        const data = await response.json() as any;
+
+        if (!response.ok) {
+            console.error("OpenAI API Error:", data);
+            // Fallback response instead of error
+            return res.json({
+                reply: getFallbackResponse(message),
+            });
+        }
+
+        const aiResponse = data.choices?.[0]?.message?.content || "No response";
+        
+        // Ensure response is helpful even if AI fails
+        const finalReply = aiResponse && aiResponse.length > 10 
+            ? aiResponse 
+            : getFallbackResponse(message);
+
+        res.json({
+            reply: finalReply,
+        });
+    } catch (err) {
+        console.error("Buddy API Error:", err);
+        // Never show error to user - always provide helpful response
+        res.json({
+            reply: getFallbackResponse(req.body.message),
+        });
+>>>>>>> ed149f23c81167d37c08b0628e497533716fc46f
     }
 
     const aiResponse = data.choices?.[0]?.message?.content || "";

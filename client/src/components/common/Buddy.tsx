@@ -318,7 +318,7 @@ const Buddy: React.FC = () => {
         [input, messages, isLoading, location.pathname]
     );
 
-    const suggestions = getPageSuggestions(location.pathname);
+  const quickQuestions = ["What does this page do?", "How do I create a task?", "How to invite team members?", "Where can I upload files?"];
 
     return (
         <>
