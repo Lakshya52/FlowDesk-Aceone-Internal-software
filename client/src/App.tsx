@@ -12,6 +12,9 @@ import ReportsPage from './pages/ReportsPage';
 import FilesPage from './pages/FilesPage';
 import SettingsPage from './pages/SettingsPage';
 import TeamsPage from './pages/TeamsPage';
+import ClientsPage from './pages/ClientsPage';
+import CanvasPage from './pages/CanvasPage';
+import BulkEmailPage from './pages/BulkEmailPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,11 +40,14 @@ const App: React.FC = () => {
             <Route path="/assignments" element={<AssignmentsPage />} />
             <Route path="/assignments/:id" element={<AssignmentDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/reports" element={<Navigate to="/reports/employee" replace />} />
             <Route path="/reports/:reportType" element={<ReportsPage />} />
             <Route path="/files" element={<FilesPage />} />
             <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/canvas" element={<CanvasPage />} />
+            <Route path="/bulk-email" element={<BulkEmailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<ProtectedNotFound />} />

@@ -9,6 +9,7 @@ import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2, Reply } from 'lucide-react';
 import { format } from 'date-fns';
+import ProjectCanvas from '../components/assignments/ProjectCanvas';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
 const STATUS_LABELS: Record<string, string> = { not_started: 'Not Started', in_progress: 'In Progress', completed: 'Completed', delayed: 'Delayed' };
@@ -25,7 +26,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [files, setFiles] = useState<any[]>([]);
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'chat'>('tasks');
+    const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'chat' | 'notes'>('tasks');
     // const [comment, setComment] = useState('');
     const [chatInput, setChatInput] = useState('');
     const [showTaskForm, setShowTaskForm] = useState(false);
@@ -40,6 +41,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatFileRef = useRef<HTMLInputElement>(null);
+    const whiteboardRef = useRef<HTMLDivElement>(null);
     const socketRef = useRef<any>(null);
     const [typingUsers, setTypingUsers] = useState<any>({});
     const typingTimeoutRef = useRef<any>(null);
@@ -54,10 +56,18 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const tab = params.get('tab');
-        if (tab === 'chat' || tab === 'tasks' || tab === 'files') {
+        if (tab === 'chat' || tab === 'tasks' || tab === 'files' || tab === 'notes') {
             setActiveTab(tab as any);
         }
     }, [location.search]);
+
+    useEffect(() => {
+        if (activeTab === 'notes') {
+            setTimeout(() => {
+                whiteboardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }, [activeTab]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -512,6 +522,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         { key: 'tasks', label: 'Tasks', count: tasks.length },
         { key: 'chat', label: 'Chat', count: chatMessages.length },
         { key: 'files', label: 'Files', count: files.length },
+        { key: 'notes', label: 'Whiteboard', count: 0, new: true },
     ];
 
     return (
@@ -625,10 +636,40 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             paddingBottom: 12,
                         }}
                     >
-                        {t.label} <span style={{ fontWeight: 400, fontSize: '0.75rem', opacity: 0.6 }}>({t.count})</span>
+                        {t.label} 
+                        {t.key !== 'notes' ? (
+                            <span style={{ fontWeight: 400, fontSize: '0.75rem', opacity: 0.6, marginLeft: 6 }}>({t.count})</span>
+                        ) : (
+                            <span style={{ 
+                                fontSize: '0.6rem', 
+                                background: '#22c55e', 
+                                color: 'white', 
+                                padding: '2px 6px', 
+                                borderRadius: 10, 
+                                marginLeft: 8,
+                                fontWeight: 700,
+                                textTransform: 'uppercase'
+                            }}>New</span>
+                        )}
                     </button>
                 ))}
             </div>
+
+            {/* Notes/Whiteboard Tab */}
+            {activeTab === 'notes' && (
+                <div ref={whiteboardRef} style={{ marginBottom: 40 }}>
+                    <div style={{ marginBottom: 16 }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 4 }}>Project Whiteboard</h3>
+                        <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+                            Collaborative space for visual notes and brainstorming. All project members can see and edit these notes.
+                        </p>
+                    </div>
+                    <ProjectCanvas 
+                        assignmentId={id!} 
+                        initialData={assignment.canvasData} 
+                    />
+                </div>
+            )}
 
             {/* Tasks Tab */}
             {activeTab === 'tasks' && (

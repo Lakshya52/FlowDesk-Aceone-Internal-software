@@ -1,4 +1,4 @@
-export { default as User } from './User';
+﻿export { default as User } from './User';
 export { default as Assignment } from './Assignment';
 export { default as Task } from './Task';
 export { default as Comment } from './Comment';
@@ -7,3 +7,6 @@ export { default as Notification } from './Notification';
 export { default as ActivityLog } from './ActivityLog';
 export { default as Team } from './Team';
 export { default as ChatMessage } from './ChatMessage';
+
+export { default as Company } from './Company';
+export { default as Contact } from './Contact';

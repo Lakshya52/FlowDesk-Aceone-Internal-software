@@ -21,6 +21,9 @@ import dashboardRoutes from './routes/dashboard';
 import teamRoutes from './routes/teams';
 import chatRoutes from './routes/chat';
 import reportRoutes from './routes/reports';
+import companyRoutes from './routes/companies';
+import canvasRoutes from './routes/canvas';
+import { startRecurringJob } from './services/recurringTaskService';
 import { errorHandler, notFound } from './middlewares/errorHandler';
 
 dotenv.config();
@@ -121,6 +124,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/canvas', canvasRoutes);
 
 // Socket.io connection logic
 io.on('connection', (socket) => {
@@ -168,6 +173,7 @@ const startServer = async () => {
 
         server.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
+            startRecurringJob();
         });
     } catch (error) {
         console.error('❌ Failed to connect to MongoDB:', error);

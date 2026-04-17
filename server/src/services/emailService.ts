@@ -76,3 +76,42 @@ export const sendOtpEmail = async (to: string, otp: string) => {
         throw new Error('Failed to send password reset email');
     }
 };
+
+export const sendGenericEmail = async (to: string[], subject: string, message: string) => {
+    try {
+        const transporter = await getTransporter();
+
+        const mailOptions = {
+            from: process.env.EMAIL_FROM || '"FlowDesk Team" <noreply@flowdesk.app>',
+            bcc: to, // Use BCC for bulk emails to protect privacy
+            subject: subject,
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                    <div style="background-color: #6366f1; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                        <h1 style="color: white; margin: 0; font-size: 24px;">FlowDesk Notification</h1>
+                    </div>
+                    <div style="padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+                        <div style="white-space: pre-wrap; font-size: 16px; color: #4b5563;">${message}</div>
+                        <br />
+                        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+                        <p style="font-size: 14px; color: #9ca3af; text-align: center;">
+                            Sent via FlowDesk Business Platform
+                        </p>
+                    </div>
+                </div>
+            `,
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`Bulk email sent successfully to ${to.length} recipients`);
+
+        if (!process.env.SMTP_HOST) {
+            console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
+        }
+        
+        return info;
+    } catch (error) {
+        console.error('Error sending generic email:', error);
+        throw new Error('Failed to send bulk email');
+    }
+};
