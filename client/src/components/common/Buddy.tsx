@@ -315,10 +315,10 @@ const Buddy: React.FC = () => {
                 abortControllerRef.current = null;
             }
         },
-        [input, messages, isLoading, location.pathname]
+        [input, messages, isLoading, location.pathname, pageContext]
     );
 
-  const quickQuestions = ["What does this page do?", "How do I create a task?", "How to invite team members?", "Where can I upload files?"];
+    const suggestions = getPageSuggestions(location.pathname);
 
     return (
         <>
@@ -498,7 +498,7 @@ const Buddy: React.FC = () => {
                                     <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                                         Suggested questions
                                     </p>
-                                    {suggestions.map((q, idx) => (
+                                    {suggestions.map((q: string, idx: number) => (
                                         <button
                                             key={idx}
                                             onClick={() => sendMessage(q)}

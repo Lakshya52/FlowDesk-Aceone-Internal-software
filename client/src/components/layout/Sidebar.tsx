@@ -39,7 +39,7 @@ const navItems = [
     },
     { to: '/clients', icon: Building2, label: 'Companies & Clients', new: true },
     { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: true },
-    { to: '/canvas', icon: Shapes, label: 'Personal Canvas', new: true },
+    { to: '/canvas', icon: Shapes, label: 'Canvas', new: true },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
     {
         to: '/reports',
