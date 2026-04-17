@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
     FolderKanban,
-    CheckSquare,
+    // CheckSquare,
     CalendarDays,
     BarChart3,
     // FileText,
@@ -13,22 +13,37 @@ import {
     Menu,
     ChevronLeft,
     // ChevronRight
+    Building2,
+    Shapes,
+    Mail
 } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
     toggleSidebar: () => void;
+    width?: number;
 }
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/assignments', icon: FolderKanban, label: 'Projects' },
-    { to: '/tasks', icon: CheckSquare, label: 'Tasks' },
-    { to: '/teams', icon: Users, label: 'Teams' },
+    { to: '/teams', icon: Users, label: 'Our Teams' },
+    {
+        to: '/assignments',
+        icon: FolderKanban,
+        label: 'Projects',
+        subItems: [
+            { to: '/tasks', label: 'Tasks' },
+            // { to: '/reports/workload', label: 'Workload' },
+            // { to: '/reports/activity', label: 'User Activity' }
+        ]
+    },
+    { to: '/clients', icon: Building2, label: 'Companies & Clients', new: true },
+    { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: true },
+    { to: '/canvas', icon: Shapes, label: 'Personal Canvas', new: true },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
-    { 
-        to: '/reports', 
-        icon: BarChart3, 
+    {
+        to: '/reports',
+        icon: BarChart3,
         label: 'Reports',
         subItems: [
             { to: '/reports/employee', label: 'Tracking' },
@@ -39,18 +54,19 @@ const navItems = [
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
     return (
         <aside
             style={{
-                width: isOpen ? 'var(--sidebar-width)' : '80px',
-                transition: 'width 0.3s ease',
+                width: isOpen ? `${width}px` : '80px',
+                transition: 'width 0s linear', // Remove transition for smooth dragging
                 background: 'var(--color-surface)',
                 borderRight: '1px solid var(--color-border)',
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100vh',
                 flexShrink: 0,
+                position: 'relative'
             }}
         >
             {/* Logo */}
@@ -152,12 +168,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
                                 >
                                     <item.icon size={20} style={{ flexShrink: 0 }} />
                                     {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                                    {item.new && isOpen && (
+                                        <span style={{ 
+                                            fontSize: '0.6rem', 
+                                            background: '#22c55e', 
+                                            color: 'white', 
+                                            padding: '2px 6px', 
+                                            borderRadius: 10, 
+                                            fontWeight: 700,
+                                            textTransform: 'uppercase',
+                                            lineHeight: 1
+                                        }}>New</span>
+                                    )}
                                 </NavLink>
-                                
+
                                 {item.subItems && isOpen && (
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
                                         marginLeft: '21px', // Aligns directly under the center of the 20px icon (12px padding + 10px half icon - 1px border)
                                         marginTop: '4px',
                                         marginBottom: '4px'
@@ -186,7 +214,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
                                                             borderTop: '2px solid var(--color-border)',
                                                         }} />
                                                     )}
-                                                    
+
                                                     <NavLink
                                                         to={sub.to}
                                                         style={({ isActive }) => ({

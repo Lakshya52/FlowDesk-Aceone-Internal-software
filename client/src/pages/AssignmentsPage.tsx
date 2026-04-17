@@ -17,14 +17,31 @@ const AssignmentsPage: React.FC = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showCreate, setShowCreate] = useState(false);
-    const [form, setForm] = useState({ title: '', clientName: '', description: '', priority: 'medium', startDate: '', dueDate: '', team: [] as string[], teams: [] as string[] });
+    const [form, setForm] = useState({
+        title: '',
+        clientName: '',
+        companyId: '',
+        description: '',
+        priority: 'medium',
+        startDate: '',
+        dueDate: '',
+        team: [] as string[],
+        teams: [] as string[],
+        isRecurring: false,
+        recurringPattern: 'monthly' as any,
+        recurringStartDate: ''
+    });
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [allTeams, setAllTeams] = useState<any[]>([]);
+    const [allCompanies, setAllCompanies] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
+    const [companySearch, setCompanySearch] = useState('');
+    const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
 
     const isAdmin = user?.role === 'admin';
     const isManager = user?.role === 'manager';
-    const canCreate = isAdmin || isManager;
+    const isEmployee = user?.role === 'member';
+    const canCreate = isAdmin || isManager || isEmployee;
 
     const fetchAssignments = async () => {
         try {
@@ -44,20 +61,35 @@ const AssignmentsPage: React.FC = () => {
             Promise.all([
                 api.get('/auth/users'),
                 api.get('/teams'),
-            ]).then(([uRes, tRes]) => {
+                api.get('/companies'),
+            ]).then(([uRes, tRes, cRes]) => {
                 setAllUsers(uRes.data.users || []);
                 setAllTeams(tRes.data.teams || []);
+                setAllCompanies(cRes.data.companies || []);
             });
         }
     }, [showCreate]);
+
+    const filteredCompanies = allCompanies.filter(c =>
+        c.name.toLowerCase().includes(companySearch.toLowerCase())
+    );
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const { data } = await api.post('/assignments', form);
+            const { data } = await api.post('/assignments', {
+                ...form,
+                // Ensure dates are sent correctly if provided
+                recurringStartDate: form.isRecurring ? form.recurringStartDate : undefined,
+                recurringPattern: form.isRecurring ? form.recurringPattern : undefined
+            });
             setShowCreate(false);
-            setForm({ title: '', clientName: '', description: '', priority: 'medium', startDate: '', dueDate: '', team: [], teams: [] });
+            setForm({
+                title: '', clientName: '', companyId: '', description: '', priority: 'medium', startDate: '', dueDate: '', team: [], teams: [],
+                isRecurring: false, recurringPattern: 'monthly', recurringStartDate: ''
+            });
+            setCompanySearch('');
             // Redirect to the newly created project
             if (data.assignment?._id) {
                 navigate(`/assignments/${data.assignment._id}`);
@@ -137,6 +169,7 @@ const AssignmentsPage: React.FC = () => {
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                                         <span style={{ fontSize: '0.9375rem', fontWeight: 600 }}>{a.title}</span>
+                                        {a.isRecurring && <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Recurring</span>}
                                         <span className={`badge badge-${a.priority}`}>{PRIORITY_LABELS[a.priority]}</span>
                                         <span className={`badge badge-${a.status}`}>{STATUS_LABELS[a.status]}</span>
                                     </div>
@@ -160,18 +193,18 @@ const AssignmentsPage: React.FC = () => {
                                     )}
                                 </div>                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                                     {a.team?.slice(0, 3).map((member: any, i: number) => (
-                                         <Avatar
-                                             key={member._id}
-                                             src={member.avatar}
-                                             name={member.name}
-                                             size={28}
-                                             style={{
-                                                 border: '2px solid var(--color-surface)',
-                                                 marginLeft: i > 0 ? -8 : 0,
-                                                 zIndex: 10 - i
-                                             }}
-                                         />
-                                     ))}
+                                        <Avatar
+                                            key={member._id}
+                                            src={member.avatar}
+                                            name={member.name}
+                                            size={28}
+                                            style={{
+                                                border: '2px solid var(--color-surface)',
+                                                marginLeft: i > 0 ? -8 : 0,
+                                                zIndex: 10 - i
+                                            }}
+                                        />
+                                    ))}
                                     {a.team?.length > 3 && (
                                         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
                                             +{a.team.length - 3}
@@ -197,10 +230,87 @@ const AssignmentsPage: React.FC = () => {
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Title *</label>
                                 <input className="input" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Project title" />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Client Name *</label>
-                                <input className="input" required value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} placeholder="Client name" />
+                            <div style={{ position: 'relative' }}>
+                                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Company / Client *</label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        className="input"
+                                        required
+                                        value={companySearch || form.clientName}
+                                        onChange={e => {
+                                            setCompanySearch(e.target.value);
+                                            setShowCompanyDropdown(true);
+                                            setForm(prev => ({ ...prev, clientName: e.target.value, companyId: '' }));
+                                        }}
+                                        onFocus={() => setShowCompanyDropdown(true)}
+                                        onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                                        placeholder="Search or enter company name"
+                                    />
+                                    {showCompanyDropdown && (companySearch || allCompanies.length > 0) && (
+                                        <div
+                                            style={{
+                                                position: 'absolute', top: '100%', left: 0, right: 0,
+                                                background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                                                borderRadius: '0 0 8px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                                zIndex: 10, maxHeight: 200, overflowY: 'auto'
+                                            }}
+                                        >
+                                            {filteredCompanies.length > 0 ? (
+                                                filteredCompanies.map(c => (
+                                                    <div
+                                                        key={c._id}
+                                                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }}
+                                                        className="hover-bg"
+                                                        onClick={() => {
+                                                            setForm(prev => ({ ...prev, clientName: c.name, companyId: c._id }));
+                                                            setCompanySearch(c.name);
+                                                            setShowCompanyDropdown(false);
+                                                        }}
+                                                    >
+                                                        {c.name}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div style={{ padding: '8px 12px', fontSize: '0.875rem', color: 'var(--color-text-tertiary)' }}>
+                                                    No results found. Press enter to use "{companySearch}"
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Assignment Type</label>
+                                    <select className="select" value={form.isRecurring ? 'true' : 'false'} onChange={e => setForm({ ...form, isRecurring: e.target.value === 'true' })}>
+                                        <option value="false">Normal Project</option>
+                                        <option value="true">Recurring Project</option>
+                                    </select>
+                                </div>
+                                {form.isRecurring && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Pattern</label>
+                                        <select className="select" value={form.recurringPattern} onChange={e => setForm({ ...form, recurringPattern: e.target.value as any })}>
+                                            <option value="daily">Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+
+                            {form.isRecurring && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Start Date *</label>
+                                    <input className="input" type="date" required={form.isRecurring} value={form.recurringStartDate} onChange={e => setForm({ ...form, recurringStartDate: e.target.value })} />
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>The first instance will be created on this date.</p>
+                                </div>
+                            )}
+
+
+
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Description</label>
                                 <textarea className="input" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description..." style={{ resize: 'vertical' }} />

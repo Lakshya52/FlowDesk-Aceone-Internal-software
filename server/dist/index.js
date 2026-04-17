@@ -11,8 +11,8 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const socket_io_1 = require("socket.io");
 const http_1 = __importDefault(require("http"));
-const path_1 = __importDefault(require("path"));
 const node_dns_1 = __importDefault(require("node:dns"));
+const buddy_1 = __importDefault(require("./routes/buddy"));
 // Force DNS to resolve IPv4 first to avoid Atlas connection issues on Windows
 node_dns_1.default.setDefaultResultOrder('ipv4first');
 const auth_1 = __importDefault(require("./routes/auth"));
@@ -25,14 +25,15 @@ const dashboard_1 = __importDefault(require("./routes/dashboard"));
 const teams_1 = __importDefault(require("./routes/teams"));
 const chat_1 = __importDefault(require("./routes/chat"));
 const reports_1 = __importDefault(require("./routes/reports"));
+const companies_1 = __importDefault(require("./routes/companies"));
 const errorHandler_1 = require("./middlewares/errorHandler");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
 const clientUrls = [
-    process.env.CLIENT_URL
-    // 'https://flowdesk-frontend-g35x.onrender.com',
-    // 'http://localhost:5173'
+    process.env.CLIENT_URL,
+    'https://flowdesk-frontend-g35x.onrender.com',
+    'http://localhost:5173'
 ].filter(Boolean);
 const io = new socket_io_1.Server(server, {
     cors: {
@@ -41,8 +42,7 @@ const io = new socket_io_1.Server(server, {
     },
 });
 exports.io = io;
-// const PORT = process.env.PORT || 5000;
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = process.env.PORT || 5000;
 // Security middleware
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -102,6 +102,7 @@ app.get('/uploads/:filename', async (req, res) => {
     }
 });
 // API Routes
+app.use("/api/buddy", buddy_1.default);
 app.use('/api/auth', auth_1.default);
 app.use('/api/assignments', assignments_1.default);
 app.use('/api/tasks', tasks_1.default);
@@ -112,14 +113,7 @@ app.use('/api/dashboard', dashboard_1.default);
 app.use('/api/teams', teams_1.default);
 app.use('/api/chat', chat_1.default);
 app.use('/api/reports', reports_1.default);
-// Serve built client files in production (one server for frontend + backend)
-const clientBuildPath = path_1.default.join(__dirname, '..', '..', 'client', 'dist');
-app.use(express_1.default.static(clientBuildPath));
-app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api'))
-        return next();
-    res.sendFile(path_1.default.join(clientBuildPath, 'index.html'));
-});
+app.use('/api/companies', companies_1.default);
 // Socket.io connection logic
 io.on('connection', (socket) => {
     socket.on('join_assignment', (assignmentId) => {
@@ -155,13 +149,13 @@ const startServer = async () => {
             serverSelectionTimeoutMS: 5000,
             family: 4, // Force IPv4
         });
-        console.log('✅ Connected to MongoDB');
-        server.listen(PORT, "0.0.0.0", () => {
-            console.log(`🚀 Server running on port ${PORT}`);
+        console.log('âœ… Connected to MongoDB');
+        server.listen(PORT, () => {
+            console.log(`ðŸš€ Server running on port ${PORT}`);
         });
     }
     catch (error) {
-        console.error('❌ Failed to connect to MongoDB:', error);
+        console.error('âŒ Failed to connect to MongoDB:', error);
         process.exit(1);
     }
 };

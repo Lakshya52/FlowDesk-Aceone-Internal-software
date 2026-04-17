@@ -38,6 +38,7 @@ export const createAssignment = async (req: AuthRequest, res: Response): Promise
         const populated = await Assignment.findById(assignment._id)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
+            .populate('companyId', 'name industry')
             .populate({
                 path: 'teams',
                 populate: [
@@ -54,11 +55,12 @@ export const createAssignment = async (req: AuthRequest, res: Response): Promise
 
 export const getAssignments = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { status, priority, search } = req.query;
+        const { status, priority, search, companyId } = req.query;
         const filter: any = {};
 
         if (status) filter.status = status;
         if (priority) filter.priority = priority;
+        if (companyId) filter.companyId = companyId;
         
         let searchFilter: any = {};
         if (search) {
@@ -97,6 +99,7 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
         const assignments = await Assignment.find(finalFilter)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
+            .populate('companyId', 'name industry')
             .populate({
                 path: 'teams',
                 populate: [
@@ -117,6 +120,7 @@ export const getAssignment = async (req: AuthRequest, res: Response): Promise<vo
         const assignment = await Assignment.findById(req.params.id)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
+            .populate('companyId', 'name industry')
             .populate({
                 path: 'teams',
                 populate: [
@@ -177,6 +181,7 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
         const updated = await Assignment.findById(assignment._id)
             .populate('createdBy', 'name email')
             .populate('team', 'name email avatar')
+            .populate('companyId', 'name industry')
             .populate({
                 path: 'teams',
                 populate: [
@@ -225,6 +230,37 @@ export const deleteAssignment = async (req: AuthRequest, res: Response): Promise
         });
 
         res.json({ message: 'Assignment deleted successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const updateAssignmentCanvas = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { canvasData } = req.body;
+
+        const assignment = await Assignment.findById(id);
+
+        if (!assignment) {
+            res.status(404).json({ message: 'Assignment not found' });
+            return;
+        }
+
+        // Check if user is creator, admin, or in the team
+        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
+        const isAdmin = req.user!.role === 'admin';
+        const isInTeam = assignment.team.some(memberId => memberId.toString() === req.user!._id.toString());
+
+        if (!isCreator && !isAdmin && !isInTeam) {
+            res.status(403).json({ message: 'Not authorized to update this assignment\'s notes' });
+            return;
+        }
+
+        assignment.canvasData = canvasData;
+        await assignment.save();
+
+        res.json({ success: true, message: 'Canvas data updated' });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

@@ -7,4 +7,6 @@ export { default as Notification } from './Notification';
 export { default as ActivityLog } from './ActivityLog';
 export { default as Team } from './Team';
 export { default as ChatMessage } from './ChatMessage';
+export { default as Company } from './Company';
+export { default as Contact } from './Contact';
 //# sourceMappingURL=index.d.ts.map
