@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import api from "../lib/api";
-import { Mail, 
+import {
+    Mail,
     // Building2,
-    Search, X, CheckCircle2, AlertCircle, Users } from "lucide-react";
+    Search, X, CheckCircle2, AlertCircle, Users
+} from "lucide-react";
 
 interface Company {
     _id: string;
@@ -50,7 +52,7 @@ const BulkEmailPage: React.FC = () => {
         fetchCompanies();
     }, []);
 
-    const filteredCompanies = companies.filter(c => 
+    const filteredCompanies = companies.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.industry && c.industry.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -90,9 +92,9 @@ const BulkEmailPage: React.FC = () => {
             setSubject("");
             setMessage("");
         } catch (e: any) {
-            setResult({ 
-                success: false, 
-                message: e.response?.data?.message || "Failed to send emails. Please check your SMTP settings." 
+            setResult({
+                success: false,
+                message: e.response?.data?.message || "Failed to send emails. Please check your SMTP settings."
             });
         } finally {
             setSending(false);
@@ -100,10 +102,10 @@ const BulkEmailPage: React.FC = () => {
     };
 
     return (
-        <div style={{ 
+        <div style={{
             height: "calc(100vh - 120px)", // Account for header and main padding
-            display: "flex", 
-            flexDirection: "column", 
+            display: "flex",
+            flexDirection: "column",
             gap: 24,
             minHeight: 0
         }}>
@@ -121,10 +123,10 @@ const BulkEmailPage: React.FC = () => {
             </div>
 
             {result && (
-                <div style={{ 
-                    padding: 16, 
-                    borderRadius: 8, 
-                    background: result.success ? "#dcfce7" : "#fee2e2", 
+                <div style={{
+                    padding: 16,
+                    borderRadius: 8,
+                    background: result.success ? "#dcfce7" : "#fee2e2",
                     color: result.success ? "#166534" : "#991b1b",
                     display: "flex",
                     alignItems: "center",
@@ -146,9 +148,9 @@ const BulkEmailPage: React.FC = () => {
                     <div style={{ padding: 16, borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
                         <div style={{ position: "relative", marginBottom: 12 }}>
                             <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.5 }} />
-                            <input 
-                                className="input" 
-                                placeholder="Search by name or industry..." 
+                            <input
+                                className="input"
+                                placeholder="Search by name or industry..."
                                 style={{ paddingLeft: 40 }}
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -156,8 +158,8 @@ const BulkEmailPage: React.FC = () => {
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>{filteredCompanies.length} companies found</span>
-                            <button 
-                                className="btn btn-link btn-xs" 
+                            <button
+                                className="btn btn-link btn-xs"
                                 onClick={toggleSelectAll}
                                 style={{ color: "var(--color-primary)", textDecoration: "none", fontWeight: 600 }}
                             >
@@ -165,7 +167,7 @@ const BulkEmailPage: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    
+
                     <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px" }}>
                         {loading ? (
                             <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }}>Loading companies...</div>
@@ -174,24 +176,24 @@ const BulkEmailPage: React.FC = () => {
                         ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 {filteredCompanies.map(c => (
-                                    <div 
-                                        key={c._id} 
+                                    <div
+                                        key={c._id}
                                         onClick={() => toggleSelect(c._id)}
-                                        style={{ 
-                                            padding: "10px 12px", 
-                                            borderRadius: 8, 
-                                            display: "flex", 
-                                            alignItems: "center", 
-                                            gap: 12, 
+                                        style={{
+                                            padding: "10px 12px",
+                                            borderRadius: 8,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 12,
                                             cursor: "pointer",
                                             background: selectedIds.has(c._id) ? "var(--color-primary-light)" : "transparent",
                                             transition: "background 0.2s"
                                         }}
                                     >
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedIds.has(c._id)} 
-                                            onChange={() => {}} // toggled by parent div
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(c._id)}
+                                            onChange={() => { }} // toggled by parent div
                                             style={{ cursor: "pointer" }}
                                         />
                                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -219,13 +221,13 @@ const BulkEmailPage: React.FC = () => {
                         <Mail size={20} color="var(--color-primary)" />
                         Compose Message
                     </h3>
-                    
+
                     <form onSubmit={handleSend} style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1, minHeight: 0 }}>
                         <div style={{ flexShrink: 0 }}>
                             <label style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: 8, display: "block" }}>Subject Line</label>
-                            <input 
-                                className="input" 
-                                placeholder="e.g. Important Update for Our Partners" 
+                            <input
+                                className="input"
+                                placeholder="e.g. Important Update for Our Partners"
                                 required
                                 value={subject}
                                 onChange={e => setSubject(e.target.value)}
@@ -234,9 +236,9 @@ const BulkEmailPage: React.FC = () => {
 
                         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                             <label style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: 8, display: "block" }}>Email Body</label>
-                            <textarea 
-                                className="input" 
-                                placeholder="Dear Team,&#10;&#10;We wanted to reach out regarding..." 
+                            <textarea
+                                className="input"
+                                placeholder="Dear Team,&#10;&#10;We wanted to reach out regarding..."
                                 required
                                 style={{ flex: 1, resize: "none", padding: 16, lineHeight: 1.6 }}
                                 value={message}
@@ -245,13 +247,13 @@ const BulkEmailPage: React.FC = () => {
                         </div>
 
                         <div style={{ background: "#f8fafc", padding: 16, borderRadius: 8, fontSize: "0.8rem", color: "#64748b", flexShrink: 0 }}>
-                            <strong>Privacy Note:</strong> This message will be sent via BCC. Companies will not see other recipients. 
+                            <strong>Privacy Note:</strong> This message will be sent via BCC. Companies will not see other recipients.
                             Only companies with a valid email address will receive the message.
                         </div>
 
-                        <button 
-                            type="submit" 
-                            className="btn btn-primary" 
+                        <button
+                            type="submit"
+                            className="btn btn-primary"
                             disabled={sending || selectedIds.size === 0}
                             style={{ height: 48, fontSize: "1rem", flexShrink: 0 }}
                         >
