@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, Minus, Maximize, StickyNote, Trash2, Move, Shrink, Focus } from "lucide-react";
+import { Plus, Minus, Maximize, StickyNote, Trash2, Move, Shrink, Focus, MousePointer2, Hand } from "lucide-react";
 import api from "../../lib/api";
 import { useAuthStore } from "../../store/authStore";
 import Avatar from "../common/Avatar";
@@ -9,6 +9,8 @@ interface Note {
     _id?: string;
     x: number;
     y: number;
+    width?: number;
+    height?: number;
     content: string;
     color: string;
     createdBy?: {
@@ -37,15 +39,23 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [isDraggingNode, setIsDraggingNode] = useState(false);
+    const [isResizing, setIsResizing] = useState(false);
     const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+    const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
     const [activeEditId, setActiveEditId] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const notesRef = useRef<Note[]>(notes);
+
+    useEffect(() => {
+        notesRef.current = notes;
+    }, [notes]);
 
     // Save notes to assignment
-    const saveCanvas = async (updatedNotes: Note[]) => {
+    const saveCanvas = useCallback(async (updatedNotes: Note[]) => {
         try {
             await api.patch(`/assignments/${assignmentId}/canvas`, {
                 canvasData: updatedNotes
@@ -53,7 +63,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         } catch (error) {
             console.error("Failed to save project canvas", error);
         }
-    };
+    }, [assignmentId]);
 
     const zoomTowards = (newScale: number, centerX: number, centerY: number) => {
         setScale(prevScale => {
@@ -86,9 +96,16 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        const isMiddleButton = e.button === 1;
+        const isAltPressed = e.altKey;
+
+        // Rule 1: Pan tool or Alt/Middle mouse button starts panning
+        if (selectedTool === 'pan' || isMiddleButton || (selectedTool === 'select' && isAltPressed)) {
             setIsPanning(true);
-        }
+            setMousePos({ x: e.clientX, y: e.clientY });
+            return;
+        } 
+        
         setMousePos({ x: e.clientX, y: e.clientY });
     };
 
@@ -104,10 +121,20 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
             const updated = notes.map(n => n.id === draggedNoteId ? { ...n, x: n.x + dx, y: n.y + dy } : n);
             setNotes(updated);
             setMousePos({ x: e.clientX, y: e.clientY });
+        } else if (isResizing && resizingNoteId) {
+            const dx = (e.clientX - mousePos.x) / scale;
+            const dy = (e.clientY - mousePos.y) / scale;
+            const updated = notes.map(n => n.id === resizingNoteId ? { 
+                ...n, 
+                width: Math.max(150, (n.width || 200) + dx), 
+                height: Math.max(100, (n.height || 140) + dy) 
+            } : n);
+            setNotes(updated);
+            setMousePos({ x: e.clientX, y: e.clientY });
         }
     };
 
-    const recordEdit = (noteId: string, currentNotes: Note[]): Note[] => {
+    const recordEdit = useCallback((noteId: string, currentNotes: Note[]): Note[] => {
         if (!user) return currentNotes;
         
         return currentNotes.map(n => {
@@ -124,35 +151,47 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 editedBy: [...editors, { _id: user._id, name: user.name, avatar: user.avatar }]
             };
         });
-    };
+    }, [user]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+            
+            if (e.key === 'v' || e.key === 'V') setSelectedTool('select');
+            if (e.key === 'h' || e.key === 'H') setSelectedTool('pan');
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const handleMouseUp = useCallback(() => {
-        if (isDraggingNode && draggedNoteId) {
-            const updated = recordEdit(draggedNoteId, notes);
-            setNotes(updated);
-            saveCanvas(updated);
+        if ((isDraggingNode && draggedNoteId) || (isResizing && resizingNoteId)) {
+            const noteId = draggedNoteId || resizingNoteId;
+            if (noteId) {
+                const updated = recordEdit(noteId, notesRef.current);
+                setNotes(updated);
+                saveCanvas(updated);
+            }
         }
         setIsPanning(false);
         setIsDraggingNode(false);
+        setIsResizing(false);
         setDraggedNoteId(null);
-    }, [isDraggingNode, draggedNoteId, notes, recordEdit, saveCanvas]);
+        setResizingNoteId(null);
+    }, [isDraggingNode, draggedNoteId, isResizing, resizingNoteId, recordEdit, saveCanvas]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
         return () => window.removeEventListener('mouseup', handleMouseUp);
     }, [handleMouseUp]);
 
-    const addNote = () => {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const centerX = (rect.width / 2 - offset.x) / scale;
-        const centerY = (rect.height / 2 - offset.y) / scale;
-
+    const addNoteAt = (x: number, y: number) => {
         const newNote: Note = {
             id: Math.random().toString(36).substr(2, 9),
-            x: centerX - 100,
-            y: centerY - 60,
+            x: x - 100,
+            y: y - 60,
+            width: 200,
+            height: 140,
             content: "New Note",
             color: COLORS[Math.floor(Math.random() * COLORS.length)],
             createdBy: user ? { _id: user._id, name: user.name, avatar: user.avatar } : undefined,
@@ -162,6 +201,16 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         const updated = [...notes, newNote];
         setNotes(updated);
         saveCanvas(updated);
+    };
+
+    const addNote = () => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const centerX = (rect.width / 2 - offset.x) / scale;
+        const centerY = (rect.height / 2 - offset.y) / scale;
+
+        addNoteAt(centerX, centerY);
     };
 
     const deleteNote = (id: string) => {
@@ -198,7 +247,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 borderRadius: isFullScreen ? 0 : 12,
                 overflow: "hidden",
                 background: "var(--color-bg)",
-                cursor: isPanning ? "grabbing" : "auto",
+                cursor: isPanning ? "grabbing" : (selectedTool === 'pan' ? 'grab' : "auto"),
                 userSelect: "none",
                 border: isFullScreen ? "none" : "1px solid var(--color-border)"
             }}
@@ -239,21 +288,37 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             position: "absolute",
                             left: note.x,
                             top: note.y,
-                            width: 200,
+                            width: note.width || 200,
+                            height: note.height || "auto",
+                            minHeight: 140,
                             background: note.color,
                             padding: 16,
                             borderRadius: 12,
                             boxShadow: "var(--shadow-md)",
                             border: "1px solid rgba(0,0,0,0.05)",
                             zIndex: activeEditId === note.id ? 1000 : 1,
-                            color: "#1e293b"
+                            color: "#1e293b",
+                            display: "flex",
+                            flexDirection: "column",
+                            transition: (isDraggingNode && draggedNoteId === note.id) || (isResizing && resizingNoteId === note.id) ? "none" : "all 0.1s ease"
                         }}
                         onMouseDown={(e) => {
+                            // Always stop propagation in Select mode to prevent canvas-level actions
+                            if (selectedTool === 'select') {
+                                e.stopPropagation();
+                            }
+
                             if (activeEditId === note.id) return;
-                            e.stopPropagation();
-                            setIsDraggingNode(true);
-                            setDraggedNoteId(note.id);
-                            setMousePos({ x: e.clientX, y: e.clientY });
+                            
+                            // Rule 1: Pan tool drags the board, not the note
+                            if (selectedTool === 'pan') return; 
+
+                            // Rule 3: Select tool allows dragging
+                            if (selectedTool === 'select') {
+                                setIsDraggingNode(true);
+                                setDraggedNoteId(note.id);
+                                setMousePos({ x: e.clientX, y: e.clientY });
+                            }
                         }}
                     >
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, opacity: 0.4 }}>
@@ -270,13 +335,14 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                                 autoFocus
                                 value={note.content}
                                 onChange={(e) => updateNoteContent(note.id, e.target.value)}
+                                onMouseDown={(e) => e.stopPropagation()} // Prevent creating new note underneath
                                 onBlur={() => {
                                     saveContent(note.id, note.content);
                                     setActiveEditId(null);
                                 }}
                                 style={{
                                     width: "100%",
-                                    height: 100,
+                                    flex: 1,
                                     background: "transparent",
                                     border: "none",
                                     outline: "none",
@@ -289,7 +355,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             <div
                                 onDoubleClick={() => setActiveEditId(note.id)}
                                 style={{
-                                    minHeight: 100,
+                                    flex: 1,
                                     fontSize: "0.9rem",
                                     lineHeight: 1.5,
                                     whiteSpace: "pre-wrap",
@@ -340,6 +406,35 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                                 </div>
                             )}
                         </div>
+
+                        {/* Resize Handle */}
+                        <div
+                            onMouseDown={(e) => {
+                                // Rule 3: Only Select tool can resize
+                                if (selectedTool !== 'select') return;
+                                
+                                e.stopPropagation();
+                                setIsResizing(true);
+                                setResizingNoteId(note.id);
+                                setMousePos({ x: e.clientX, y: e.clientY });
+                            }}
+                            style={{
+                                position: "absolute",
+                                bottom: 0,
+                                right: 0,
+                                width: 20,
+                                height: 20,
+                                cursor: "nwse-resize",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                opacity: 0.3
+                            }}
+                        >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 0L0 10M10 5L5 10M10 8L8 10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                            </svg>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -385,34 +480,68 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 style={{
                     position: "absolute",
                     top: 12,
-                    left: 12,
+                    left: "50%",
+                    transform: "translateX(-50%)",
                     display: "flex",
                     gap: 8,
-                    zIndex: 100
+                    zIndex: 100,
+                    background: "var(--color-surface)",
+                    padding: "6px",
+                    borderRadius: 50,
+                    boxShadow: "var(--shadow-lg)",
+                    border: "1px solid var(--color-border)",
+                    alignItems: "center"
                 }}
             >
+                <div style={{ display: 'flex', background: 'var(--color-bg-secondary)', borderRadius: 40, padding: 4, gap: 4 }}>
+                    <button
+                        onClick={() => setSelectedTool('select')}
+                        className={`btn btn-xs ${selectedTool === 'select' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ borderRadius: 20, width: 36, height: 36, padding: 0 }}
+                        title="Select Tool (V)"
+                    >
+                        <MousePointer2 size={16} />
+                    </button>
+                    <button
+                        onClick={() => setSelectedTool('pan')}
+                        className={`btn btn-xs ${selectedTool === 'pan' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ borderRadius: 20, width: 36, height: 36, padding: 0 }}
+                        title="Pan Tool (H)"
+                    >
+                        <Hand size={16} />
+                    </button>
+                </div>
+
+                <div style={{ width: 1, height: 24, background: 'var(--color-border)', margin: '0 4px' }} />
+
                 <button
                     onClick={addNote}
                     className="btn btn-primary btn-sm"
-                    style={{ borderRadius: 20, boxShadow: "var(--shadow-md)" }}
+                    style={{ borderRadius: 20, height: 36, display: 'flex', alignItems: 'center', gap: 8, margin: 4 }}
                 >
-                    <StickyNote size={14} /> Add Note
+                    <Plus size={16} /> Add Note
                 </button>
-                <div style={{ 
-                    background: "rgba(255,255,255,0.8)", 
-                    padding: "4px 12px", 
-                    borderRadius: 20, 
-                    fontSize: "0.7rem", 
-                    color: "var(--color-text-secondary)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    border: "1px solid var(--color-border)"
-                }}>
-                    <span style={{ fontWeight: 600 }}>Collaborative Whiteboard</span>
-                    <span style={{ opacity: 0.5 }}>|</span>
-                    <span><b>Alt+Left</b> Click • <b>Alt+Scroll</b> Zoom</span>
-                </div>
+            </div>
+
+            {/* Hint Info */}
+            <div style={{
+                position: "absolute",
+                top: 12,
+                left: 12,
+                background: "rgba(255,255,255,0.8)",
+                padding: "4px 12px",
+                borderRadius: 20,
+                fontSize: "0.7rem",
+                color: "var(--color-text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                border: "1px solid var(--color-border)",
+                zIndex: 10
+            }}>
+                <span style={{ fontWeight: 600 }}>Whiteboard</span>
+                <span style={{ opacity: 0.5 }}>|</span>
+                <span><b>V</b> Select • <b>H</b> Pan</span>
             </div>
         </div>
     );

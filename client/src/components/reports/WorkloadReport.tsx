@@ -34,10 +34,43 @@ const WorkloadReport = ({ filters, onDrilldown }: WorkloadReportProps): React.JS
 
     if (loading) return (
         <div className="space-y-8 animate-pulse">
-            <div className="h-96 bg-surface-hover border border-border rounded-xl"></div>
+            {/* Main Distribution Chart Skeleton */}
+            <div style={{ marginBottom: "20px" }} className="card p-8 border-border/40 bg-surface/50 h-[500px]">
+                <div className="flex justify-between mb-12">
+                    <div className="space-y-3">
+                        <div className="w-56 h-7 bg-surface-hover rounded-lg"></div>
+                        <div className="w-72 h-4 bg-surface-hover rounded-lg opacity-60"></div>
+                    </div>
+                </div>
+                <div className="w-full h-[320px] bg-surface-hover rounded-2xl opacity-40"></div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="h-80 bg-surface-hover border border-border rounded-xl"></div>
-                <div className="h-80 bg-surface-hover border border-border rounded-xl"></div>
+                {/* Intensity Heatmap Skeleton */}
+                <div className="card p-8 border-border/40 bg-surface/50 h-[400px]">
+                    <div className="w-48 h-6 bg-surface-hover rounded-lg mb-10"></div>
+                    <div className="grid grid-cols-7 gap-3">
+                        {[...Array(28)].map((_, i) => (
+                            <div key={i} className="h-12 bg-surface-hover rounded-lg border border-border opacity-60"></div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Capacity Alerts Skeleton */}
+                <div className="card p-8 border-border/40 bg-surface/50 h-[400px] border-l-4 border-l-border">
+                    <div className="flex gap-3 mb-10">
+                        <div className="w-10 h-10 rounded-lg bg-surface-hover"></div>
+                        <div className="space-y-2">
+                             <div className="w-32 h-6 bg-surface-hover rounded-lg"></div>
+                             <div className="w-48 h-4 bg-surface-hover rounded-lg opacity-60"></div>
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-20 bg-surface-hover/40 rounded-xl border border-border opacity-50"></div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );

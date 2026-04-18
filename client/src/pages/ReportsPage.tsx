@@ -84,13 +84,27 @@ const ReportsPage = (): React.JSX.Element => {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const { data: filterData } = await api.get("/dashboard/report-filters");
-        const { data: assignments } = await api.get("/assignments");
-        setFilterOptions({
-          teams: filterData.teams || [],
-          employees: filterData.employees || [],
-          assignments: assignments.assignments || [],
-        });
+        // Fetch report filters and assignments independently
+        const [filterRes, assignmentsRes] = await Promise.allSettled([
+          api.get("/dashboard/report-filters"),
+          api.get("/assignments")
+        ]);
+
+        const newOptions = { ...filterOptions };
+
+        if (filterRes.status === 'fulfilled') {
+          const filterData = filterRes.value.data;
+          newOptions.teams = filterData.teams || [];
+          newOptions.employees = filterData.employees || [];
+        }
+
+        if (assignmentsRes.status === 'fulfilled') {
+          const assignmentsData = assignmentsRes.value.data;
+          // Support both { assignments: [] } and { data: { assignments: [] } } structures
+          newOptions.assignments = assignmentsData.assignments || assignmentsData.data?.assignments || [];
+        }
+
+        setFilterOptions(newOptions);
       } catch (err) {
         console.error("Failed to fetch filter options", err);
       }

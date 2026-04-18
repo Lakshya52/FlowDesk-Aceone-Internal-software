@@ -260,17 +260,42 @@ export const getReportFilters = async (req: AuthRequest, res: Response): Promise
         let employees: any[] = [];
 
         if (userRole === 'admin') {
-            teams = await Team.find().select('name members manager');
-            employees = await User.find().select('name email employeeId');
+            teams = await Team.find().select('name _id members manager').lean();
+            employees = await User.find().select('name _id email employeeId').lean();
         } else if (userRole === 'manager') {
-            teams = await Team.find({ manager: userId }).select('name members manager');
+            // Include teams managed by the user AND teams where they are a member
+            teams = await Team.find({ 
+                $or: [
+                    { manager: userId },
+                    { members: userId }
+                ]
+            }).select('name _id members manager').lean();
+            
             const teamIds = teams.map(t => t._id);
             const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
-            employees = await User.find({ _id: { $in: [...teamMembers, userId] } }).select('name email employeeId');
+            employees = await User.find({ 
+                $or: [
+                    { _id: { $in: [...teamMembers, userId] } },
+                    { _id: userId }
+                ]
+            }).select('name _id email employeeId').lean();
+        } else {
+            // For members, let them see their own teams and teammates
+            teams = await Team.find({ members: userId }).select('name _id members manager').lean();
+            const teamIds = teams.map(t => t._id);
+            const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
+            employees = await User.find({ 
+                _id: { $in: [...teamMembers, userId] } 
+            }).select('name _id email employeeId').lean();
         }
 
-        res.json({ teams, employees });
+        // Ensure we always return arrays and non-null values
+        res.json({ 
+            teams: Array.isArray(teams) ? teams : [], 
+            employees: Array.isArray(employees) ? employees : [] 
+        });
     } catch (error: any) {
+        console.error('Error in getReportFilters:', error);
         res.status(500).json({ message: error.message });
     }
 };
