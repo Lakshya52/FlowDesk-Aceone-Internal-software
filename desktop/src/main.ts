@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { autoUpdater } from 'electron-updater';
@@ -187,6 +187,7 @@ function setupAutoUpdater() {
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 app.on('ready', () => {
+  Menu.setApplicationMenu(null);
   createLoadingWindow();
   createMainWindow();
   setupAutoUpdater();
