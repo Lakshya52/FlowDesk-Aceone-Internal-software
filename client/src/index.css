@@ -565,3 +565,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     font-size: 0.75rem;
     height: 24px;
 }
+
+/* Fix for Electron wrapper apps where drag region blocks inputs */
+input, textarea, select, button, a-button, .btn, [role="button"], a {
+    -webkit-app-region: no-drag;
+}

@@ -104,8 +104,8 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
             setIsPanning(true);
             setMousePos({ x: e.clientX, y: e.clientY });
             return;
-        } 
-        
+        }
+
         setMousePos({ x: e.clientX, y: e.clientY });
     };
 
@@ -124,10 +124,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         } else if (isResizing && resizingNoteId) {
             const dx = (e.clientX - mousePos.x) / scale;
             const dy = (e.clientY - mousePos.y) / scale;
-            const updated = notes.map(n => n.id === resizingNoteId ? { 
-                ...n, 
-                width: Math.max(150, (n.width || 200) + dx), 
-                height: Math.max(100, (n.height || 140) + dy) 
+            const updated = notes.map(n => n.id === resizingNoteId ? {
+                ...n,
+                width: Math.max(150, (n.width || 200) + dx),
+                height: Math.max(100, (n.height || 140) + dy)
             } : n);
             setNotes(updated);
             setMousePos({ x: e.clientX, y: e.clientY });
@@ -136,7 +136,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
 
     const recordEdit = useCallback((noteId: string, currentNotes: Note[]): Note[] => {
         if (!user) return currentNotes;
-        
+
         return currentNotes.map(n => {
             if (n.id !== noteId) return n;
 
@@ -156,7 +156,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-            
+
             if (e.key === 'v' || e.key === 'V') setSelectedTool('select');
             if (e.key === 'h' || e.key === 'H') setSelectedTool('pan');
         };
@@ -309,9 +309,9 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             }
 
                             if (activeEditId === note.id) return;
-                            
+
                             // Rule 1: Pan tool drags the board, not the note
-                            if (selectedTool === 'pan') return; 
+                            if (selectedTool === 'pan') return;
 
                             // Rule 3: Select tool allows dragging
                             if (selectedTool === 'select') {
@@ -371,9 +371,9 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                         </div>
 
                         {/* Authorship Info */}
-                        <div style={{ 
-                            marginTop: 12, 
-                            paddingTop: 8, 
+                        <div style={{
+                            marginTop: 12,
+                            paddingTop: 8,
                             borderTop: "1px solid rgba(0,0,0,0.05)",
                             display: "flex",
                             justifyContent: "space-between",
@@ -385,15 +385,15 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                                     <span style={{ fontSize: "0.65rem", fontWeight: 600, opacity: 0.6 }}>{note.createdBy.name}</span>
                                 </div>
                             )}
-                            
+
                             {note.editedBy && note.editedBy.length > 0 && (
                                 <div style={{ display: "flex", alignItems: "center" }}>
                                     {note.editedBy.slice(0, 3).map((editor, idx) => (
                                         <div key={editor._id} style={{ marginLeft: idx === 0 ? 0 : -6 }}>
-                                            <Avatar 
-                                                src={editor.avatar} 
-                                                name={editor.name} 
-                                                size={16} 
+                                            <Avatar
+                                                src={editor.avatar}
+                                                name={editor.name}
+                                                size={16}
                                                 style={{ border: "1px solid white" }}
                                             />
                                         </div>
@@ -412,7 +412,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             onMouseDown={(e) => {
                                 // Rule 3: Only Select tool can resize
                                 if (selectedTool !== 'select') return;
-                                
+
                                 e.stopPropagation();
                                 setIsResizing(true);
                                 setResizingNoteId(note.id);
@@ -466,9 +466,9 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 }}><Minus size={14} /></button>
                 <div style={{ width: 1, height: 16, background: "var(--color-border)" }} />
                 <button className="btn btn-ghost btn-xs" onClick={resetView} title="Reset View"><Focus size={14} /></button>
-                <button 
-                    className={`btn ${isFullScreen ? 'btn-primary' : 'btn-ghost'} btn-xs`} 
-                    onClick={() => setIsFullScreen(!isFullScreen)} 
+                <button
+                    className={`btn ${isFullScreen ? 'btn-primary' : 'btn-ghost'} btn-xs`}
+                    onClick={() => setIsFullScreen(!isFullScreen)}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
                     {isFullScreen ? <Shrink size={14} /> : <Maximize size={14} />}
