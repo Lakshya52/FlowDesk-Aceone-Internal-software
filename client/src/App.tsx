@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -30,7 +30,7 @@ const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <HashRouter>
         <Buddy />
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -52,7 +52,7 @@ const App: React.FC = () => {
           </Route>
           <Route path="*" element={<ProtectedNotFound />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </QueryClientProvider>
   );
 };

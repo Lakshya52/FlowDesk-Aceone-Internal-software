@@ -1,11 +1,58 @@
+# ======================================================================
+# FLowDesk Secure .htaccess File
+# ======================================================================
+
+# ----------------------------------------------------------------------
+# 1. Prevent Directory Browsing & Data Leaks
+# ----------------------------------------------------------------------
+# Prevents unauthorized users from seeing a list of files in directories
+Options -Indexes
+
+# Disable server version details in errors
+ServerSignature Off
+
+# Block access to ALL hidden files and directories (e.g. .env, .git, .hta)
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ----------------------------------------------------------------------
+# 2. Enforce Security Headers
+# ----------------------------------------------------------------------
+<IfModule mod_headers.c>
+    # Prevent MIME-sniffing
+    Header set X-Content-Type-Options "nosniff"
+    # Prevent Clickjacking (Ensure your app can't be put in an iframe by attackers)
+    Header set X-Frame-Options "SAMEORIGIN"
+    # Prevent Cross-Site Scripting (XSS)
+    Header set X-XSS-Protection "1; mode=block"
+    # Enforce secure HTTPS connections (HSTS)
+    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Only transmit referrers over secure channels
+    Header set Referrer-Policy "strict-origin-when-downgrade"
+</IfModule>
+
+# ----------------------------------------------------------------------
+# 3. Web App SPA Routing (Fixes Refresh 404s)
+# ----------------------------------------------------------------------
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+  
+  # Forward HTTP traffic to HTTPS securely
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Don't rewrite files or directories that literally exist
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Send everything else to index.html for React
   RewriteRule . /index.html [L]
 </IfModule>
 
-# Handle 404s by serving index.html so React Router can take over
+# Fallback in case mod_rewrite fails
 ErrorDocument 404 /index.html
