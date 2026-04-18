@@ -1,13 +1,15 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import { 
-    ResponsiveContainer, AreaChart, Area, BarChart, Bar, 
-    XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip 
+import {
+    ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip
 } from 'recharts';
 import api from '../../lib/api';
-import { Users, TrendingUp, Target, Zap, 
+import {
+    Users, TrendingUp, Target, Zap,
     // Activity,
-     Info, Calendar } from 'lucide-react';
+    Info, Calendar
+} from 'lucide-react';
 
 interface EmployeeTrackingReportProps {
     filters: any;
@@ -35,12 +37,38 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
 
     if (loading) return (
         <div className="space-y-8 animate-pulse">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-surface-hover border border-border rounded-xl"></div>)}
+            {/* Stats Grid Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" style={{ marginBottom: "20px" }}>
+                {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="card p-6 border-border/40">
+                        <div className="flex items-start justify-between">
+                            <div className="w-12 h-12 rounded-xl bg-surface-hover"></div>
+                            <div className="w-20 h-3 bg-surface-hover rounded-full"></div>
+                        </div>
+                        <div className="mt-4 w-16 h-8 bg-surface-hover rounded-lg"></div>
+                    </div>
+                ))}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 h-80 bg-surface-hover border border-border rounded-xl"></div>
-                <div className="h-80 bg-surface-hover border border-border rounded-xl"></div>
+
+            {/* Chart Skeleton */}
+            <div className="grid grid-cols-1 gap-6" style={{ marginBottom: "20px" }}>
+                <div className="card p-8 border-border/40 bg-surface/50 h-[450px]">
+                    <div className="flex justify-between mb-8">
+                        <div className="space-y-3">
+                            <div className="w-48 h-6 bg-surface-hover rounded-lg"></div>
+                            <div className="w-64 h-4 bg-surface-hover rounded-lg opacity-60"></div>
+                        </div>
+                        <div className="w-24 h-9 bg-surface-hover rounded-lg"></div>
+                    </div>
+                    <div className="w-full h-[300px] bg-surface-hover rounded-2xl opacity-40"></div>
+                </div>
+            </div>
+
+            {/* Comparison Skeleton */}
+            <div className="card p-10 border-border/40 bg-surface/50 h-[500px]">
+                <div className="w-64 h-7 bg-surface-hover rounded-lg mb-4"></div>
+                <div className="w-96 h-4 bg-surface-hover rounded-lg mb-12 opacity-60"></div>
+                <div className="w-full h-[320px] bg-surface-hover rounded-2xl opacity-40"></div>
             </div>
         </div>
     );
@@ -90,7 +118,7 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
                             </h3>
                             <p className="text-sm text-text-secondary mt-1">Timeline of tasks handled across the organization.</p>
                         </div>
-                        <button 
+                        <button
                             onClick={() => onDrilldown('Action Velocity', data.dailyTrends || [])}
                             className="btn btn-secondary btn-sm rounded-lg"
                         >
@@ -102,13 +130,13 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
                             <AreaChart data={data.dailyTrends || []}>
                                 <defs>
                                     <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.4}/>
-                                        <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
+                                        <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.4} />
+                                        <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.5} />
-                                <XAxis 
-                                    dataKey="_id" 
+                                <XAxis
+                                    dataKey="_id"
                                     axisLine={false}
                                     tickLine={false}
                                     tick={{ fontSize: 11, fontWeight: 600, fill: 'var(--color-text-tertiary)' }}
@@ -116,23 +144,23 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
                                     dy={10}
                                 />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: 'var(--color-text-tertiary)' }} />
-                                <ReTooltip 
-                                    contentStyle={{ 
-                                        backgroundColor: 'var(--color-surface)', 
-                                        borderRadius: '12px', 
+                                <ReTooltip
+                                    contentStyle={{
+                                        backgroundColor: 'var(--color-surface)',
+                                        borderRadius: '12px',
                                         border: '1px solid var(--color-border)',
                                         boxShadow: 'var(--shadow-xl)',
                                         padding: '12px',
                                         fontSize: '13px'
                                     }}
                                 />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="tasksHandled" 
+                                <Area
+                                    type="monotone"
+                                    dataKey="tasksHandled"
                                     name="Tasks Handled"
-                                    stroke="var(--color-primary)" 
+                                    stroke="var(--color-primary)"
                                     strokeWidth={3}
-                                    fill="url(#colorTasks)" 
+                                    fill="url(#colorTasks)"
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
@@ -152,8 +180,8 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data.employeeStats || []} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" opacity={0.4} />
-                            <XAxis 
-                                dataKey="name" 
+                            <XAxis
+                                dataKey="name"
                                 axisLine={false}
                                 tickLine={false}
                                 tick={{ fontSize: 11, fontWeight: 600, fill: 'var(--color-text-tertiary)' }}
@@ -161,29 +189,29 @@ const EmployeeTrackingReport = ({ filters, onDrilldown }: EmployeeTrackingReport
                                 dy={15}
                             />
                             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 600, fill: 'var(--color-text-tertiary)' }} />
-                            <ReTooltip 
+                            <ReTooltip
                                 cursor={{ fill: 'var(--color-primary)', opacity: 0.05 }}
-                                contentStyle={{ 
-                                    backgroundColor: 'var(--color-surface)', 
-                                    borderRadius: '12px', 
+                                contentStyle={{
+                                    backgroundColor: 'var(--color-surface)',
+                                    borderRadius: '12px',
                                     border: '1px solid var(--color-border)',
                                     boxShadow: 'var(--shadow-lg)',
                                     padding: '16px',
                                     fontSize: '13px'
                                 }}
                             />
-                            <Bar 
-                                dataKey="taskCount" 
+                            <Bar
+                                dataKey="taskCount"
                                 name="Tasks Handled"
-                                fill="var(--color-primary)" 
-                                radius={[8, 8, 0, 0]} 
+                                fill="var(--color-primary)"
+                                radius={[8, 8, 0, 0]}
                                 barSize={40}
                             />
-                            <Bar 
-                                dataKey="assignmentCount" 
+                            <Bar
+                                dataKey="assignmentCount"
                                 name="Assignments Touched"
-                                fill="var(--color-info)" 
-                                radius={[8, 8, 0, 0]} 
+                                fill="var(--color-info)"
+                                radius={[8, 8, 0, 0]}
                                 barSize={20}
                                 opacity={0.3}
                             />

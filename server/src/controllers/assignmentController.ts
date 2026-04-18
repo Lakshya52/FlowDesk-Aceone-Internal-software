@@ -155,6 +155,16 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             return;
         }
 
+        // Capture changes for detailed logging
+        const changes: Record<string, { old: any, new: any }> = {};
+        Object.keys(req.body).forEach(key => {
+            const oldValue = (assignment as any)[key];
+            const newValue = req.body[key];
+            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+                changes[key] = { old: oldValue, new: newValue };
+            }
+        });
+
         Object.assign(assignment, req.body);
 
         // Auto-assign Team Members if teams were updated
@@ -195,7 +205,10 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             user: req.user!._id,
             entityType: EntityType.ASSIGNMENT,
             entityId: updated!._id,
-            metadata: { updates: Object.keys(req.body) },
+            metadata: { 
+                title: updated!.title,
+                changes 
+            },
         });
 
         res.json({ assignment: updated });
@@ -257,8 +270,31 @@ export const updateAssignmentCanvas = async (req: AuthRequest, res: Response): P
             return;
         }
 
+        const oldCanvasData = assignment.canvasData || [];
+        const newCanvasData = canvasData || [];
+        
+        let changeSummary = 'Modified canvas';
+        if (Array.isArray(oldCanvasData) && Array.isArray(newCanvasData)) {
+            if (newCanvasData.length > oldCanvasData.length) changeSummary = 'Added note(s) to canvas';
+            else if (newCanvasData.length < oldCanvasData.length) changeSummary = 'Removed note(s) from canvas';
+            else changeSummary = 'Rearranged/Edited notes on canvas';
+        }
+
         assignment.canvasData = canvasData;
+        assignment.markModified('canvasData');
         await assignment.save();
+        
+        await ActivityLog.create({
+            action: 'Canvas updated',
+            user: req.user!._id,
+            entityType: EntityType.ASSIGNMENT,
+            entityId: assignment._id,
+            metadata: { 
+                summary: changeSummary,
+                noteCount: newCanvasData.length,
+                previousCount: oldCanvasData.length
+            },
+        });
 
         res.json({ success: true, message: 'Canvas data updated' });
     } catch (error: any) {
