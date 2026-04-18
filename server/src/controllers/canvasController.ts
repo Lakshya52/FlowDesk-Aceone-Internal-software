@@ -14,11 +14,13 @@ export const getNotes = async (req: Request, res: Response) => {
 export const createNote = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { x, y, content, color } = req.body;
+    const { x, y, width, height, content, color } = req.body;
     const note = await CanvasNote.create({
       userId,
       x,
       y,
+      width,
+      height,
       content,
       color,
     });
@@ -32,11 +34,11 @@ export const updateNote = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
-    const { x, y, content, color } = req.body;
+    const { x, y, width, height, content, color } = req.body;
 
     const note = await CanvasNote.findOneAndUpdate(
       { _id: id, userId },
-      { x, y, content, color },
+      { x, y, width, height, content, color },
       { new: true }
     );
 

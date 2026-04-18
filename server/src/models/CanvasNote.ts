@@ -5,6 +5,8 @@ export interface ICanvasNote extends Document {
   content: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
   color: string;
   createdAt: Date;
   updatedAt: Date;
@@ -16,6 +18,8 @@ const CanvasNoteSchema: Schema = new Schema(
     content: { type: String, default: '' },
     x: { type: Number, required: true },
     y: { type: Number, required: true },
+    width: { type: Number, default: 200 },
+    height: { type: Number, default: 140 },
     color: { type: String, default: '#fef9c3' },
   },
   { timestamps: true }

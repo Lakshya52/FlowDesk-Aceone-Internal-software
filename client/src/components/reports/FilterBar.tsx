@@ -1,9 +1,9 @@
 import * as React from 'react';
 import {
     RotateCcw, Calendar, Users,
-    //  Target,
-    User,
-    //    Activity 
+     Target,
+     User,
+     Activity 
 } from 'lucide-react';
 
 interface FilterBarProps {
@@ -15,6 +15,10 @@ interface FilterBarProps {
 }
 
 const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: FilterBarProps) => {
+    // Case-insensitive role check
+    const role = (user?.role || '').toLowerCase();
+    const isAdminOrManager = role === 'admin' || role === 'manager';
+
     // Dependent filtering logic
     const filteredEmployees = React.useMemo(() => {
         if (!filters.teamId || !Array.isArray(filterOptions.employees)) return filterOptions.employees || [];
@@ -30,24 +34,27 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
         );
     }, [filters.teamId, filterOptions.employees, filterOptions.teams]);
 
-    // const filteredProjects = React.useMemo(() => {
-    //     if (!Array.isArray(filterOptions.assignments)) return [];
-    //     let projects = filterOptions.assignments;
+    const filteredProjects = React.useMemo(() => {
+        if (!Array.isArray(filterOptions.assignments)) return [];
+        let projects = filterOptions.assignments;
 
-    //     if (filters.teamId) {
-    //         projects = projects.filter((p: any) => p.teamId === filters.teamId || p.team === filters.teamId);
-    //     }
+        if (filters.teamId) {
+            projects = projects.filter((p: any) => 
+                (Array.isArray(p.teams) && p.teams.some((tid: any) => String(tid?._id || tid) === String(filters.teamId))) || 
+                (Array.isArray(p.team) && p.team.some((tid: any) => String(tid?._id || tid) === String(filters.teamId))) ||
+                String(p.team) === String(filters.teamId)
+            );
+        }
 
-    //     if (filters.employeeId) {
-    //         projects = projects.filter((p: any) =>
-    //             p.employeeId === filters.employeeId ||
-    //             p.employee === filters.employeeId ||
-    //             (Array.isArray(p.assignedTo) && p.assignedTo.includes(filters.employeeId))
-    //         );
-    //     }
+        if (filters.employeeId) {
+            projects = projects.filter((p: any) =>
+                String(p.createdBy?._id || p.createdBy) === String(filters.employeeId) ||
+                (Array.isArray(p.team) && p.team.some((uid: any) => String(uid?._id || uid) === String(filters.employeeId)))
+            );
+        }
 
-    //     return projects;
-    // }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
+        return projects;
+    }, [filters.teamId, filters.employeeId, filterOptions.assignments]);
 
     return (
         <div className="card p-6  border-border/80 shadow-md " style={{ marginTop: "20px" }}>
@@ -76,7 +83,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 </div>
 
                 {/* Team Filter */}
-                {(user.role === 'admin' || user.role === 'manager') && (
+                {isAdminOrManager && (
                     <div className="flex flex-col gap-2 min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                             <Users size={14} className="text-primary" />
@@ -96,7 +103,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 )}
 
                 {/* Employee Filter */}
-                {(user.role === 'admin' || user.role === 'manager') && (
+                {isAdminOrManager && (
                     <div className="flex flex-col gap-2 min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                             <User size={14} className="text-primary" />
@@ -116,7 +123,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 )}
 
                 {/* Project Filter */}
-                {/* <div className="flex flex-col gap-2 min-w-[200px]">
+                <div className="flex flex-col gap-2 min-w-[200px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Target size={14} className="text-primary" />
                         Project
@@ -131,10 +138,10 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                             <option key={asgn._id} value={asgn._id}>{asgn.title}</option>
                         ))}
                     </select>
-                </div> */}
+                </div>
 
                 {/* Status Filter */}
-                {/* <div className="flex flex-col gap-2 min-w-[150px]">
+                <div className="flex flex-col gap-2 min-w-[150px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Activity size={14} className="text-primary" />
                         Status
@@ -145,12 +152,12 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                         className="select h-10 px-3 text-sm font-medium focus:ring-1 focus:ring-primary/10"
                     >
                         <option value="">Any Status</option>
-                        <option value="todo">To Do</option>
+                        <option value="not_started">Not Started</option>
                         <option value="in_progress">In Progress</option>
-                        <option value="review">Review</option>
                         <option value="completed">Completed</option>
+                        <option value="delayed">Delayed</option>
                     </select>
-                </div> */}
+                </div>
 
                 {/* Reset Button */}
                 <div className="ml-auto flex items-center h-10 mb-0.5">
