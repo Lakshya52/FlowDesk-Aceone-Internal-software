@@ -6,6 +6,8 @@ export enum EntityType {
     COMMENT = 'comment',
     ATTACHMENT = 'attachment',
     USER = 'user',
+    COMPANY = 'company',
+    CONTACT = 'contact',
 }
 
 export interface IActivityLog extends Document {

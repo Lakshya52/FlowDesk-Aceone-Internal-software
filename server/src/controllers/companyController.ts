@@ -5,11 +5,13 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import multer from 'multer';
 import { sendGenericEmail } from '../services/emailService';
+import ActivityLog, { EntityType } from '../models/ActivityLog';
+import { AuthRequest } from '../middlewares/auth';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Create Company
-export const createCompany = async (req: Request, res: Response) => {
+export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
         const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
         
@@ -26,6 +28,14 @@ export const createCompany = async (req: Request, res: Response) => {
         };
 
         const company = await Company.create(companyData);
+
+        await ActivityLog.create({
+            action: 'Company created',
+            user: req.user!._id,
+            entityType: EntityType.COMPANY,
+            entityId: company._id,
+            metadata: { name: company.name },
+        });
 
         res.status(201).json({ success: true, company });
     } catch (error: any) {
@@ -76,7 +86,7 @@ export const getCompany = async (req: Request, res: Response) => {
 };
 
 // Update Company
-export const updateCompany = async (req: Request, res: Response) => {
+export const updateCompany = async (req: AuthRequest, res: Response) => {
     try {
         const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
 
@@ -92,15 +102,34 @@ export const updateCompany = async (req: Request, res: Response) => {
             status 
         };
 
-        const company = await Company.findByIdAndUpdate(
-            req.params.id,
-            updateData,
-            { new: true, runValidators: true }
-        ).populate('contacts').populate('childCompanies');
-
+        const company = await Company.findById(req.params.id);
         if (!company) {
             return res.status(404).json({ success: false, message: 'Company not found' });
         }
+
+        // Capture changes
+        const changes: Record<string, { old: any, new: any }> = {};
+        Object.keys(updateData).forEach(key => {
+            const oldValue = (company as any)[key];
+            const newValue = updateData[key];
+            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+                changes[key] = { old: oldValue, new: newValue };
+            }
+        });
+
+        Object.assign(company, updateData);
+        await company.save();
+
+        await ActivityLog.create({
+            action: 'Company updated',
+            user: req.user!._id,
+            entityType: EntityType.COMPANY,
+            entityId: company._id,
+            metadata: { 
+                name: company.name, 
+                changes 
+            },
+        });
 
         res.json({ success: true, company });
     } catch (error: any) {
@@ -109,7 +138,7 @@ export const updateCompany = async (req: Request, res: Response) => {
 };
 
 // Delete Company
-export const deleteCompany = async (req: Request, res: Response) => {
+export const deleteCompany = async (req: AuthRequest, res: Response) => {
     try {
         const company = await Company.findByIdAndDelete(req.params.id);
 
@@ -134,6 +163,14 @@ export const deleteCompany = async (req: Request, res: Response) => {
         }
 
         res.json({ success: true, message: 'Company deleted successfully' });
+
+        await ActivityLog.create({
+            action: 'Company deleted',
+            user: req.user!._id,
+            entityType: EntityType.COMPANY,
+            entityId: company._id,
+            metadata: { name: company.name },
+        });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -150,7 +187,7 @@ export const getCompanyContacts = async (req: Request, res: Response) => {
 };
 
 // Create Contact
-export const createContact = async (req: Request, res: Response) => {
+export const createContact = async (req: AuthRequest, res: Response) => {
     try {
         const { name, email, phone, position, department, isPrimary, notes } = req.body;
 
@@ -174,13 +211,21 @@ export const createContact = async (req: Request, res: Response) => {
         });
 
         res.status(201).json({ success: true, contact });
+
+        await ActivityLog.create({
+            action: 'Contact created',
+            user: req.user!._id,
+            entityType: EntityType.CONTACT,
+            entityId: contact._id,
+            metadata: { name: contact.name, companyId: req.params.id },
+        });
     } catch (error: any) {
         res.status(400).json({ success: false, message: error.message });
     }
 };
 
 // Update Contact
-export const updateContact = async (req: Request, res: Response) => {
+export const updateContact = async (req: AuthRequest, res: Response) => {
     try {
         const { name, email, phone, position, department, isPrimary, notes } = req.body;
 
@@ -192,15 +237,38 @@ export const updateContact = async (req: Request, res: Response) => {
             );
         }
 
-        const contact = await Contact.findByIdAndUpdate(
-            req.params.contactId,
-            { name, email, phone, position, department, isPrimary, notes },
-            { new: true, runValidators: true }
-        );
-
+        const contact = await Contact.findById(req.params.contactId);
         if (!contact) {
             return res.status(404).json({ success: false, message: 'Contact not found' });
         }
+
+        const oldValue = contact.toObject();
+        
+        Object.assign(contact, { name, email, phone, position, department, isPrimary, notes });
+        await contact.save();
+
+        // Capture changes
+        const changes: Record<string, { old: any, new: any }> = {};
+        const fields = ['name', 'email', 'phone', 'position', 'department', 'isPrimary', 'notes'];
+        fields.forEach(field => {
+            const oldVal = (oldValue as any)[field];
+            const newVal = (contact as any)[field];
+            if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+                changes[field] = { old: oldVal, new: newVal };
+            }
+        });
+
+        await ActivityLog.create({
+            action: 'Contact updated',
+            user: req.user!._id,
+            entityType: EntityType.CONTACT,
+            entityId: contact._id,
+            metadata: { 
+                name: contact.name, 
+                companyId: contact.companyId,
+                changes 
+            },
+        });
 
         res.json({ success: true, contact });
     } catch (error: any) {
@@ -209,7 +277,7 @@ export const updateContact = async (req: Request, res: Response) => {
 };
 
 // Delete Contact
-export const deleteContact = async (req: Request, res: Response) => {
+export const deleteContact = async (req: AuthRequest, res: Response) => {
     try {
         const contact = await Contact.findByIdAndDelete(req.params.contactId);
 
@@ -218,6 +286,14 @@ export const deleteContact = async (req: Request, res: Response) => {
         }
 
         res.json({ success: true, message: 'Contact deleted successfully' });
+
+        await ActivityLog.create({
+            action: 'Contact deleted',
+            user: req.user!._id,
+            entityType: EntityType.CONTACT,
+            entityId: contact._id,
+            metadata: { name: contact.name },
+        });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -229,7 +305,7 @@ export const getCompanyProjects = async (req: Request, res: Response) => {
 };
 
 // Import Companies from Excel
-export const importCompanies = async (req: Request, res: Response) => {
+export const importCompanies = async (req: AuthRequest, res: Response) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -350,6 +426,18 @@ export const importCompanies = async (req: Request, res: Response) => {
         }
 
         res.json({ success: true, results });
+
+        await ActivityLog.create({
+            action: 'Companies imported',
+            user: req.user!._id,
+            entityType: EntityType.COMPANY, // Log as company action
+            entityId: req.user!._id, // Use user ID since multiple companies are created
+            metadata: { 
+                createdCount: results.created, 
+                updatedCount: results.updated,
+                fileName: req.file?.originalname 
+            },
+        });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -566,7 +654,7 @@ export const exportCompaniesToPDF = async (req: Request, res: Response) => {
 };
 
 // Send Bulk Email to Companies
-export const sendBulkCompanyEmail = async (req: Request, res: Response) => {
+export const sendBulkCompanyEmail = async (req: AuthRequest, res: Response) => {
     try {
         const { companyIds, subject, message } = req.body;
 
@@ -592,6 +680,18 @@ export const sendBulkCompanyEmail = async (req: Request, res: Response) => {
             success: true, 
             message: `Email sent successfully to ${emails.length} companies`,
             skipped: companyIds.length - emails.length
+        });
+
+        await ActivityLog.create({
+            action: 'Bulk email sent',
+            user: req.user!._id,
+            entityType: EntityType.COMPANY,
+            entityId: req.user!._id,
+            metadata: { 
+                targetCount: companyIds.length, 
+                successCount: emails.length,
+                subject 
+            },
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });

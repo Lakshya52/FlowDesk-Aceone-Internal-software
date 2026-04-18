@@ -32,11 +32,66 @@ const ActivityReport = ({ filters, onDrilldown }: ActivityReportProps): React.JS
     }, [filters]);
 
     if (loading) return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-pulse pb-10">
-            <div className="h-96 bg-surface-hover border border-border rounded-xl"></div>
-            <div className="md:col-span-2 h-96 bg-surface-hover border border-border rounded-xl"></div>
-            <div className="h-96 bg-surface-hover border border-border rounded-xl"></div>
-            <div className="md:col-span-2 h-96 bg-surface-hover border border-border rounded-xl"></div>
+        <div className="space-y-8 animate-pulse pb-10">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5" style={{ marginBottom:"20px" }}>
+                {/* Distribution Skeleton */}
+                <div className="card p-8 flex flex-col items-center border-border/40 bg-surface/50 h-[500px]">
+                    <div className="w-full mb-8">
+                        <div className="w-40 h-6 bg-surface-hover rounded-lg mb-2"></div>
+                        <div className="w-32 h-3 bg-surface-hover rounded-full opacity-50"></div>
+                    </div>
+                    <div className="w-48 h-48 rounded-full border-[16px] border-surface-hover opacity-40"></div>
+                    <div className="mt-8 grid grid-cols-2 gap-2 w-full">
+                        {[1, 2, 3, 4].map(i => <div key={i} className="h-10 bg-surface-hover rounded-lg"></div>)}
+                    </div>
+                </div>
+
+                {/* Bar Chart Skeleton */}
+                <div className="lg:col-span-2 card p-8 border-border/40 bg-surface/50 h-[500px]">
+                    <div className="flex justify-between mb-10">
+                        <div className="space-y-3">
+                            <div className="w-48 h-7 bg-surface-hover rounded-lg"></div>
+                            <div className="w-64 h-4 bg-surface-hover rounded-lg opacity-60"></div>
+                        </div>
+                    </div>
+                    <div className="w-full h-[320px] bg-surface-hover rounded-2xl opacity-30"></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* List Skeleton */}
+                <div className="card p-8 border-border/40 bg-surface/50 h-[600px]">
+                    <div className="flex gap-4 mb-8">
+                        <div className="w-10 h-10 rounded-xl bg-surface-hover"></div>
+                        <div className="space-y-2">
+                            <div className="w-32 h-6 bg-surface-hover rounded-lg"></div>
+                            <div className="w-24 h-3 bg-surface-hover rounded-full opacity-50"></div>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-16 bg-surface-hover/30 rounded-xl border border-border"></div>)}
+                    </div>
+                </div>
+
+                {/* Timeline Skeleton */}
+                <div className="lg:col-span-2 card p-8 border-border/40 bg-surface/50 h-[600px]">
+                    <div className="w-48 h-7 bg-surface-hover rounded-lg mb-10"></div>
+                    <div className="space-y-8">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="flex gap-6">
+                                <div className="w-10 h-10 rounded-xl bg-surface-hover flex-shrink-0"></div>
+                                <div className="flex-1 space-y-3">
+                                    <div className="flex justify-between">
+                                        <div className="w-24 h-4 bg-surface-hover rounded-full"></div>
+                                        <div className="w-16 h-3 bg-surface-hover rounded-full opacity-50"></div>
+                                    </div>
+                                    <div className="w-full h-16 bg-surface-hover/40 rounded-xl"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 
