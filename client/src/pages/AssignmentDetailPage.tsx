@@ -135,10 +135,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         }
     };
 
-    const isAdmin = user?.role === 'admin';
-    const isManager = user?.role === 'manager';
-    const isEmployee = user?.role === 'member';
-    const canEdit = isAdmin || isManager;
+    const canEdit = true; // Everyone can edit and manage tasks
 
     const getFileIcon = (type: string) => {
         if (type.startsWith('image/')) return '🖼️';
@@ -553,11 +550,9 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             <select className="select" style={{ width: 160 }} value={assignment.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateStatus(e.target.value)}>
                                 {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
-                            {isAdmin && (
-                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Project">
-                                    <Trash2 size={18} />
-                                </button>
-                            )}
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Project">
+                                <Trash2 size={18} />
+                            </button>
                         </div>
                     )}
                 </div>
@@ -719,11 +714,6 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {tasks
-                                .filter(t => {
-                                    // Admin/Manager see all tasks. Employees only see their own.
-                                    if (canEdit) return true;
-                                    return t.assignedTo?._id === user?._id || t.assignedTo === user?._id;
-                                })
                                 .map(t => (
                                     <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
                                         {editingTask === t._id ? (
@@ -756,8 +746,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    {/* Anyone assigned or admin/manager can change status */}
-                                                    {(canEdit || t.assignedTo?._id === user?._id) && t.status !== 'completed' && (
+                                                    {/* Anyone can change status now */}
+                                                    {t.status !== 'completed' && (
                                                         <select
                                                             className="select"
                                                             style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
@@ -765,8 +755,6 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateTaskStatus(t._id, e.target.value)}
                                                         >
                                                             {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
-                                                                // Employees can only move to Review or In Progress, not directly to Completed
-                                                                if (isEmployee && k === 'completed') return null;
                                                                 return <option key={k} value={k}>{v}</option>;
                                                             })}
                                                         </select>
@@ -1195,14 +1183,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 } as React.CSSProperties}>
-                                {users.filter(u => {
-                                    if (isAdmin) return true;
-                                    if (isManager) {
-                                        // Managers only see users from the teams assigned to this project
-                                        return assignment.teams?.some((t: any) => t.members?.some((m: any) => m._id === u._id || m === u._id));
-                                    }
-                                    return false;
-                                }).map(u => {
+                                {users.map(u => {
                                     const isMember = assignment.team?.some((m: any) => m._id === u._id);
                                     return (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
