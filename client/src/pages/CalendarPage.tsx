@@ -127,6 +127,7 @@ const CalendarPage: React.FC = () => {
 
     const getEventsForDay = (date: Date) => {
         return events.filter(e => {
+            if (!e.dueDate || new Date(e.dueDate).getFullYear() <= 1970) return false;
             const eDate = new Date(e.dueDate);
             return isSameDay(eDate, date);
         });
@@ -270,12 +271,12 @@ const CalendarPage: React.FC = () => {
         const days = eachDayOfInterval({ start, end: endOfWeek(currentMonth) });
 
         return (
-            <div className="card" style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(7, 1fr)', 
-                height: 'calc(100vh - 280px)', 
+            <div className="card" style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, 1fr)',
+                height: 'calc(100vh - 280px)',
                 minHeight: 600,
-                overflow: 'hidden' 
+                overflow: 'hidden'
             }}>
                 {days.map((date, i) => {
                     const dayEvents = getEventsForDay(date);
@@ -390,13 +391,13 @@ const CalendarPage: React.FC = () => {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px', position: 'relative' }}>
                     {/* Current Time Indicator Line */}
                     {isSelectedDayToday && (
-                        <div style={{ 
-                            position: 'absolute', 
-                            top: `${(now.getHours() * 80) + (now.getMinutes() / 60 * 80)}px`, 
-                            left: 112, 
-                            right: 32, 
-                            height: 2, 
-                            background: '#ef4444', 
+                        <div style={{
+                            position: 'absolute',
+                            top: `${(now.getHours() * 80) + (now.getMinutes() / 60 * 80)}px`,
+                            left: 112,
+                            right: 32,
+                            height: 2,
+                            background: '#ef4444',
                             zIndex: 10,
                             pointerEvents: 'none'
                         }}>
@@ -411,11 +412,11 @@ const CalendarPage: React.FC = () => {
                         const hourEvents = getEventsForHour(hour);
                         return (
                             <div key={hour} style={{ display: 'flex', height: 80, borderBottom: '1px dashed var(--color-border-light)', position: 'relative' }}>
-                                <div style={{ 
-                                    width: 80, 
-                                    paddingTop: 12, 
-                                    fontSize: '0.75rem', 
-                                    fontWeight: 700, 
+                                <div style={{
+                                    width: 80,
+                                    paddingTop: 12,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
                                     color: 'var(--color-text-tertiary)',
                                     textAlign: 'right',
                                     paddingRight: 16
@@ -424,9 +425,9 @@ const CalendarPage: React.FC = () => {
                                 </div>
                                 <div style={{ flex: 1, padding: '4px 8px', display: 'flex', gap: 8 }}>
                                     {hourEvents.map((ev, i) => (
-                                        <div key={i} className="group cursor-pointer" style={{ 
+                                        <div key={i} className="group cursor-pointer" style={{
                                             flex: 1,
-                                            padding: '12px', 
+                                            padding: '12px',
                                             background: ev.type === 'task' ? 'rgba(59, 130, 246, 0.05)' : 'rgba(245, 158, 11, 0.05)',
                                             color: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)',
                                             borderLeft: `5px solid ${ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'}`,
@@ -447,15 +448,15 @@ const CalendarPage: React.FC = () => {
                             </div>
                         );
                     })}
-                    
+
                     {dayEvents.length === 0 && !holiday && (
-                        <div style={{ 
+                        <div style={{
                             padding: '100px 0',
                             textAlign: 'center',
                         }}>
-                             <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'var(--color-text-tertiary)' }}>
+                            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'var(--color-text-tertiary)' }}>
                                 <Calendar size={32} />
-                             </div>
+                            </div>
                             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-text)' }}>Your schedule is clear</div>
                             <div style={{ fontSize: '0.875rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>No events or deadlines for this day.</div>
                         </div>
@@ -470,34 +471,34 @@ const CalendarPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Calendar</h1>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 4, 
-                        background: 'var(--color-surface)', 
-                        borderRadius: 12, 
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: 'var(--color-surface)',
+                        borderRadius: 12,
                         padding: '4px',
                         border: '1px solid var(--color-border)',
                         height: 40
                     }}>
-                        <button 
-                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0" 
+                        <button
+                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0"
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32, color: 'var(--color-text-secondary)' }}
                             onClick={handlePrev}
                         >
                             <ChevronLeft size={18} />
                         </button>
-                        <span style={{ 
-                            fontSize: '0.8125rem', 
-                            fontWeight: 700, 
-                            minWidth: view === 'week' ? 180 : 130, 
+                        <span style={{
+                            fontSize: '0.8125rem',
+                            fontWeight: 700,
+                            minWidth: view === 'week' ? 180 : 130,
                             textAlign: 'center',
                             color: 'var(--color-text)'
                         }}>
                             {formatHeaderDate()}
                         </span>
-                        <button 
-                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0" 
+                        <button
+                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0"
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32, color: 'var(--color-text-secondary)' }}
                             onClick={handleNext}
                         >
@@ -506,14 +507,14 @@ const CalendarPage: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button 
-                            className="btn btn-secondary shadow-sm" 
+                        <button
+                            className="btn btn-secondary shadow-sm"
                             style={{ height: 40, minHeight: 40, borderRadius: 12, padding: '0 16px', fontSize: '0.75rem', fontWeight: 800 }}
                             onClick={handleToday}
                         >
                             Today
                         </button>
-                        
+
                         <div className="relative">
                             <button
                                 onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)}
@@ -547,14 +548,12 @@ const CalendarPage: React.FC = () => {
                                                     setView(v.id as any);
                                                     setIsViewDropdownOpen(false);
                                                 }}
-                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl group/item mb-1 ${
-                                                    view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'
-                                                }`}
+                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-3 cursor-pointer hover:bg-(--color-primary) w-full rounded-xl my-2 ">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${
-                                                        view === v.id ? 'bg-primary/20' : 'bg-surface-hover'
-                                                    }`}>
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${view === v.id ? 'bg-primary/20' : 'bg-surface-hover'
+                                                        }`}>
                                                         {v.icon}
                                                     </div>
                                                     {v.label}

@@ -48,7 +48,7 @@ const taskSchema = new Schema<ITask>(
         assignment: { type: Schema.Types.ObjectId, ref: 'Assignment', required: true },
         assignedTo: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-        dueDate: { type: Date, required: true },
+        dueDate: { type: Date },
         priority: { type: String, enum: Object.values(Priority), default: Priority.MEDIUM },
         status: { type: String, enum: Object.values(TaskStatus), default: TaskStatus.TODO },
         subtasks: [subtaskSchema],

@@ -36,7 +36,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [chatInput, setChatInput] = useState('');
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
-    const [taskForm, setTaskForm] = useState({ title: '', description: '', assignedTo: '', dueDate: '', priority: 'medium' });
+    const [taskForm, setTaskForm] = useState({ title: '', description: '', assignedTo: '', dueDate: '', priority: 'medium', noDueDate: false });
     const [showTeamModal, setShowTeamModal] = useState(false);
     const [updatingTeam, setUpdatingTeam] = useState(false);
     const [editingTask, setEditingTask] = useState<string | null>(null);
@@ -165,8 +165,19 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         priority: '',
         startDate: '',
         dueDate: '',
-        clientName: ''
+        clientName: '',
+        companyId: '',
+        isRecurring: false,
+        recurringPattern: 'monthly',
+        recurringStartDate: ''
     });
+    const [allCompanies, setAllCompanies] = useState<any[]>([]);
+    const [companySearch, setCompanySearch] = useState('');
+    const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+
+    const filteredCompanies = allCompanies.filter(c =>
+        c.name.toLowerCase().includes(companySearch.toLowerCase())
+    );
 
     const getFileIcon = (type: string) => {
         if (type.startsWith('image/')) return '🖼️';
@@ -177,7 +188,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     };
 
 
-    const getDueDateColor = (dueDate: string) => {
+    const getDueDateColor = (dueDate: string | null) => {
+        if (!dueDate || new Date(dueDate).getFullYear() <= 1970) return 'var(--color-text-tertiary)';
         const due = new Date(dueDate);
         const now = new Date();
         const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -311,9 +323,46 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             priority: assignment.priority,
             startDate: assignment.startDate ? new Date(assignment.startDate).toISOString().split('T')[0] : '',
             dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
-            clientName: assignment.clientName || ''
+            clientName: assignment.clientName || '',
+            companyId: assignment.companyId?._id || assignment.companyId || '',
+            isRecurring: assignment.isRecurring || false,
+            recurringPattern: assignment.recurringPattern || 'monthly',
+            recurringStartDate: assignment.recurringStartDate ? new Date(assignment.recurringStartDate).toISOString().split('T')[0] : ''
         });
+        setCompanySearch(assignment.clientName || '');
         setIsEditingProject(true);
+
+        if (allCompanies.length === 0) {
+            api.get('/companies').then(res => {
+                const flatCompanies: any[] = [];
+                const flatten = (items: any[]) => {
+                    items.forEach(item => {
+                        const { children, ...rest } = item;
+                        flatCompanies.push(rest);
+                        if (children) flatten(children);
+                    });
+                };
+                flatten(res.data.companies || []);
+                setAllCompanies(flatCompanies);
+            });
+        }
+    };
+
+    const handleQuickAddCompany = async (name: string) => {
+        if (!name.trim()) return;
+        setSaving(true);
+        try {
+            const { data } = await api.post('/companies', { name });
+            const newCompany = data.company;
+            setAllCompanies(prev => [...prev, newCompany]);
+            setEditProjectForm(prev => ({ ...prev, clientName: newCompany.name, companyId: newCompany._id }));
+            setCompanySearch(newCompany.name);
+            setShowCompanyDropdown(false);
+        } catch (e: any) {
+            alert(e.response?.data?.message || 'Failed to add company');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleDelete = async () => {
@@ -352,10 +401,22 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const createTask = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const { data } = await api.post('/tasks', { ...taskForm, assignment: id });
+            const payload = { 
+                ...taskForm, 
+                assignment: id,
+                dueDate: taskForm.noDueDate ? null : taskForm.dueDate 
+            };
+            const { data } = await api.post('/tasks', payload);
             setTasks(prev => [data.task, ...prev]);
             setShowTaskForm(false);
-            setTaskForm({ title: '', description: '', assignedTo: '', dueDate: '', priority: 'medium' });
+            setTaskForm({ 
+                title: '', 
+                description: '', 
+                assignedTo: '', 
+                dueDate: '', 
+                priority: 'medium',
+                noDueDate: !assignment.dueDate || new Date(assignment.dueDate).getFullYear() <= 1970
+            });
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };
 
@@ -622,13 +683,54 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                     placeholder="Project Description"
                                 />
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                                    <div>
-                                        <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Client Name</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Client / Company</label>
                                         <input
                                             className="input"
-                                            value={editProjectForm.clientName}
-                                            onChange={e => setEditProjectForm({ ...editProjectForm, clientName: e.target.value })}
+                                            placeholder="Search or add company..."
+                                            value={companySearch}
+                                            onChange={e => {
+                                                setCompanySearch(e.target.value);
+                                                setShowCompanyDropdown(true);
+                                                if (!e.target.value) setEditProjectForm({ ...editProjectForm, clientName: '', companyId: '' });
+                                            }}
+                                            onFocus={() => setShowCompanyDropdown(true)}
                                         />
+                                        {showCompanyDropdown && (companySearch.trim() || filteredCompanies.length > 0) && (
+                                            <>
+                                                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} onClick={() => setShowCompanyDropdown(false)} />
+                                                <div className="card shadow-xl" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 101, marginTop: 4, maxHeight: 200, overflow: 'auto', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                                                    {filteredCompanies.length > 0 ? (
+                                                        filteredCompanies.map(c => (
+                                                            <div 
+                                                                key={c._id} 
+                                                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }} 
+                                                                className="hover-bg"
+                                                                onClick={() => {
+                                                                    setEditProjectForm({ ...editProjectForm, clientName: c.name, companyId: c._id });
+                                                                    setCompanySearch(c.name);
+                                                                    setShowCompanyDropdown(false);
+                                                                }}
+                                                            >
+                                                                {c.name}
+                                                                {c.parentCompanyId && <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginLeft: 6 }}>(Subsidiary)</span>}
+                                                            </div>
+                                                        ))
+                                                    ) : companySearch ? (
+                                                        <div 
+                                                            style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-primary-light)' }}
+                                                            className="hover-bg"
+                                                            onClick={() => handleQuickAddCompany(companySearch)}
+                                                        >
+                                                            <Plus size={14} color="var(--color-primary)" />
+                                                            <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
+                                                                Add <strong>"{companySearch}"</strong> as new company
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                     <div>
                                         <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Start Date</label>
@@ -649,18 +751,86 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                         />
                                     </div>
                                 </div>
+
+                                <div className="card" style={{ padding: '12px 16px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: editProjectForm.isRecurring ? 12 : 0 }}>
+                                        <input 
+                                            type="checkbox" 
+                                            id="editIsRecurring"
+                                            checked={editProjectForm.isRecurring}
+                                            onChange={e => setEditProjectForm({ ...editProjectForm, isRecurring: e.target.checked })}
+                                        />
+                                        <label htmlFor="editIsRecurring" style={{ fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Recurring Project Blueprint</label>
+                                    </div>
+                                    
+                                    {editProjectForm.isRecurring && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                            <div>
+                                                <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Pattern</label>
+                                                <select 
+                                                    className="select" 
+                                                    value={editProjectForm.recurringPattern}
+                                                    onChange={e => setEditProjectForm({ ...editProjectForm, recurringPattern: e.target.value })}
+                                                >
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="monthly">Monthly</option>
+                                                    <option value="yearly">Yearly</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Anchor Start Date</label>
+                                                <input 
+                                                    className="input" 
+                                                    type="date"
+                                                    value={editProjectForm.recurringStartDate}
+                                                    onChange={e => setEditProjectForm({ ...editProjectForm, recurringStartDate: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                                     <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{assignment.title}</h1>
+                                    {assignment.isRecurring && !assignment.parentAssignmentId && (
+                                        <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Recurring Blueprint</span>
+                                    )}
+                                    {assignment.parentAssignmentId && (
+                                        <span className="badge" style={{ background: '#f0fdf4', color: '#16a34a' }}>Recurring Instance</span>
+                                    )}
                                     <span className={`badge badge-${assignment.priority}`}>{PRIORITY_LABELS[assignment.priority]}</span>
                                 </div>
+                                {assignment.isRecurring && !assignment.parentAssignmentId && (
+                                    <div style={{ 
+                                        padding: '12px 16px', 
+                                        background: 'var(--color-primary-light)', 
+                                        borderRadius: 8, 
+                                        marginBottom: 16,
+                                        border: '1px solid var(--color-primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 12
+                                    }}>
+                                        <div style={{ fontSize: '1.25rem' }}>📋</div>
+                                        <div style={{ fontSize: '0.8125rem', color: 'var(--color-primary)', fontWeight: 500 }}>
+                                            This is a <b>Recurring Blueprint</b>. Any tasks added here will be automatically copied to every new project instance created according to the <b>{assignment.recurringPattern}</b> schedule.
+                                        </div>
+                                    </div>
+                                )}
                                 {assignment.description && <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 12 }}>{assignment.description}</p>}
                                 <div style={{ display: 'flex', gap: 20, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={14} /> Client: <strong>{assignment.clientName}</strong></span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={14} /> Due: <strong>{assignment.dueDate ? format(new Date(assignment.dueDate), 'MMM d, yyyy') : 'No Due Date'}</strong></span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Clock size={14} /> Due: <strong>
+                                            {assignment.dueDate && new Date(assignment.dueDate).getFullYear() > 1970 
+                                                ? format(new Date(assignment.dueDate), 'MMM d, yyyy') 
+                                                : 'No Due Date'}
+                                        </strong>
+                                    </span>
                                 </div>
                             </>
                         )}
@@ -804,7 +974,16 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             {activeTab === 'tasks' && (
                 <div>
                     {canEdit && (
-                        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 16 }} onClick={() => setShowTaskForm(!showTaskForm)}>
+                        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 16 }} onClick={() => {
+                            const show = !showTaskForm;
+                            setShowTaskForm(show);
+                            if (show) {
+                                setTaskForm(prev => ({
+                                    ...prev,
+                                    noDueDate: !assignment.dueDate || new Date(assignment.dueDate).getFullYear() <= 1970
+                                }));
+                            }
+                        }}>
                             <Plus size={14} /> Add Task
                         </button>
                     )}
@@ -828,7 +1007,23 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                     <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Due Date *</label>
-                                    <input className="input" type="date" required value={taskForm.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
+                                    <input 
+                                        className="input" 
+                                        type="date" 
+                                        required={!taskForm.noDueDate} 
+                                        disabled={taskForm.noDueDate}
+                                        value={taskForm.dueDate} 
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} 
+                                    />
+                                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <input
+                                            type="checkbox"
+                                            id="taskNoDueDate"
+                                            checked={taskForm.noDueDate}
+                                            onChange={e => setTaskForm({ ...taskForm, noDueDate: e.target.checked })}
+                                        />
+                                        <label htmlFor="taskNoDueDate" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>No due date</label>
+                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                     <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Priority</label>
@@ -876,7 +1071,9 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         <span className={`badge badge-${t.status}`}>{TASK_STATUS_LABELS[t.status]}</span>
                                                     </div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                                        Assigned to {t.assignedTo?.name} · <span style={{ color: getDueDateColor(t.dueDate) }}>Due {format(new Date(t.dueDate), 'MMM d')}</span>
+                                                        Assigned to {t.assignedTo?.name} · <span style={{ color: getDueDateColor(t.dueDate) }}>
+                                                            {t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(t.dueDate), 'MMM d')}` : 'No due date'}
+                                                        </span>
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1346,24 +1543,46 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 16 }}>Manage Team Members</h2>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 } as React.CSSProperties}>
                                 {users.map(u => {
-                                    const isMember = assignment.team?.some((m: any) => m._id === u._id);
+                                    const isManualMember = assignment.team?.some((m: any) => m._id === u._id);
+                                    const assignedTeam = assignment.teams?.find((t: any) => 
+                                        t.manager?._id === u._id || 
+                                        t.members?.some((m: any) => m._id === u._id) ||
+                                        t.manager === u._id ||
+                                        t.members?.includes(u._id)
+                                    );
+                                    
                                     return (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                 <Avatar src={u.avatar} name={u.name} size={28} />
-                                                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</span>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{u.name}</span>
+                                                    {assignedTeam && (
+                                                        <span style={{ fontSize: '0.65rem', color: 'var(--color-primary)', fontWeight: 600 }}>
+                                                            Team: {assignedTeam.name}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <button
-                                                className={`btn btn-xs ${isMember ? 'btn-secondary' : 'btn-primary'}`}
-                                                disabled={updatingTeam}
-                                                onClick={() => {
-                                                    const currentIds = assignment.team?.map((m: any) => m._id) || [];
-                                                    const nextIds = isMember ? currentIds.filter((tid: string) => tid !== u._id) : [...currentIds, u._id];
-                                                    handleUpdateTeam(nextIds);
-                                                }}
-                                            >
-                                                {isMember ? 'Remove' : 'Add'}
-                                            </button>
+                                            {assignedTeam ? (
+                                                <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: '0.65rem' }}>
+                                                    Implicit Member
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    className={`btn btn-xs ${isManualMember ? 'btn-secondary' : 'btn-primary'}`}
+                                                    disabled={updatingTeam}
+                                                    onClick={() => {
+                                                        const currentIds = assignment.team?.map((m: any) => m._id || m) || [];
+                                                        const nextIds = isManualMember 
+                                                            ? currentIds.filter((tid: string) => tid !== u._id) 
+                                                            : [...currentIds, u._id];
+                                                        handleUpdateTeam(nextIds);
+                                                    }}
+                                                >
+                                                    {isManualMember ? 'Remove' : 'Add'}
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}

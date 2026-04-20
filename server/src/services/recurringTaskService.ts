@@ -1,4 +1,5 @@
 import Assignment from '../models/Assignment';
+import Task from '../models/Task';
 import mongoose from 'mongoose';
 
 export const processRecurringAssignments = async () => {
@@ -16,21 +17,23 @@ export const processRecurringAssignments = async () => {
 
         for (const template of templates) {
             // Check if we already spawned an assignment for the current cycle
-            // We'll look for the most recent child assignment
             const lastChild = await Assignment.findOne({
                  parentAssignmentId: template._id 
             }).sort({ startDate: -1 });
 
             let shouldSpawn = false;
             let nextStartDate = new Date(template.recurringStartDate!);
+            nextStartDate.setHours(0, 0, 0, 0);
             
             if (!lastChild) {
-                // Never spawned before, and we are past start date
-                shouldSpawn = true;
-                // nextStartDate remains as recurringStartDate
+                // Never spawned before, and we are past or at start date
+                if (nextStartDate <= today) {
+                    shouldSpawn = true;
+                }
             } else {
                 // Calculate next date based on last child
                 const lastDate = new Date(lastChild.startDate);
+                lastDate.setHours(0, 0, 0, 0);
                 nextStartDate = new Date(lastDate);
 
                 if (template.recurringPattern === 'daily') {
@@ -43,6 +46,7 @@ export const processRecurringAssignments = async () => {
                     nextStartDate.setFullYear(nextStartDate.getFullYear() + 1);
                 }
 
+                // If nextStartDate is today or in the past, spawn it
                 if (nextStartDate <= today) {
                     shouldSpawn = true;
                 }
@@ -50,11 +54,17 @@ export const processRecurringAssignments = async () => {
 
             if (shouldSpawn) {
                 // Calculate due date based on the duration of the template
-                const templateStart = new Date(template.startDate);
-                const templateDue = new Date(template.dueDate);
-                const durationMs = templateDue.getTime() - templateStart.getTime();
-                
-                const newDueDate = new Date(nextStartDate.getTime() + durationMs);
+                let newDueDate = null;
+                if (template.startDate && template.dueDate) {
+                    const templateStart = new Date(template.startDate);
+                    const templateDue = new Date(template.dueDate);
+                    
+                    // Only calculate if templateDue is valid and after templateStart
+                    if (templateDue.getFullYear() > 1970) {
+                        const durationMs = templateDue.getTime() - templateStart.getTime();
+                        newDueDate = new Date(nextStartDate.getTime() + durationMs);
+                    }
+                }
 
                 // Create new instance
                 const newAssignment = new Assignment({
@@ -69,12 +79,32 @@ export const processRecurringAssignments = async () => {
                     createdBy: template.createdBy,
                     team: template.team,
                     teams: template.teams,
-                    isRecurring: false, // Instances are not themselves templates
+                    isRecurring: false, 
                     parentAssignmentId: template._id,
                 });
 
                 await newAssignment.save();
-                console.log(`[Recurring] Spawned new assignment "${newAssignment.title}" from template ${template._id}`);
+
+                // Clone tasks from template to new instance
+                const templateTasks = await Task.find({ assignment: template._id });
+                if (templateTasks.length > 0) {
+                    const clonedTasks = templateTasks.map(t => ({
+                        title: t.title,
+                        description: t.description,
+                        assignment: newAssignment._id,
+                        assignedTo: t.assignedTo,
+                        createdBy: t.createdBy,
+                        dueDate: newDueDate, // Optionally set task due date to match assignment due date
+                        priority: t.priority,
+                        status: 'todo',
+                        subtasks: t.subtasks.map(s => ({ title: s.title, completed: false })),
+                        dependencies: [], // Reset dependencies for now as they relate to specific task IDs
+                    }));
+                    await Task.insertMany(clonedTasks);
+                    console.log(`[Recurring] Cloned ${templateTasks.length} tasks to "${newAssignment.title}"`);
+                }
+
+                console.log(`[Recurring] Spawned new assignment "${newAssignment.title}" for date ${nextStartDate.toDateString()} from template ${template._id}`);
             }
         }
     } catch (error) {

@@ -55,12 +55,24 @@ export const createAssignment = async (req: AuthRequest, res: Response): Promise
 
 export const getAssignments = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { status, priority, search, companyId } = req.query;
+        const { status, priority, search, companyId, isBlueprint } = req.query;
         const filter: any = {};
 
         if (status) filter.status = status;
         if (priority) filter.priority = priority;
         if (companyId) filter.companyId = companyId;
+        
+        // Blueprint filtering
+        if (isBlueprint === 'true') {
+            filter.isRecurring = true;
+            filter.parentAssignmentId = null;
+        } else if (isBlueprint === 'false') {
+            // Not a blueprint means: (isRecurring is not true) OR (parentAssignmentId is not null)
+            filter.$or = [
+                { isRecurring: { $ne: true } }, 
+                { parentAssignmentId: { $ne: null } }
+            ];
+        }
         
         let searchFilter: any = {};
         if (search) {
@@ -173,21 +185,39 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
 
         Object.assign(assignment, req.body);
 
-        // Auto-assign Team Members if teams were updated
+        // Auto-assign Team Members if teams were updated or manual team list changed
         if (req.body.teams || req.body.team) {
-            let allMemberIds = [...(req.body.team || assignment.team.map((id: any) => id.toString()))];
             const teamIds = req.body.teams || assignment.teams;
+            
+            // Get the list of individual member IDs provided in the request
+            // If not provided, fall back to current list (handle populated vs unpopulated)
+            let manualMemberIds: string[] = [];
+            if (req.body.team) {
+                manualMemberIds = req.body.team.map((id: any) => id.toString());
+            } else {
+                manualMemberIds = (assignment.team || []).map((m: any) => 
+                    (m._id || m).toString()
+                );
+            }
+
+            let allMemberIds = [...manualMemberIds];
 
             if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
                 const Team = (await import('../models/Team')).default;
                 const teams = await Team.find({ _id: { $in: teamIds } });
+                
                 // Include both team manager and all members
                 const teamInvites = teams.flatMap(t => [
                     t.manager.toString(),
                     ...t.members.map(m => m.toString())
                 ]);
+
+                // Merge with manual IDs, but respect the fact that some might have been 
+                // explicitly removed from the manual list (optional behavior)
+                // For now, keep the policy: Team members ALWAYS have access.
                 allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
             }
+            
             assignment.team = allMemberIds as any;
             assignment.teams = teamIds as any;
         }
