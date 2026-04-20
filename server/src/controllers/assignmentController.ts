@@ -183,7 +183,11 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             }
         });
 
-        Object.assign(assignment, req.body);
+        // Sanitize ObjectId fields: convert empty strings to null
+        const sanitizedBody: any = { ...req.body };
+        if (sanitizedBody.companyId === '') sanitizedBody.companyId = null;
+
+        Object.assign(assignment, sanitizedBody);
 
         // Auto-assign Team Members if teams were updated or manual team list changed
         if (req.body.teams || req.body.team) {
