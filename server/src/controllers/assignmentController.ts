@@ -67,10 +67,10 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
             filter.isRecurring = true;
             filter.parentAssignmentId = null;
         } else if (isBlueprint === 'false') {
-            // Not a blueprint means: (isRecurring is not true) OR (parentAssignmentId is not null)
+            // Non-blueprint means: either not recurring OR has a parent assignment
             filter.$or = [
-                { isRecurring: { $ne: true } }, 
-                { parentAssignmentId: { $ne: null } }
+                { isRecurring: { $ne: true } },
+                { parentAssignmentId: { $exists: true, $ne: null } }
             ];
         }
         

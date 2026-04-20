@@ -57,11 +57,17 @@ const TeamsPage: React.FC = () => {
         const newMembers = isMember
             ? currentMembers.filter((id: string) => id !== userId)
             : [...currentMembers, userId];
+        // Optimistic update
+        setTeams(prev => prev.map(t => t._id === team._id ? { ...t, members: newMembers.map(id => ({ _id: id })) } : t));
         try {
             const { data } = await api.put(`/teams/${team._id}/members`, { members: newMembers });
             setTeams(prev => prev.map(t => t._id === team._id ? data.team : t));
             setSelectedTeam(data.team);
-        } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+        } catch (e: any) {
+            // Rollback on failure
+            setTeams(prev => prev.map(t => t._id === team._id ? { ...t, members: currentMembers.map(id => ({ _id: id })) } : t));
+            alert(e.response?.data?.message || 'Failed');
+        }
     };
 
     const handleRequestJoin = async (teamId: string) => {

@@ -40,7 +40,7 @@ const TasksPage: React.FC = () => {
                 const [tRes, uRes, cRes] = await Promise.all([
                     api.get('/tasks', { params }),
                     api.get('/auth/users'),
-                    api.get('/companies')
+                    api.get('/companies', { params: { flat: 'true' } })
                 ]);
                 setTasks(tRes.data.tasks || []);
                 setUsers(uRes.data.users || []);
@@ -229,11 +229,11 @@ const TasksPage: React.FC = () => {
                     <input className="input" style={{ paddingLeft: 36 }} placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
                 <div style={{ width: 250 }}>
-                    <select 
-                        className="select" 
-                        value={selectedCompany} 
+                    <select
+                        className="select"
+                        value={selectedCompany}
                         onChange={e => setSelectedCompany(e.target.value)}
-                        style={{ width: '100%', appearance: 'auto' }}
+                        style={{ width: '100%' }}
                     >
                         <option value="">All Companies</option>
                         {companies.map(c => (

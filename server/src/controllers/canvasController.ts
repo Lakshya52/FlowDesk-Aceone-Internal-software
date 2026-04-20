@@ -3,7 +3,7 @@ import CanvasNote from '../models/CanvasNote';
 
 export const getNotes = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user._id;
     const notes = await CanvasNote.find({ userId });
     res.json(notes);
   } catch (error: any) {
@@ -13,7 +13,7 @@ export const getNotes = async (req: Request, res: Response) => {
 
 export const createNote = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user._id;
     const { x, y, width, height, content, color } = req.body;
     const note = await CanvasNote.create({
       userId,
@@ -32,7 +32,7 @@ export const createNote = async (req: Request, res: Response) => {
 
 export const updateNote = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user._id;
     const { id } = req.params;
     const { x, y, width, height, content, color } = req.body;
 
@@ -51,7 +51,7 @@ export const updateNote = async (req: Request, res: Response) => {
 
 export const deleteNote = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user._id;
     const { id } = req.params;
 
     const note = await CanvasNote.findOneAndDelete({ _id: id, userId });

@@ -46,6 +46,15 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
 // Get All Companies (with hierarchy)
 export const getCompanies = async (req: Request, res: Response) => {
     try {
+        const { flat } = req.query;
+
+        // Return flat list of all companies
+        if (flat === 'true') {
+            const allCompanies = await Company.find().select('_id name parentCompanyId').sort({ name: 1 }).lean();
+            res.json({ success: true, companies: allCompanies });
+            return;
+        }
+
         const companies = await Company.find({ parentCompanyId: null })
             .populate('contacts')
             .populate('childCompanies');
@@ -90,16 +99,16 @@ export const updateCompany = async (req: AuthRequest, res: Response) => {
     try {
         const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
 
-        const updateData: any = { 
-            name, 
-            parentCompanyId: parentCompanyId || null, 
-            industry, 
-            description, 
-            website, 
+        const updateData: any = {
+            name,
+            parentCompanyId: parentCompanyId === '' ? null : (parentCompanyId || null),
+            industry,
+            description,
+            website,
             email,
-            phone, 
-            address, 
-            status 
+            phone,
+            address,
+            status
         };
 
         const company = await Company.findById(req.params.id);
@@ -162,8 +171,6 @@ export const deleteCompany = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        res.json({ success: true, message: 'Company deleted successfully' });
-
         await ActivityLog.create({
             action: 'Company deleted',
             user: req.user!._id,
@@ -171,6 +178,8 @@ export const deleteCompany = async (req: AuthRequest, res: Response) => {
             entityId: company._id,
             metadata: { name: company.name },
         });
+
+        res.json({ success: true, message: 'Company deleted successfully' });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -285,8 +294,6 @@ export const deleteContact = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ success: false, message: 'Contact not found' });
         }
 
-        res.json({ success: true, message: 'Contact deleted successfully' });
-
         await ActivityLog.create({
             action: 'Contact deleted',
             user: req.user!._id,
@@ -294,6 +301,8 @@ export const deleteContact = async (req: AuthRequest, res: Response) => {
             entityId: contact._id,
             metadata: { name: contact.name },
         });
+
+        res.json({ success: true, message: 'Contact deleted successfully' });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -425,19 +434,19 @@ export const importCompanies = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        res.json({ success: true, results });
-
         await ActivityLog.create({
             action: 'Companies imported',
             user: req.user!._id,
-            entityType: EntityType.COMPANY, // Log as company action
-            entityId: req.user!._id, // Use user ID since multiple companies are created
-            metadata: { 
-                createdCount: results.created, 
+            entityType: EntityType.COMPANY,
+            entityId: req.user!._id,
+            metadata: {
+                createdCount: results.created,
                 updatedCount: results.updated,
-                fileName: req.file?.originalname 
+                fileName: req.file?.originalname
             },
         });
+
+        res.json({ success: true, results });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -690,22 +699,22 @@ export const sendBulkCompanyEmail = async (req: AuthRequest, res: Response) => {
 
         await sendGenericEmail(emails, subject, message);
 
-        res.json({ 
-            success: true, 
-            message: `Email sent successfully to ${emails.length} companies`,
-            skipped: companyIds.length - emails.length
-        });
-
         await ActivityLog.create({
             action: 'Bulk email sent',
             user: req.user!._id,
             entityType: EntityType.COMPANY,
             entityId: req.user!._id,
-            metadata: { 
-                targetCount: companyIds.length, 
+            metadata: {
+                targetCount: companyIds.length,
                 successCount: emails.length,
-                subject 
+                subject
             },
+        });
+
+        res.json({
+            success: true,
+            message: `Email sent successfully to ${emails.length} companies`,
+            skipped: companyIds.length - emails.length
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });

@@ -134,11 +134,6 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
         }
         // Admins have no additional filters (see all)
 
-        // Special handling for 'Under Review' filter
-        if (status === 'review') {
-            // Handled dynamically via `andConditions`
-        }
-
         const filter = andConditions.length > 0 ? { $and: andConditions } : {};
 
         const tasks = await Task.find(filter)
@@ -170,11 +165,9 @@ export const getTask = async (req: AuthRequest, res: Response): Promise<void> =>
         if (req.user!.role !== 'admin') {
             const AssignmentModel = (await import('../models/Assignment')).default;
             const assignment = await AssignmentModel.findById(task.assignment);
-            
+
             const isMember = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
-            const isManager = req.user!.role === 'manager'; // visibility handled at project level in reality, but for strictness:
-            
-            // If they are not in the team and not an admin/manager with project access
+
             if (!isMember && req.user!.role === 'member') {
                 res.status(403).json({ message: 'Access denied' });
                 return;

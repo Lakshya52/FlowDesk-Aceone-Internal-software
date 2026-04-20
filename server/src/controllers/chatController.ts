@@ -11,6 +11,24 @@ import { uploadToGridFS } from '../utils/gridfs';
 export const sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { content, assignmentId, attachments: bodyAttachments, mentions, parentMessageId } = req.body;
+        if (!assignmentId) {
+            res.status(400).json({ message: 'assignmentId is required' });
+            return;
+        }
+
+        // Authorization: user must be on the assignment team or be the creator
+        const AssignmentModel = (await import('../models/Assignment')).default;
+        const assignment = await AssignmentModel.findById(assignmentId);
+        if (!assignment) {
+            res.status(404).json({ message: 'Assignment not found' });
+            return;
+        }
+        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
+        if (req.user!.role !== 'admin' && !isInTeam && !isCreator) {
+            res.status(403).json({ message: 'Not authorized to send messages in this assignment' });
+            return;
+        }
         let attachmentIds: string[] = [];
         if (bodyAttachments && Array.isArray(bodyAttachments) && bodyAttachments.length > 0) {
             for (const att of bodyAttachments) {
@@ -105,6 +123,10 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
 
         const pageNum = parseInt(page as string, 10);
         const limitNum = parseInt(limit as string, 10);
+        if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+            res.status(400).json({ message: 'Invalid pagination parameters' });
+            return;
+        }
         const skip = (pageNum - 1) * limitNum;
 
         const total = await ChatMessage.countDocuments({ assignment: assignmentId });

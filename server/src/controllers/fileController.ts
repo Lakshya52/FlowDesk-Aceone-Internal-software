@@ -109,6 +109,11 @@ export const deleteFile = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
+        if (req.user!.role !== 'admin' && attachment.uploadedBy.toString() !== req.user!._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to delete this file' });
+            return;
+        }
+
         if (attachment.fileName) {
             await deleteFromGridFS(attachment.fileName);
         }

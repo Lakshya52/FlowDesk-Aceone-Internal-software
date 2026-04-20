@@ -23,11 +23,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         if (userRole === 'member') {
             assignmentFilter.team = userId; 
             taskFilter.assignedTo = userId;
-            // Activity related to their team
-            const userTeams = await Team.find({ members: userId }).distinct('_id');
             activityFilter['$or'] = [
-                { user: userId },
-                { team: { $in: userTeams } }
+                { user: userId }
             ];
         } else if (userRole === 'manager') {
             const managedTeams = await Team.find({ manager: userId }).distinct('_id');
@@ -47,7 +44,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
             ];
             
             activityFilter['$or'] = [
-                { team: { $in: managedTeams } },
+                { user: userId },
                 { user: { $in: managedMembers } },
                 { user: userId }
             ];

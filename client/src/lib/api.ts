@@ -20,8 +20,13 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             localStorage.removeItem('flowdesk_token');
             localStorage.removeItem('flowdesk_user');
-            if (!window.location.hash.includes('/login')) {
-                window.location.href = '/#/login';
+            const currentPath = window.location.hash ? window.location.hash.replace('#', '') : window.location.pathname;
+            if (!currentPath.includes('/login')) {
+                if (window.location.hash) {
+                    window.location.href = '/#/login';
+                } else {
+                    window.location.href = '/login';
+                }
             }
         }
         return Promise.reject(error);
