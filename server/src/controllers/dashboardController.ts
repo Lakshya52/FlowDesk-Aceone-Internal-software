@@ -15,10 +15,43 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
         const weekStart = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        // Everyone sees all stats now
+        // Base filters for role-based access
         const assignmentFilter: any = {};
         const taskFilter: any = {};
         const activityFilter: any = {};
+
+        if (userRole === 'member') {
+            assignmentFilter.team = userId; 
+            taskFilter.assignedTo = userId;
+            // Activity related to their team
+            const userTeams = await Team.find({ members: userId }).distinct('_id');
+            activityFilter['$or'] = [
+                { user: userId },
+                { team: { $in: userTeams } }
+            ];
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+            
+            // Managers see assignments they created OR where their team is assigned
+            assignmentFilter['$or'] = [
+                { createdBy: userId },
+                { teams: { $in: managedTeams } }
+            ];
+            
+            // Managers see tasks they assigned OR assigned to their team members
+            taskFilter['$or'] = [
+                { assignedTo: { $in: managedMembers } },
+                { createdBy: userId }, 
+                { assignedTo: userId }
+            ];
+            
+            activityFilter['$or'] = [
+                { team: { $in: managedTeams } },
+                { user: { $in: managedMembers } },
+                { user: userId }
+            ];
+        }
 
         // Active assignments
         const activeAssignments = await Assignment.countDocuments({
@@ -162,8 +195,9 @@ export const getCalendarEvents = async (req: AuthRequest, res: Response): Promis
         if (userId) filter.assignedTo = userId;
         if (assignmentId) filter.assignment = assignmentId;
 
-        // Everyone sees all calendar events now
-        // (Removed role filtering)
+        if (req.user!.role === 'member') {
+            filter.assignedTo = req.user!._id;
+        }
 
         const tasks = await Task.find(filter)
             .populate('assignedTo', 'name email avatar')
@@ -172,7 +206,7 @@ export const getCalendarEvents = async (req: AuthRequest, res: Response): Promis
 
         const assignments = await Assignment.find({
             ...(assignmentId ? { _id: assignmentId } : {}),
-            // (Removed role filtering)
+            ...(req.user!.role === 'member' ? { team: req.user!._id } : {}),
             ...(start && end
                 ? { dueDate: { $gte: new Date(start as string), $lte: new Date(end as string) } }
                 : {}),
@@ -189,9 +223,41 @@ export const getCalendarEvents = async (req: AuthRequest, res: Response): Promis
 
 export const getReportFilters = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        // Everyone sees all report filters (teams and employees)
-        const teams = await Team.find().select('name _id members manager').lean();
-        const employees = await User.find().select('name _id email employeeId').lean();
+        const userRole = req.user!.role;
+        const userId = req.user!._id;
+
+        let teams: any[] = [];
+        let employees: any[] = [];
+
+        if (userRole === 'admin') {
+            teams = await Team.find().select('name _id members manager').lean();
+            employees = await User.find().select('name _id email employeeId').lean();
+        } else if (userRole === 'manager') {
+            // Include teams managed by the user AND teams where they are a member
+            teams = await Team.find({ 
+                $or: [
+                    { manager: userId },
+                    { members: userId }
+                ]
+            }).select('name _id members manager').lean();
+            
+            const teamIds = teams.map(t => t._id);
+            const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
+            employees = await User.find({ 
+                $or: [
+                    { _id: { $in: [...teamMembers, userId] } },
+                    { _id: userId }
+                ]
+            }).select('name _id email employeeId').lean();
+        } else {
+            // For members, let them see their own teams and teammates
+            teams = await Team.find({ members: userId }).select('name _id members manager').lean();
+            const teamIds = teams.map(t => t._id);
+            const teamMembers = await Team.find({ _id: { $in: teamIds } }).distinct('members');
+            employees = await User.find({ 
+                _id: { $in: [...teamMembers, userId] } 
+            }).select('name _id email employeeId').lean();
+        }
 
         // Ensure we always return arrays and non-null values
         res.json({ 
@@ -220,12 +286,36 @@ export const getReports = async (req: AuthRequest, res: Response): Promise<void>
 
         let baseMatch: any = { ...dateFilter };
 
-        // Everyone sees all reports
-        if (teamId) {
-            const team = await Team.findById(teamId);
-            baseMatch.assignedTo = { $in: team?.members || [] };
-        } else if (employeeId) {
-            baseMatch.assignedTo = employeeId;
+        // Role-based constraints
+        if (userRole === 'member') {
+            baseMatch.assignedTo = userId;
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+
+            if (teamId) {
+                if (!managedTeams.map(id => id.toString()).includes(teamId as string)) {
+                    res.status(403).json({ message: 'Forbidden' });
+                    return;
+                }
+                const team = await Team.findById(teamId);
+                baseMatch.assignedTo = { $in: team?.members || [] };
+            } else if (employeeId) {
+                if (!managedMembers.map(id => id.toString()).includes(employeeId as string)) {
+                    res.status(403).json({ message: 'Forbidden' });
+                    return;
+                }
+                baseMatch.assignedTo = employeeId;
+            } else {
+                baseMatch.assignedTo = { $in: managedMembers };
+            }
+        } else if (userRole === 'admin') {
+            if (teamId) {
+                const team = await Team.findById(teamId);
+                baseMatch.assignedTo = { $in: team?.members || [] };
+            } else if (employeeId) {
+                baseMatch.assignedTo = employeeId;
+            }
         }
 
         // Productivity report
@@ -321,8 +411,23 @@ export const globalSearch = async (req: AuthRequest, res: Response): Promise<voi
         const userFilter: any = { $or: [{ name: searchRegex }, { email: searchRegex }, { employeeId: searchRegex }] };
         const teamFilter: any = { name: searchRegex };
 
-        // Everyone sees all search results
-        // (Removed role filtering)
+        // Role-based visibility
+        if (userRole === 'member') {
+            taskFilter.assignedTo = userId;
+            assignmentFilter.team = userId;
+            const myTeams = await Team.find({ members: userId }).distinct('_id');
+            teamFilter._id = { $in: myTeams };
+            const teamMembers = await Team.find({ members: userId }).distinct('members');
+            userFilter._id = { $in: teamMembers };
+        } else if (userRole === 'manager') {
+            const managedTeams = await Team.find({ manager: userId }).distinct('_id');
+            const managedMembers = await Team.find({ manager: userId }).distinct('members');
+            taskFilter.assignedTo = { $in: [...managedMembers, userId] };
+            assignmentFilter.$or = assignmentFilter.$or || [];
+            assignmentFilter.$or.push({ teams: { $in: managedTeams } });
+            teamFilter.$or = [{ manager: userId }, { _id: { $in: managedTeams } }];
+            userFilter._id = { $in: [userId, ...managedMembers] };
+        }
 
         const [tasks, assignments, users, teams] = await Promise.all([
             Task.find(taskFilter).limit(5).populate('assignedTo', 'name').populate('assignment', 'title'),

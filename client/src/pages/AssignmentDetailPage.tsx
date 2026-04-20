@@ -20,6 +20,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuthStore();
+    const isAdmin = user?.role === 'admin';
+    const isManager = user?.role === 'manager';
+    const isEmployee = user?.role === 'member';
+    const canEdit = true; // Stay democratized: anyone who can see it can edit it
     const [assignment, setAssignment] = useState<any>(null);
     const [tasks, setTasks] = useState<any[]>([]);
     const [comments, setComments] = useState<any[]>([]);
@@ -136,7 +140,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         }
     };
 
-    const canEdit = true; // Everyone can edit and manage tasks
+    // const canEdit = true; // Everyone can edit and manage tasks
     const [isEditingProject, setIsEditingProject] = useState(false);
     const [editProjectForm, setEditProjectForm] = useState({
         title: '',
@@ -356,7 +360,12 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
     const updateTaskStatus = async (taskId: string, status: string) => {
         try {
-            const { data } = await api.put(`/tasks/${taskId}`, { status });
+            // Override status for employees trying to complete
+            let targetStatus = status;
+            if (isEmployee && status === 'completed') {
+                targetStatus = 'review';
+            }
+            const { data } = await api.put(`/tasks/${taskId}`, { status: targetStatus });
             setTasks(prev => prev.map(t => t._id === taskId ? data.task : t));
         } catch { }
     };
@@ -760,7 +769,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
             {/* Notes/Whiteboard Tab */}
             {activeTab === 'notes' && (
-                <div ref={whiteboardRef} style={{ marginBottom: 40 }}>
+                <div ref={whiteboardRef} >
                     <div style={{ marginBottom: 16 }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 4 }}>Project Whiteboard</h3>
                         <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
@@ -854,18 +863,46 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    {/* Anyone can change status now */}
-                                                    {t.status !== 'completed' && (
-                                                        <select
-                                                            className="select"
-                                                            style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
-                                                            value={t.status}
-                                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateTaskStatus(t._id, e.target.value)}
-                                                        >
-                                                            {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
-                                                                return <option key={k} value={k}>{v}</option>;
-                                                            })}
-                                                        </select>
+                                                    {t.status === 'review' && (isAdmin || isManager) ? (
+                                                        <div style={{ display: 'flex', gap: 6 }}>
+                                                            <button 
+                                                                className="btn btn-xs" 
+                                                                style={{ backgroundColor: '#22c55e', color: 'white', border: 'none' }}
+                                                                onClick={() => updateTaskStatus(t._id, 'completed')}
+                                                            >
+                                                                Approve
+                                                            </button>
+                                                            <button 
+                                                                className="btn btn-xs" 
+                                                                style={{ backgroundColor: '#ef4444', color: 'white', border: 'none' }}
+                                                                onClick={() => updateTaskStatus(t._id, 'in_progress')}
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {t.status !== 'completed' && (
+                                                                <select
+                                                                    className="select"
+                                                                    style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
+                                                                    value={t.status}
+                                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                                        const val = e.target.value;
+                                                                        if (isEmployee && val === 'completed') {
+                                                                            updateTaskStatus(t._id, 'review');
+                                                                        } else {
+                                                                            updateTaskStatus(t._id, val);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
+                                                                        if (isEmployee && k === 'completed') return <option key={k} value="completed">Mark for Review</option>;
+                                                                        return <option key={k} value={k}>{v}</option>;
+                                                                    })}
+                                                                </select>
+                                                            )}
+                                                        </>
                                                     )}
                                                     {canEdit && (
                                                         <>
