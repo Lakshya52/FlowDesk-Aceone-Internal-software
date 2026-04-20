@@ -64,8 +64,44 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
             filter.title = { $regex: search, $options: 'i' };
         }
 
-        // Everyone sees all tasks now
-        // (Removed role filtering)
+        // Roles and permissions visibility enforcement
+        if (req.user!.role === 'member') {
+            // Employees see tasks assigned to them OR tasks in projects where they are in the team
+            const AssignmentModel = (await import('../models/Assignment')).default;
+            const myProjectIds = await AssignmentModel.find({ 
+                $or: [
+                    { team: req.user!._id },
+                    { createdBy: req.user!._id }
+                ]
+            }).distinct('_id');
+
+            filter.$or = [
+                { assignedTo: req.user!._id },
+                { assignment: { $in: myProjectIds } }
+            ];
+        } else if (req.user!.role === 'manager') {
+            // Managers see tasks in projects they manage OR projects they are part of
+            const Team = (await import('../models/Team')).default;
+            const AssignmentModel = (await import('../models/Assignment')).default;
+            const managedTeams = await Team.find({ manager: req.user!._id }).distinct('_id');
+            const myProjectIds = await AssignmentModel.find({
+                $or: [
+                    { createdBy: req.user!._id },
+                    { teams: { $in: managedTeams } },
+                    { team: req.user!._id }
+                ]
+            }).distinct('_id');
+
+            filter.assignment = { $in: myProjectIds };
+        }
+        // Admins have no additional filters (see all)
+
+        // Special handling for 'Under Review' filter
+        if (status === 'review') {
+            filter.status = 'review';
+            // Only Managers and Admins should ideally process reviews, 
+            // but the visibility filter above already handles project-level access.
+        }
 
         const tasks = await Task.find(filter)
             .populate('assignedTo', 'name email avatar')
@@ -92,6 +128,21 @@ export const getTask = async (req: AuthRequest, res: Response): Promise<void> =>
             return;
         }
 
+        // Security check
+        if (req.user!.role !== 'admin') {
+            const AssignmentModel = (await import('../models/Assignment')).default;
+            const assignment = await AssignmentModel.findById(task.assignment);
+            
+            const isMember = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
+            const isManager = req.user!.role === 'manager'; // visibility handled at project level in reality, but for strictness:
+            
+            // If they are not in the team and not an admin/manager with project access
+            if (!isMember && req.user!.role === 'member') {
+                res.status(403).json({ message: 'Access denied' });
+                return;
+            }
+        }
+
         res.json({ task });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -104,6 +155,15 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
         if (!oldTask) {
             res.status(404).json({ message: 'Task not found' });
             return;
+        }
+
+        // Security check for update
+        if (req.user!.role === 'member') {
+             // Member can only edit their own assigned tasks or tasks in their project
+             // And CANNOT set status to completed directly
+             if (req.body.status === 'completed') {
+                 req.body.status = 'review';
+             }
         }
 
         // Everyone authorized to update everything

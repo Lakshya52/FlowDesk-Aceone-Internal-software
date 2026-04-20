@@ -14,22 +14,26 @@ const TasksPage: React.FC = () => {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [currentTab, setCurrentTab] = useState<'all' | 'my' | 'review'>('all');
     const [editingTask, setEditingTask] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<any>({});
 
     const isAdmin = user?.role === 'admin';
     const isManager = user?.role === 'manager';
     const isEmployee = user?.role === 'member';
-    const canEdit = isAdmin || isManager;
+    const canEdit = true; // Anyone who can see it can edit it (democratic model)
 
     const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetch = async () => {
+            setLoading(true);
             try {
                 const params: any = {};
                 if (search) params.search = search;
-                // Removed status and priority filters as per requirement
+                if (currentTab === 'my') params.assignedTo = user?._id;
+                if (currentTab === 'review') params.status = 'review';
+                
                 const [tRes, uRes] = await Promise.all([
                     api.get('/tasks', { params }),
                     api.get('/auth/users'),
@@ -40,7 +44,7 @@ const TasksPage: React.FC = () => {
             finally { setLoading(false); }
         };
         fetch();
-    }, [search]);
+    }, [search, currentTab, user?._id]);
 
     const updateStatus = async (taskId: string, status: string) => {
         try {
@@ -138,13 +142,85 @@ const TasksPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 32, borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
+                <button 
+                    onClick={() => setCurrentTab('all')}
+                    style={{ 
+                        padding: '12px 4px', 
+                        fontSize: '0.875rem', 
+                        fontWeight: 500, 
+                        color: currentTab === 'all' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        borderBottom: `2px solid ${currentTab === 'all' ? 'var(--color-primary)' : 'transparent'}`,
+                        background: 'none',
+                        borderTop: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    All Tasks
+                </button>
+                <button 
+                    onClick={() => setCurrentTab('my')}
+                    style={{ 
+                        padding: '12px 4px', 
+                        fontSize: '0.875rem', 
+                        fontWeight: 500, 
+                        color: currentTab === 'my' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        borderBottom: `2px solid ${currentTab === 'my' ? 'var(--color-primary)' : 'transparent'}`,
+                        background: 'none',
+                        borderTop: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    My Tasks
+                </button>
+                {(isAdmin || isManager) && (
+                    <button 
+                        onClick={() => setCurrentTab('review')}
+                        style={{ 
+                            padding: '12px 4px', 
+                            fontSize: '0.875rem', 
+                            fontWeight: 500, 
+                            color: currentTab === 'review' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                            borderBottom: `2px solid ${currentTab === 'review' ? 'var(--color-primary)' : 'transparent'}`,
+                            background: 'none',
+                            borderTop: 'none',
+                            borderLeft: 'none',
+                            borderRight: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                        }}
+                    >
+                        Under Review
+                        {tasks.filter(t => t.status === 'review').length > 0 && (
+                            <span style={{ 
+                                backgroundColor: '#ef4444', 
+                                color: 'white', 
+                                fontSize: '0.7rem', 
+                                padding: '2px 6px', 
+                                borderRadius: 10,
+                                minWidth: 18,
+                                textAlign: 'center'
+                            }}>
+                                {tasks.filter(t => t.status === 'review').length}
+                            </span>
+                        )}
+                    </button>
+                )}
+            </div>
+
             {/* Filters */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
                 <div style={{ flex: 1, maxWidth: 400, position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-                    <input className="input" style={{ paddingLeft: 36 }} placeholder="Search tasks by title..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <input className="input" style={{ paddingLeft: 36 }} placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                {/* Status and Priority filters removed as per requirement 4.3 */}
             </div>
 
             {/* Kanban Board */}
@@ -219,10 +295,13 @@ const TasksPage: React.FC = () => {
                                                 </div>
                                             ) : (
                                                 <>
-                                                    <div style={{ fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8 }}>{t.title}</div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                                                        <span className={`badge badge-${t.priority}`} style={{ fontSize: '0.6875rem' }}>{PRIORITY_LABELS[t.priority]}</span>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                                                        <div style={{ fontSize: '0.6875rem', textTransform: 'uppercase', color: 'var(--color-primary)', fontWeight: 600 }}>
+                                                            {t.assignment?.title}
+                                                        </div>
+                                                        <span className={`badge badge-${t.priority}`} style={{ fontSize: '0.625rem' }}>{PRIORITY_LABELS[t.priority]}</span>
                                                     </div>
+                                                    <div style={{ fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, lineHeight: 1.4 }}>{t.title}</div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                             <Avatar src={t.assignedTo?.avatar} name={t.assignedTo?.name} size={20} />
@@ -234,21 +313,41 @@ const TasksPage: React.FC = () => {
                                                     </div>
 
                                                     {/* Actions row */}
-                                                    <div style={{ marginTop: 8, borderTop: '1px solid var(--color-border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        {(canEdit || t.assignedTo?._id === user?._id) && col.key !== 'completed' ? (
-                                                            <select
-                                                                className="select"
-                                                                style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', flex: 1 }}
-                                                                value={t.status}
-                                                                onChange={e => updateStatus(t._id, e.target.value)}
-                                                            >
-                                                                {Object.entries(STATUS_LABELS).map(([k, v]) => {
-                                                                    // Employees can only move to Review or In Progress, not directly to Completed
-                                                                    if (isEmployee && k === 'completed') return null;
-                                                                    return <option key={k} value={k}>{v}</option>;
-                                                                })}
-                                                            </select>
-                                                        ) : <div />}
+                                                    <div style={{ marginTop: 8, borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+                                                        {t.status === 'review' && (isAdmin || isManager) ? (
+                                                            <div style={{ display: 'flex', gap: 6 }}>
+                                                                <button 
+                                                                    className="btn btn-xs" 
+                                                                    style={{ flex: 1, backgroundColor: '#22c55e', color: 'white', border: 'none' }}
+                                                                    onClick={() => updateStatus(t._id, 'completed')}
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                                <button 
+                                                                    className="btn btn-xs" 
+                                                                    style={{ flex: 1, backgroundColor: '#ef4444', color: 'white', border: 'none' }}
+                                                                    onClick={() => updateStatus(t._id, 'in_progress')}
+                                                                >
+                                                                    Reject
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                {(canEdit || t.assignedTo?._id === user?._id) && t.status !== 'completed' ? (
+                                                                    <select
+                                                                        className="select"
+                                                                        style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', flex: 1 }}
+                                                                        value={t.status}
+                                                                        onChange={e => updateStatus(t._id, e.target.value)}
+                                                                    >
+                                                                        {Object.entries(STATUS_LABELS).map(([k, v]) => {
+                                                                            if (isEmployee && k === 'completed') return <option key={k} value="review">Mark for Review</option>;
+                                                                            return <option key={k} value={k}>{v}</option>;
+                                                                        })}
+                                                                    </select>
+                                                                ) : <div />}
+                                                            </div>
+                                                        )}
                                                         {canEdit && (
                                                             <div style={{ display: 'flex', gap: 2, marginLeft: 4 }}>
                                                                 <button className="btn btn-ghost btn-xs" onClick={() => {

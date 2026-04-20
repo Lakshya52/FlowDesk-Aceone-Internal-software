@@ -70,8 +70,24 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
             ];
         }
 
-        // Everyone sees all projects now
-        const roleFilter = {};
+        let roleFilter: any = {};
+        if (req.user!.role === 'member') {
+            roleFilter.$or = [
+                { team: req.user!._id },
+                { createdBy: req.user!._id }
+            ];
+        } else if (req.user!.role === 'manager') {
+            const Team = (await import('../models/Team')).default;
+            const managedTeams = await Team.find({ manager: req.user!._id }).distinct('_id');
+            roleFilter.$or = [
+                { createdBy: req.user!._id },
+                { teams: { $in: managedTeams } },
+                { team: req.user!._id }
+            ];
+        } else {
+            // Admin sees all
+            roleFilter = {};
+        }
 
         // Combine all filters using $and to avoid overwriting $or
         const finalFilter: any = { ...filter };
