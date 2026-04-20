@@ -100,6 +100,7 @@ const TasksPage: React.FC = () => {
     };
 
     const getDeadlineStyle = (dueDate: string, status: string) => {
+        if (!dueDate || new Date(dueDate).getFullYear() <= 1970) return { color: 'var(--color-text-tertiary)' };
         if (status === 'completed') return { color: '#22c55e' };
         const days = differenceInDays(new Date(dueDate), new Date());
         if (days < 0) return { color: '#ef4444', fontWeight: 600 };
@@ -109,6 +110,7 @@ const TasksPage: React.FC = () => {
     };
 
     const getDeadlineLabel = (dueDate: string, status: string) => {
+        if (!dueDate || new Date(dueDate).getFullYear() <= 1970) return 'No due date';
         if (status === 'completed') return format(new Date(dueDate), 'MMM d');
         const days = differenceInDays(new Date(dueDate), new Date());
         if (days < 0) return `${Math.abs(days)}d overdue`;

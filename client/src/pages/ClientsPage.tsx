@@ -891,7 +891,9 @@ const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEdit
                                             </span>
                                         </div>
                                         <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                                            Due {new Date(a.dueDate).toLocaleDateString()} · Status: <span style={{ textTransform: 'capitalize' }}>{a.status.replace('_', ' ')}</span>
+                                            {a.dueDate && new Date(a.dueDate).getFullYear() > 1970 
+                                                ? `Due ${new Date(a.dueDate).toLocaleDateString()}` 
+                                                : 'No due date'} · Status: <span style={{ textTransform: 'capitalize' }}>{a.status.replace('_', ' ')}</span>
                                         </div>
                                     </div>
                                     <ChevronRight size={18} style={{ opacity: 0.3 }} />

@@ -16,6 +16,7 @@ const AssignmentsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [activeTab, setActiveTab] = useState<'ongoing' | 'completed' | 'blueprints'>('ongoing');
     const [showCreate, setShowCreate] = useState(false);
     const [form, setForm] = useState({
         title: '',
@@ -46,15 +47,35 @@ const AssignmentsPage: React.FC = () => {
     const fetchAssignments = async () => {
         try {
             const params: any = {};
+            
+            if (activeTab === 'blueprints') {
+                params.isBlueprint = 'true';
+            } else if (activeTab === 'ongoing') {
+                params.isBlueprint = 'false';
+                params.status = ''; // Handle filtering below
+            } else if (activeTab === 'completed') {
+                params.status = 'completed';
+                // Specifically don't set isBlueprint to show ALL completed items
+            }
+            
             if (search) params.search = search;
-            if (statusFilter) params.status = statusFilter;
+            if (statusFilter && activeTab === 'ongoing') params.status = statusFilter;
+            
             const { data } = await api.get('/assignments', { params });
-            setAssignments(data.assignments || []);
+            
+            let result = data.assignments || [];
+            
+            // Filter ongoing to exclude completed if no specific status filter is set
+            if (activeTab === 'ongoing' && !statusFilter) {
+                result = result.filter((a: any) => a.status !== 'completed');
+            }
+            
+            setAssignments(result);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchAssignments(); }, [search, statusFilter]);
+    useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab]);
 
     useEffect(() => {
         if (showCreate) {
@@ -98,9 +119,9 @@ const AssignmentsPage: React.FC = () => {
             });
             setShowCreate(false);
             setForm({
-                title: '', clientName: '', companyId: '', description: '', priority: 'medium', 
+                title: '', clientName: '', companyId: '', description: '', priority: 'medium',
                 status: 'not_started',
-                startDate: new Date().toISOString().split('T')[0], 
+                startDate: new Date().toISOString().split('T')[0],
                 dueDate: '', noDueDate: false, team: [], teams: [],
                 isRecurring: false, recurringPattern: 'monthly', recurringStartDate: ''
             });
@@ -163,16 +184,64 @@ const AssignmentsPage: React.FC = () => {
                 )}
             </div>
 
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--color-border)', marginBottom: 20 }}>
+                <button 
+                    onClick={() => { setActiveTab('ongoing'); setStatusFilter(''); }}
+                    style={{
+                        padding: '8px 4px',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        color: activeTab === 'ongoing' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        borderBottom: `2px solid ${activeTab === 'ongoing' ? 'var(--color-primary)' : 'transparent'}`,
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    Ongoing
+                </button>
+                <button 
+                    onClick={() => setActiveTab('completed')}
+                    style={{
+                        padding: '8px 4px',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        color: activeTab === 'completed' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        borderBottom: `2px solid ${activeTab === 'completed' ? 'var(--color-primary)' : 'transparent'}`,
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    Completed
+                </button>
+                <button 
+                    onClick={() => setActiveTab('blueprints')}
+                    style={{
+                        padding: '8px 4px',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        color: activeTab === 'blueprints' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        borderBottom: `2px solid ${activeTab === 'blueprints' ? 'var(--color-primary)' : 'transparent'}`,
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    Recurring Blueprints
+                </button>
+            </div>
+
             {/* Filters */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 <div style={{ flex: 1, maxWidth: 320, position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
                     <input className="input" style={{ paddingLeft: 36 }} placeholder="Search Projects..." value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                <select className="select" style={{ width: 180 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                    <option value="">All Statuses</option>
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+                {activeTab === 'ongoing' && (
+                    <select className="select" style={{ width: 180 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                        <option value="">Status: All Active</option>
+                        {Object.entries(STATUS_LABELS)
+                            .filter(([k]) => k !== 'completed')
+                            .map(([k, v]) => <option key={k} value={k}>{v}</option>)
+                        }
+                    </select>
+                )}
             </div>
 
             {/* Project List */}
@@ -201,13 +270,22 @@ const AssignmentsPage: React.FC = () => {
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                                         <span style={{ fontSize: '0.9375rem', fontWeight: 600 }}>{a.title}</span>
-                                        {a.isRecurring && <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Recurring</span>}
+                                        {a.isRecurring && !a.parentAssignmentId && (
+                                            <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Blueprint</span>
+                                        )}
+                                        {a.parentAssignmentId && (
+                                            <span className="badge" style={{ background: '#f0fdf4', color: '#16a34a' }}>Recurring Instance</span>
+                                        )}
                                         <span className={`badge badge-${a.priority}`}>{PRIORITY_LABELS[a.priority]}</span>
-                                        <span className={`badge badge-${a.status}`}>{STATUS_LABELS[a.status]}</span>
+                                        {activeTab !== 'blueprints' && <span className={`badge badge-${a.status}`}>{STATUS_LABELS[a.status]}</span>}
                                     </div>
                                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                                         {a.clientName && <span>Client: {a.clientName} · </span>}
-                                        <span>{a.dueDate ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
+                                        {activeTab === 'blueprints' ? (
+                                            <span style={{ textTransform: 'capitalize' }}>Pattern: {a.recurringPattern}</span>
+                                        ) : (
+                                            <span>{a.dueDate && new Date(a.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
+                                        )}
                                     </div>
                                     {/* Teams badges */}
                                     {a.teams?.length > 0 && (
@@ -331,7 +409,14 @@ const AssignmentsPage: React.FC = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Assignment Type</label>
-                                    <select className="select" value={form.isRecurring ? 'true' : 'false'} onChange={e => setForm({ ...form, isRecurring: e.target.value === 'true' })}>
+                                    <select className="select" value={form.isRecurring ? 'true' : 'false'} onChange={e => {
+                                        const isRec = e.target.value === 'true';
+                                        const updates: any = { isRecurring: isRec };
+                                        if (isRec && form.recurringPattern === 'daily') {
+                                            updates.recurringStartDate = new Date().toISOString().split('T')[0];
+                                        }
+                                        setForm({ ...form, ...updates });
+                                    }}>
                                         <option value="false">Normal Project</option>
                                         <option value="true">Recurring Project</option>
                                     </select>
@@ -339,7 +424,14 @@ const AssignmentsPage: React.FC = () => {
                                 {form.isRecurring && (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Pattern</label>
-                                        <select className="select" value={form.recurringPattern} onChange={e => setForm({ ...form, recurringPattern: e.target.value as any })}>
+                                        <select className="select" value={form.recurringPattern} onChange={e => {
+                                            const pattern = e.target.value;
+                                            const updates: any = { recurringPattern: pattern };
+                                            if (pattern === 'daily') {
+                                                updates.recurringStartDate = new Date().toISOString().split('T')[0];
+                                            }
+                                            setForm({ ...form, ...updates });
+                                        }}>
                                             <option value="daily">Daily</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
@@ -349,10 +441,10 @@ const AssignmentsPage: React.FC = () => {
                                 )}
                             </div>
 
-                            {form.isRecurring && (
+                            {form.isRecurring && form.recurringPattern !== 'daily' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Start Date *</label>
-                                    <input className="input" type="date" required={form.isRecurring} value={form.recurringStartDate} onChange={e => setForm({ ...form, recurringStartDate: e.target.value })} />
+                                    <input className="input" type="date" required={form.isRecurring && form.recurringPattern !== 'daily'} value={form.recurringStartDate} onChange={e => setForm({ ...form, recurringStartDate: e.target.value })} />
                                     <p style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>The first instance will be created on this date.</p>
                                 </div>
                             )}
