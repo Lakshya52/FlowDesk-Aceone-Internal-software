@@ -1,8 +1,14 @@
+/**
+ * CanvasPage Component
+ *
+ * A full-page individual workspace canvas. It provides an infinite plane where a single
+ * user can pan, zoom, add, write, drag, and resize sticky notes. Includes server sync
+ * interactions for CRUD operations on personal notes.
+ */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     Plus, Minus, Maximize, Shrink, Focus, MousePointer2, Hand,
-    StickyNote, Trash2,
-    Move, Loader2
+    Trash2, Move, Loader2
 } from "lucide-react";
 import api from "../lib/api";
 
@@ -21,17 +27,24 @@ const COLORS = ["#fef9c3", "#dcfce7", "#dbeafe", "#f3e8ff", "#fee2e2"];
 const CanvasPage: React.FC = () => {
     const [notes, setNotes] = useState<Note[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Canvas Transformation State
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
+    
+    // Interaction Flags
     const [isPanning, setIsPanning] = useState(false);
     const [isDraggingNode, setIsDraggingNode] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    
+    // Active Element References
     const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
     const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
     const [activeEditId, setActiveEditId] = useState<string | null>(null);
+    const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 });
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [isFullScreen, setIsFullScreen] = useState(false);
-    const [selectedTool, setSelectedTool] = useState<'select' | 'pan' | 'note'>('select');
+    const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
 
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -46,6 +59,10 @@ const CanvasPage: React.FC = () => {
         fetchNotes();
     }, []);
 
+    /**
+     * Initializes the canvas with the current user's saved notes
+     * fetched from the backend API.
+     */
     const fetchNotes = async () => {
         try {
             const { data } = await api.get("/canvas");
@@ -58,6 +75,10 @@ const CanvasPage: React.FC = () => {
     };
 
     // Helper to zoom towards a specific point
+    /**
+     * Calculates and updates the transformation matrix to seamlessly zoom in/out
+     * towards a specific coordinate point on the screen (usually the mouse cursor center point).
+     */
     const zoomTowards = (newScale: number, centerX: number, centerY: number) => {
         setScale(prevScale => {
             const s1 = prevScale;
@@ -94,6 +115,10 @@ const CanvasPage: React.FC = () => {
         }
     };
 
+    /**
+     * Initializes interactions based on current tool mode or hotkey modifiers.
+     * Determines whether to start panning the canvas or tracking for other behaviors.
+     */
     const handleMouseDown = (e: React.MouseEvent) => {
         const isMiddleButton = e.button === 1;
         const isAltPressed = e.altKey;
@@ -103,27 +128,33 @@ const CanvasPage: React.FC = () => {
             setIsPanning(true);
             setMousePos({ x: e.clientX, y: e.clientY });
             return;
-        } 
-        
-        // Rule 2: Note tool creates notes on background
-        if (selectedTool === 'note') {
-            const rect = containerRef.current?.getBoundingClientRect();
-            if (rect) {
-                const clickX = (e.clientX - rect.left - offset.x) / scale;
-                const clickY = (e.clientY - rect.top - offset.y) / scale;
-                addNoteAt(clickX, clickY);
-            }
-        }        
+        }
+
         setMousePos({ x: e.clientX, y: e.clientY });
+        setStartMousePos({ x: e.clientX, y: e.clientY });
     };
 
+    /**
+     * Handles fluid interactions like canvas panning, note dragging, and note resizing
+     * by comparing the current cursor offset against the initial mousedown position
+     * scaled by the current zoom level.
+     */
     const handleMouseMove = (e: React.MouseEvent) => {
         if (isPanning) {
             const dx = e.clientX - mousePos.x;
             const dy = e.clientY - mousePos.y;
             setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
             setMousePos({ x: e.clientX, y: e.clientY });
-        } else if (isDraggingNode && draggedNoteId) {
+        } else if (draggedNoteId) {
+            // Threshold check: prevent accidental movement on simple clicks
+            if (!isDraggingNode) {
+                const moveDist = Math.sqrt(Math.pow(e.clientX - startMousePos.x, 2) + Math.pow(e.clientY - startMousePos.y, 2));
+                if (moveDist > 3) {
+                    setIsDraggingNode(true);
+                }
+                return;
+            }
+
             const dx = (e.clientX - mousePos.x) / scale;
             const dy = (e.clientY - mousePos.y) / scale;
             setNotes(prev => prev.map(n => n._id === draggedNoteId ? { ...n, x: n.x + dx, y: n.y + dy } : n));
@@ -131,10 +162,10 @@ const CanvasPage: React.FC = () => {
         } else if (isResizing && resizingNoteId) {
             const dx = (e.clientX - mousePos.x) / scale;
             const dy = (e.clientY - mousePos.y) / scale;
-            setNotes(prev => prev.map(n => n._id === resizingNoteId ? { 
-                ...n, 
-                width: Math.max(150, (n.width || 200) + dx), 
-                height: Math.max(100, (n.height || 140) + dy) 
+            setNotes(prev => prev.map(n => n._id === resizingNoteId ? {
+                ...n,
+                width: Math.max(150, (n.width || 200) + dx),
+                height: Math.max(100, (n.height || 140) + dy)
             } : n));
             setMousePos({ x: e.clientX, y: e.clientY });
         }
@@ -143,22 +174,34 @@ const CanvasPage: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-            
+
             if (e.key === 'v' || e.key === 'V') setSelectedTool('select');
             if (e.key === 'h' || e.key === 'H') setSelectedTool('pan');
-            if (e.key === 'n' || e.key === 'N') setSelectedTool('note');
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    /**
+     * Completes dragging or resizing interactions and saves updated note properties
+     * (position or dimensions) asynchronously to the backend database.
+     */
     const handleMouseUp = useCallback(async () => {
-        if ((isDraggingNode && draggedNoteId) || (isResizing && resizingNoteId)) {
-            const noteId = draggedNoteId || resizingNoteId;
-            const note = notesRef.current.find(n => n._id === noteId);
+        const wasInteracting = isDraggingNode || isResizing;
+        const targetId = draggedNoteId || resizingNoteId;
+
+        // Immediately disable flags to kill the "buttery" effect and snap state
+        setIsDraggingNode(false);
+        setIsPanning(false);
+        setIsResizing(false);
+        setDraggedNoteId(null);
+        setResizingNoteId(null);
+
+        if (wasInteracting && targetId) {
+            const note = notesRef.current.find(n => n._id === targetId);
             if (note) {
                 try {
-                    await api.put(`/canvas/${noteId}`, {
+                    await api.put(`/canvas/${targetId}`, {
                         x: note.x,
                         y: note.y,
                         width: note.width || 200,
@@ -171,12 +214,7 @@ const CanvasPage: React.FC = () => {
                 }
             }
         }
-        setIsPanning(false);
-        setIsDraggingNode(false);
-        setIsResizing(false);
-        setDraggedNoteId(null);
-        setResizingNoteId(null);
-    }, [isDraggingNode, draggedNoteId, isResizing, resizingNoteId]);
+    }, [isDraggingNode, isResizing, draggedNoteId, resizingNoteId]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
@@ -246,7 +284,7 @@ const CanvasPage: React.FC = () => {
                 zIndex: isFullScreen ? 9999 : 1,
                 overflow: "hidden",
                 background: "var(--color-bg)",
-                cursor: isPanning ? "grabbing" : (selectedTool === 'pan' ? 'grab' : (selectedTool === 'note' ? 'crosshair' : 'default')),
+                cursor: isPanning ? "grabbing" : (selectedTool === 'pan' ? 'grab' : "auto"),
                 userSelect: "none"
             }}
             onWheel={handleWheel}
@@ -309,31 +347,24 @@ const CanvasPage: React.FC = () => {
                             zIndex: activeEditId === note._id ? 1000 : 1,
                             color: "#1e293b",
                             display: "flex",
-                            flexDirection: "column",
-                            transition: (isDraggingNode && draggedNoteId === note._id) || (isResizing && resizingNoteId === note._id) ? "none" : "all 0.1s ease"
+                            flexDirection: "column"
                         }}
                         onMouseDown={(e) => {
-                            // Always stop propagation in Note or Select mode to prevent canvas-level actions
-                            if (selectedTool === 'note' || selectedTool === 'select') {
+                            // Always stop propagation in Select mode to prevent canvas-level actions
+                            if (selectedTool === 'select') {
                                 e.stopPropagation();
                             }
 
                             if (activeEditId === note._id) return;
-                            
-                            // Rule 1: Pan tool drags the board, not the note
-                            if (selectedTool === 'pan') return; 
 
-                            // Rule 2: Note tool only allows editing, not dragging
-                            if (selectedTool === 'note') {
-                                setActiveEditId(note._id);
-                                return;
-                            }
+                            // Rule 1: Pan tool drags the board, not the note
+                            if (selectedTool === 'pan') return;
 
                             // Rule 3: Select tool allows dragging
                             if (selectedTool === 'select') {
-                                setIsDraggingNode(true);
                                 setDraggedNoteId(note._id);
                                 setMousePos({ x: e.clientX, y: e.clientY });
+                                setStartMousePos({ x: e.clientX, y: e.clientY });
                             }
                         }}
                     >
@@ -349,6 +380,7 @@ const CanvasPage: React.FC = () => {
                         {activeEditId === note._id ? (
                             <textarea
                                 autoFocus
+                                onFocus={(e) => e.target.select()}
                                 value={note.content}
                                 onChange={(e) => updateNoteContent(note._id, e.target.value)}
                                 onMouseDown={(e) => e.stopPropagation()} // Prevent creating new note underneath
@@ -390,7 +422,7 @@ const CanvasPage: React.FC = () => {
                             onMouseDown={(e) => {
                                 // Rule 3: Only Select tool can resize
                                 if (selectedTool !== 'select') return;
-                                
+
                                 e.stopPropagation();
                                 setIsResizing(true);
                                 setResizingNoteId(note._id);
@@ -470,8 +502,8 @@ const CanvasPage: React.FC = () => {
                 </button>
                 <div style={{ width: 1, height: 20, background: "var(--color-border)" }} />
                 <button className="btn btn-secondary btn-xs" onClick={resetView} title="Reset View"><Maximize size={16} /></button>
-                <button 
-                    className={`btn ${scale === 1 ? 'btn-primary' : 'btn-secondary'} btn-xs`} 
+                <button
+                    className={`btn ${scale === 1 ? 'btn-primary' : 'btn-secondary'} btn-xs`}
                     onClick={() => {
                         const rect = containerRef.current?.getBoundingClientRect();
                         if (rect) zoomTowards(1, rect.width / 2, rect.height / 2);
@@ -480,9 +512,9 @@ const CanvasPage: React.FC = () => {
                 >
                     <Focus size={16} />
                 </button>
-                <button 
-                    className={`btn ${isFullScreen ? 'btn-primary' : 'btn-secondary'} btn-xs`} 
-                    onClick={() => setIsFullScreen(!isFullScreen)} 
+                <button
+                    className={`btn ${isFullScreen ? 'btn-primary' : 'btn-secondary'} btn-xs`}
+                    onClick={() => setIsFullScreen(!isFullScreen)}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
                     {isFullScreen ? <Shrink size={16} /> : <Maximize size={16} />}
@@ -523,14 +555,6 @@ const CanvasPage: React.FC = () => {
                         title="Pan Tool (H)"
                     >
                         <Hand size={16} />
-                    </button>
-                    <button
-                        onClick={() => setSelectedTool('note')}
-                        className={`btn btn-xs ${selectedTool === 'note' ? 'btn-primary' : 'btn-ghost'}`}
-                        style={{ borderRadius: 20, width: 36, height: 36, padding: 0 }}
-                        title="Note Tool (N)"
-                    >
-                        <StickyNote size={16} />
                     </button>
                 </div>
 

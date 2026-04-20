@@ -22,9 +22,10 @@ const AssignmentsPage: React.FC = () => {
         clientName: '',
         companyId: '',
         description: '',
-        priority: 'medium',
-        startDate: '',
+        status: 'not_started',
+        startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
+        noDueDate: false,
         team: [] as string[],
         teams: [] as string[],
         isRecurring: false,
@@ -65,7 +66,18 @@ const AssignmentsPage: React.FC = () => {
             ]).then(([uRes, tRes, cRes]) => {
                 setAllUsers(uRes.data.users || []);
                 setAllTeams(tRes.data.teams || []);
-                setAllCompanies(cRes.data.companies || []);
+
+                // Flatten companies so children are selectable
+                const flatCompanies: any[] = [];
+                const flatten = (items: any[]) => {
+                    items.forEach(item => {
+                        const { children, ...rest } = item;
+                        flatCompanies.push(rest);
+                        if (children) flatten(children);
+                    });
+                };
+                flatten(cRes.data.companies || []);
+                setAllCompanies(flatCompanies);
             });
         }
     }, [showCreate]);
@@ -81,12 +93,15 @@ const AssignmentsPage: React.FC = () => {
             const { data } = await api.post('/assignments', {
                 ...form,
                 // Ensure dates are sent correctly if provided
+                dueDate: form.noDueDate ? null : form.dueDate,
                 recurringStartDate: form.isRecurring ? form.recurringStartDate : undefined,
                 recurringPattern: form.isRecurring ? form.recurringPattern : undefined
             });
             setShowCreate(false);
             setForm({
-                title: '', clientName: '', companyId: '', description: '', priority: 'medium', startDate: '', dueDate: '', team: [], teams: [],
+                title: '', clientName: '', companyId: '', description: '', priority: 'medium',
+                startDate: new Date().toISOString().split('T')[0],
+                dueDate: '', noDueDate: false, team: [], teams: [],
                 isRecurring: false, recurringPattern: 'monthly', recurringStartDate: ''
             });
             setCompanySearch('');
@@ -98,6 +113,23 @@ const AssignmentsPage: React.FC = () => {
             }
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
         finally { setSaving(false); }
+    };
+
+    const handleQuickAddCompany = async (name: string) => {
+        if (!name.trim()) return;
+        setSaving(true);
+        try {
+            const { data } = await api.post('/companies', { name });
+            const newCompany = data.company;
+            setAllCompanies(prev => [...prev, newCompany]);
+            setForm(prev => ({ ...prev, clientName: newCompany.name, companyId: newCompany._id }));
+            setCompanySearch(newCompany.name);
+            setShowCompanyDropdown(false);
+        } catch (e: any) {
+            alert(e.response?.data?.message || 'Failed to add company');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const toggleTeamMember = (id: string) => {
@@ -175,7 +207,7 @@ const AssignmentsPage: React.FC = () => {
                                     </div>
                                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                                         {a.clientName && <span>Client: {a.clientName} · </span>}
-                                        <span>Due {format(new Date(a.dueDate), 'MMM d, yyyy')}</span>
+                                        <span>{a.dueDate ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
                                     </div>
                                     {/* Teams badges */}
                                     {a.teams?.length > 0 && (
@@ -268,11 +300,27 @@ const AssignmentsPage: React.FC = () => {
                                                         }}
                                                     >
                                                         {c.name}
+                                                        {c.parentCompanyId && (
+                                                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginLeft: 6 }}>
+                                                                (Subsidiary)
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 ))
+                                            ) : companySearch ? (
+                                                <div
+                                                    style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-primary-light)' }}
+                                                    className="hover-bg"
+                                                    onClick={() => handleQuickAddCompany(companySearch)}
+                                                >
+                                                    <Plus size={14} color="var(--color-primary)" />
+                                                    <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
+                                                        Add <strong>"{companySearch}"</strong> as new company
+                                                    </div>
+                                                </div>
                                             ) : (
                                                 <div style={{ padding: '8px 12px', fontSize: '0.875rem', color: 'var(--color-text-tertiary)' }}>
-                                                    No results found. Press enter to use "{companySearch}"
+                                                    Type to search or add a company
                                                 </div>
                                             )}
                                         </div>
@@ -328,7 +376,16 @@ const AssignmentsPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Due Date *</label>
-                                    <input className="input" type="date" required value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                                    <input className="input" type="date" required={!form.noDueDate} disabled={form.noDueDate} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <input
+                                            type="checkbox"
+                                            id="noDueDate"
+                                            checked={form.noDueDate}
+                                            onChange={e => setForm({ ...form, noDueDate: e.target.checked })}
+                                        />
+                                        <label htmlFor="noDueDate" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>No due date</label>
+                                    </div>
                                 </div>
                             </div>
 

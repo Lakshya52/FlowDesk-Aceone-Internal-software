@@ -1,3 +1,10 @@
+/**
+ * ProjectCanvas Component
+ *
+ * An interactive collaborative whiteboard for projects. Features infinite panning,
+ * zoom functionality, and draggable/resizable sticky notes. Changes are synced 
+ * up to the server to persist collaboration. Tracks note authorship and edit history.
+ */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand } from "lucide-react";
 import api from "../../lib/api";
@@ -35,15 +42,23 @@ interface ProjectCanvasProps {
 const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData }) => {
     const { user } = useAuthStore();
     const [notes, setNotes] = useState<Note[]>(initialData || []);
+    
+    // Canvas Transformation State
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
+    
+    // Interaction Flags
     const [isPanning, setIsPanning] = useState(false);
     const [isDraggingNode, setIsDraggingNode] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    
+    // Active Element References
     const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
     const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
     const [activeEditId, setActiveEditId] = useState<string | null>(null);
+    const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 });
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
 
@@ -54,7 +69,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         notesRef.current = notes;
     }, [notes]);
 
-    // Save notes to assignment
+    /**
+     * Persistently syncs the entire current state of the canvas notes to the backend.
+     * Triggered on user interaction drop/finish to reduce spammy updates.
+     */
     const saveCanvas = useCallback(async (updatedNotes: Note[]) => {
         try {
             await api.patch(`/assignments/${assignmentId}/canvas`, {
@@ -65,6 +83,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         }
     }, [assignmentId]);
 
+    /**
+     * Calculates and updates the transformation matrix to seamlessly zoom in/out
+     * towards a specific coordinate point on the screen (usually the mouse cursor center point).
+     */
     const zoomTowards = (newScale: number, centerX: number, centerY: number) => {
         setScale(prevScale => {
             const s1 = prevScale;
@@ -95,6 +117,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         }
     };
 
+    /**
+     * Initializes interactions based on current tool mode or hotkey modifiers.
+     * Determines whether to start panning the canvas or tracking for other behaviors.
+     */
     const handleMouseDown = (e: React.MouseEvent) => {
         const isMiddleButton = e.button === 1;
         const isAltPressed = e.altKey;
@@ -107,15 +133,30 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         }
 
         setMousePos({ x: e.clientX, y: e.clientY });
+        setStartMousePos({ x: e.clientX, y: e.clientY });
     };
 
+    /**
+     * Handles fluid interactions like canvas panning, note dragging, and note resizing 
+     * by comparing the current cursor offset against the initial mousedown position 
+     * scaled by the current zoom level.
+     */
     const handleMouseMove = (e: React.MouseEvent) => {
         if (isPanning) {
             const dx = e.clientX - mousePos.x;
             const dy = e.clientY - mousePos.y;
             setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
             setMousePos({ x: e.clientX, y: e.clientY });
-        } else if (isDraggingNode && draggedNoteId) {
+        } else if (draggedNoteId) {
+            // Threshold check: prevent accidental movement on simple clicks
+            if (!isDraggingNode) {
+                const moveDist = Math.sqrt(Math.pow(e.clientX - startMousePos.x, 2) + Math.pow(e.clientY - startMousePos.y, 2));
+                if (moveDist > 3) {
+                    setIsDraggingNode(true);
+                }
+                return;
+            }
+
             const dx = (e.clientX - mousePos.x) / scale;
             const dy = (e.clientY - mousePos.y) / scale;
             const updated = notes.map(n => n.id === draggedNoteId ? { ...n, x: n.x + dx, y: n.y + dy } : n);
@@ -134,6 +175,11 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
         }
     };
 
+    /**
+     * Manages collaborative data tracking by recording authorship history.
+     * Appends the current user to the `editedBy` array if they aren't the creator
+     * and haven't already edited the note.
+     */
     const recordEdit = useCallback((noteId: string, currentNotes: Note[]): Note[] => {
         if (!user) return currentNotes;
 
@@ -165,20 +211,22 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     }, []);
 
     const handleMouseUp = useCallback(() => {
-        if ((isDraggingNode && draggedNoteId) || (isResizing && resizingNoteId)) {
-            const noteId = draggedNoteId || resizingNoteId;
-            if (noteId) {
-                const updated = recordEdit(noteId, notesRef.current);
-                setNotes(updated);
-                saveCanvas(updated);
-            }
-        }
+        const wasInteracting = isDraggingNode || isResizing;
+        const targetId = draggedNoteId || resizingNoteId;
+
+        // Immediately disable flags to kill the "buttery" effect and snap state
         setIsPanning(false);
         setIsDraggingNode(false);
         setIsResizing(false);
         setDraggedNoteId(null);
         setResizingNoteId(null);
-    }, [isDraggingNode, draggedNoteId, isResizing, resizingNoteId, recordEdit, saveCanvas]);
+
+        if (wasInteracting && targetId) {
+            const updated = recordEdit(targetId, notesRef.current);
+            setNotes(updated);
+            saveCanvas(updated);
+        }
+    }, [isDraggingNode, isResizing, draggedNoteId, resizingNoteId, recordEdit, saveCanvas]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
@@ -299,8 +347,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             zIndex: activeEditId === note.id ? 1000 : 1,
                             color: "#1e293b",
                             display: "flex",
-                            flexDirection: "column",
-                            transition: (isDraggingNode && draggedNoteId === note.id) || (isResizing && resizingNoteId === note.id) ? "none" : "all 0.1s ease"
+                            flexDirection: "column"
                         }}
                         onMouseDown={(e) => {
                             // Always stop propagation in Select mode to prevent canvas-level actions
@@ -315,9 +362,9 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
 
                             // Rule 3: Select tool allows dragging
                             if (selectedTool === 'select') {
-                                setIsDraggingNode(true);
                                 setDraggedNoteId(note.id);
                                 setMousePos({ x: e.clientX, y: e.clientY });
+                                setStartMousePos({ x: e.clientX, y: e.clientY });
                             }
                         }}
                     >
@@ -333,6 +380,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                         {activeEditId === note.id ? (
                             <textarea
                                 autoFocus
+                                onFocus={(e) => e.target.select()}
                                 value={note.content}
                                 onChange={(e) => updateNoteContent(note.id, e.target.value)}
                                 onMouseDown={(e) => e.stopPropagation()} // Prevent creating new note underneath

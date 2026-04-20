@@ -545,7 +545,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         <div style={{ display: 'flex', gap: 20, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
                             <span>Client: <strong>{assignment.clientName}</strong></span>
                             <span>Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
-                            <span>Due: <strong>{format(new Date(assignment.dueDate), 'MMM d, yyyy')}</strong></span>
+                            <span>Due: <strong>{assignment.dueDate ? format(new Date(assignment.dueDate), 'MMM d, yyyy') : 'No Due Date'}</strong></span>
                         </div>
                     </div>
                     {canEdit && (
