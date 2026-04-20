@@ -42,7 +42,7 @@ const ClientsPage: React.FC = () => {
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [expandedParentData, setExpandedParentData] = useState<{ id: string; children: any[] } | null>(null);
+
     const [companyAssignments, setCompanyAssignments] = useState<any[]>([]);
     const [loadingAssignments, setLoadingAssignments] = useState(false);
     const [editingCompany, setEditingCompany] = useState<Company | null>(null);
@@ -109,15 +109,7 @@ const ClientsPage: React.FC = () => {
             const { data } = await api.get(`/companies/${companyId}`);
             setSelected(data.company);
 
-            // If this is a parent company, store its children for the sidebar
-            if (!data.company.parentCompanyId) {
-                if (data.company.childCompanies && data.company.childCompanies.length > 0) {
-                    setExpandedParentData({ id: data.company._id, children: data.company.childCompanies });
-                } else {
-                    setExpandedParentData(null);
-                }
-            }
-            // If a child is selected, don't change expandedParentData - keep parent's children visible
+
         } catch (e) {
             console.error(e);
         }
