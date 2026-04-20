@@ -64,20 +64,8 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
             filter.title = { $regex: search, $options: 'i' };
         }
 
-        // Roles and permissions
-        if (req.user!.role === 'member') {
-            if (assignmentId) {
-                const AssignmentModel = mongoose.model('Assignment');
-                const assignment = await AssignmentModel.findById(assignmentId);
-                const isPartOfTeam = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
-                
-                if (!isPartOfTeam) {
-                    filter.assignedTo = req.user!._id;
-                }
-            } else {
-                filter.assignedTo = req.user!._id;
-            }
-        }
+        // Everyone sees all tasks now
+        // (Removed role filtering)
 
         const tasks = await Task.find(filter)
             .populate('assignedTo', 'name email avatar')
@@ -118,30 +106,9 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        const userRole = req.user!.role;
+        // Everyone authorized to update everything
+        // (Removed role/creator/assignee checks)
         const userId = req.user!._id.toString();
-
-        // Permission check
-        if (userRole === 'member') {
-            // Member can only update tasks assigned to them
-            if (oldTask.assignedTo.toString() !== userId) {
-                res.status(403).json({ message: 'You can only update tasks assigned to you.' });
-                return;
-            }
-            // Member can only update status or spent time/subtasks
-            const allowedUpdates = ['status', 'timeSpent', 'subtasks'];
-            const updates = Object.keys(req.body);
-            const isAllowed = updates.every(u => allowedUpdates.includes(u));
-            if (!isAllowed) {
-                res.status(403).json({ message: 'You only have permission to update task status and progress.' });
-                return;
-            }
-        }
-
-        // Completion workflow: If member marks as completed, set to review
-        if (userRole === 'member' && req.body.status === 'completed') {
-            req.body.status = 'review';
-        }
 
         const task = await Task.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
             .populate('assignedTo', 'name email avatar')

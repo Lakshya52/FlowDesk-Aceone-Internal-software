@@ -7,7 +7,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2, Reply } from 'lucide-react';
+import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2, Reply, Edit2, Calendar, Briefcase, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import ProjectCanvas from '../components/assignments/ProjectCanvas';
 
@@ -26,6 +26,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [files, setFiles] = useState<any[]>([]);
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'tasks' | 'files' | 'chat' | 'notes'>('tasks');
     // const [comment, setComment] = useState('');
     const [chatInput, setChatInput] = useState('');
@@ -136,6 +137,15 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     };
 
     const canEdit = true; // Everyone can edit and manage tasks
+    const [isEditingProject, setIsEditingProject] = useState(false);
+    const [editProjectForm, setEditProjectForm] = useState({
+        title: '',
+        description: '',
+        priority: '',
+        startDate: '',
+        dueDate: '',
+        clientName: ''
+    });
 
     const getFileIcon = (type: string) => {
         if (type.startsWith('image/')) return '🖼️';
@@ -258,6 +268,31 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             const { data } = await api.put(`/assignments/${id}`, { status });
             setAssignment(data.assignment);
         } catch { }
+    };
+
+    const handleUpdateProject = async () => {
+        setSaving(true);
+        try {
+            const { data } = await api.put(`/assignments/${id}`, editProjectForm);
+            setAssignment(data.assignment);
+            setIsEditingProject(false);
+        } catch (e: any) {
+            alert(e.response?.data?.message || 'Failed to update project');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const startEditingProject = () => {
+        setEditProjectForm({
+            title: assignment.title,
+            description: assignment.description || '',
+            priority: assignment.priority,
+            startDate: assignment.startDate ? new Date(assignment.startDate).toISOString().split('T')[0] : '',
+            dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
+            clientName: assignment.clientName || ''
+        });
+        setIsEditingProject(true);
     };
 
     const handleDelete = async () => {
@@ -534,25 +569,98 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             <div className="card" style={{ padding: '24px', marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{assignment.title}</h1>
-                            <span className={`badge badge-${assignment.priority}`}>{PRIORITY_LABELS[assignment.priority]}</span>
-                        </div>
-                        {assignment.description && <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 12 }}>{assignment.description}</p>}
-                        <div style={{ display: 'flex', gap: 20, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                            <span>Client: <strong>{assignment.clientName}</strong></span>
-                            <span>Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
-                            <span>Due: <strong>{assignment.dueDate ? format(new Date(assignment.dueDate), 'MMM d, yyyy') : 'No Due Date'}</strong></span>
-                        </div>
+                        {isEditingProject ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <input
+                                        className="input"
+                                        style={{ fontSize: '1.25rem', fontWeight: 700, flex: 1 }}
+                                        value={editProjectForm.title}
+                                        onChange={e => setEditProjectForm({ ...editProjectForm, title: e.target.value })}
+                                        placeholder="Project Title"
+                                    />
+                                    <select
+                                        className="select"
+                                        style={{ width: 120 }}
+                                        value={editProjectForm.priority}
+                                        onChange={e => setEditProjectForm({ ...editProjectForm, priority: e.target.value })}
+                                    >
+                                        {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                    </select>
+                                </div>
+                                <textarea
+                                    className="input"
+                                    rows={2}
+                                    value={editProjectForm.description}
+                                    onChange={e => setEditProjectForm({ ...editProjectForm, description: e.target.value })}
+                                    placeholder="Project Description"
+                                />
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Client Name</label>
+                                        <input
+                                            className="input"
+                                            value={editProjectForm.clientName}
+                                            onChange={e => setEditProjectForm({ ...editProjectForm, clientName: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Start Date</label>
+                                        <input
+                                            className="input"
+                                            type="date"
+                                            value={editProjectForm.startDate}
+                                            onChange={e => setEditProjectForm({ ...editProjectForm, startDate: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Due Date</label>
+                                        <input
+                                            className={`input ${!editProjectForm.dueDate ? 'opacity-50' : ''}`}
+                                            type="date"
+                                            value={editProjectForm.dueDate}
+                                            onChange={e => setEditProjectForm({ ...editProjectForm, dueDate: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                    <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{assignment.title}</h1>
+                                    <span className={`badge badge-${assignment.priority}`}>{PRIORITY_LABELS[assignment.priority]}</span>
+                                </div>
+                                {assignment.description && <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 12 }}>{assignment.description}</p>}
+                                <div style={{ display: 'flex', gap: 20, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={14} /> Client: <strong>{assignment.clientName}</strong></span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={14} /> Due: <strong>{assignment.dueDate ? format(new Date(assignment.dueDate), 'MMM d, yyyy') : 'No Due Date'}</strong></span>
+                                </div>
+                            </>
+                        )}
                     </div>
                     {canEdit && (
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <select className="select" style={{ width: 160 }} value={assignment.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateStatus(e.target.value)}>
-                                {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                            </select>
-                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Project">
-                                <Trash2 size={18} />
-                            </button>
+                            {isEditingProject ? (
+                                <>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingProject(false)}>Cancel</button>
+                                    <button className="btn btn-primary btn-sm" onClick={handleUpdateProject} disabled={saving}>
+                                        {saving ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className="btn btn-ghost btn-sm" onClick={startEditingProject} title="Edit Project Details">
+                                        <Edit2 size={18} />
+                                    </button>
+                                    <select className="select" style={{ width: 140 }} value={assignment.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateStatus(e.target.value)}>
+                                        {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                    </select>
+                                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)' }} onClick={handleDelete} title="Delete Project">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>

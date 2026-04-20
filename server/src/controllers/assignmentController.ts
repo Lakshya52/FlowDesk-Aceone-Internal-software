@@ -70,21 +70,8 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
             ];
         }
 
-        let roleFilter: any = {};
-        if (req.user!.role === 'member') {
-            roleFilter.$or = [
-                { team: req.user!._id },
-                { createdBy: req.user!._id }
-            ];
-        } else if (req.user!.role === 'manager') {
-            const Team = (await import('../models/Team')).default;
-            const managedTeams = await Team.find({ manager: req.user!._id }).distinct('_id');
-            roleFilter.$or = [
-                { createdBy: req.user!._id },
-                { teams: { $in: managedTeams } },
-                { team: req.user!._id }
-            ];
-        }
+        // Everyone sees all projects now
+        const roleFilter = {};
 
         // Combine all filters using $and to avoid overwriting $or
         const finalFilter: any = { ...filter };
@@ -149,11 +136,8 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             return;
         }
 
-        // Only admin or creator can update
-        if (req.user!.role !== 'admin' && assignment.createdBy.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to update this assignment' });
-            return;
-        }
+        // Everyone authorized to update
+        // (Removed role/creator check)
 
         // Capture changes for detailed logging
         const changes: Record<string, { old: any, new: any }> = {};
@@ -226,11 +210,8 @@ export const deleteAssignment = async (req: AuthRequest, res: Response): Promise
             return;
         }
 
-        // Only admin or creator can delete
-        if (req.user!.role !== 'admin' && assignment.createdBy.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to delete this assignment' });
-            return;
-        }
+        // Everyone authorized to delete
+        // (Removed role/creator check)
 
         await assignment.deleteOne();
 
@@ -260,15 +241,8 @@ export const updateAssignmentCanvas = async (req: AuthRequest, res: Response): P
             return;
         }
 
-        // Check if user is creator, admin, or in the team
-        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
-        const isAdmin = req.user!.role === 'admin';
-        const isInTeam = assignment.team.some(memberId => memberId.toString() === req.user!._id.toString());
-
-        if (!isCreator && !isAdmin && !isInTeam) {
-            res.status(403).json({ message: 'Not authorized to update this assignment\'s notes' });
-            return;
-        }
+        // Everyone authorized to update canvas
+        // (Removed role/creator/team check)
 
         const oldCanvasData = assignment.canvasData || [];
         const newCanvasData = canvasData || [];
