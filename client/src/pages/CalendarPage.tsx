@@ -653,7 +653,7 @@ const CalendarPage: React.FC = () => {
                                             }}
                                             onClick={() => {
                                                 const path = ev.type === 'task'
-                                                    ? `/assignments/${ev.assignment}/tasks/${ev._id}`
+                                                    ? `/assignments/${ev.assignment}?tab=tasks&taskId=${ev._id}`
                                                     : `/assignments/${ev._id}`;
                                                 navigate(path);
                                             }}

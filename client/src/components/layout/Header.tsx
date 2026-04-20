@@ -150,7 +150,7 @@ const Header: React.FC = () => {
                                     <div
                                         key={t._id}
                                         style={{ padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s ease' }}
-                                        onClick={() => { navigate(`/assignments/${t.assignment._id}/tasks/${t._id}`); setShowSearch(false); }}
+                                        onClick={() => { navigate(`/assignments/${t.assignment._id}?tab=tasks&taskId=${t._id}`); setShowSearch(false); }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
                                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                     >
