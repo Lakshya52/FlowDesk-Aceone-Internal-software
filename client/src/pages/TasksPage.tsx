@@ -12,8 +12,10 @@ const TasksPage: React.FC = () => {
     const { user } = useAuthStore();
     const [tasks, setTasks] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
+    const [companies, setCompanies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [selectedCompany, setSelectedCompany] = useState('');
     const [currentTab, setCurrentTab] = useState<'all' | 'my' | 'review'>('all');
     const [editingTask, setEditingTask] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<any>({});
@@ -31,20 +33,23 @@ const TasksPage: React.FC = () => {
             try {
                 const params: any = {};
                 if (search) params.search = search;
+                if (selectedCompany) params.companyId = selectedCompany;
                 if (currentTab === 'my') params.assignedTo = user?._id;
                 if (currentTab === 'review') params.status = 'review';
                 
-                const [tRes, uRes] = await Promise.all([
+                const [tRes, uRes, cRes] = await Promise.all([
                     api.get('/tasks', { params }),
                     api.get('/auth/users'),
+                    api.get('/companies')
                 ]);
                 setTasks(tRes.data.tasks || []);
                 setUsers(uRes.data.users || []);
+                setCompanies(cRes.data.companies || []);
             } catch { }
             finally { setLoading(false); }
         };
         fetch();
-    }, [search, currentTab, user?._id]);
+    }, [search, selectedCompany, currentTab, user?._id]);
 
     const updateStatus = async (taskId: string, status: string) => {
         try {
@@ -222,6 +227,19 @@ const TasksPage: React.FC = () => {
                 <div style={{ flex: 1, maxWidth: 400, position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
                     <input className="input" style={{ paddingLeft: 36 }} placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
+                <div style={{ width: 250 }}>
+                    <select 
+                        className="select" 
+                        value={selectedCompany} 
+                        onChange={e => setSelectedCompany(e.target.value)}
+                        style={{ width: '100%', appearance: 'auto' }}
+                    >
+                        <option value="">All Companies</option>
+                        {companies.map(c => (
+                            <option key={c._id} value={c._id}>{c.name}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 

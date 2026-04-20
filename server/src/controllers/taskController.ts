@@ -68,15 +68,36 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTasks = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { assignment: assignmentId, status, priority, assignedTo, search } = req.query;
-        const filter: any = {};
+        const { assignment: assignmentId, status, priority, assignedTo, search, companyId } = req.query;
+        let andConditions: any[] = [];
 
-        if (assignmentId) filter.assignment = assignmentId;
-        if (status) filter.status = status;
-        if (priority) filter.priority = priority;
-        if (assignedTo) filter.assignedTo = assignedTo;
+        if (assignmentId) andConditions.push({ assignment: assignmentId });
+        if (status) andConditions.push({ status: status });
+        if (priority) andConditions.push({ priority: priority });
+        if (assignedTo) andConditions.push({ assignedTo: assignedTo });
         if (search) {
-            filter.title = { $regex: search, $options: 'i' };
+            const searchRegex = { $regex: search, $options: 'i' };
+            // Search by task title OR by company name via assignment
+            const AssignmentModel = (await import('../models/Assignment')).default;
+            const CompanyModel = (await import('../models/Company')).default;
+            const matchedCompany = await CompanyModel.findOne({ name: searchRegex });
+            if (matchedCompany) {
+                const companyAssignments = await AssignmentModel.find({ companyId: matchedCompany._id }).distinct('_id');
+                andConditions.push({
+                    $or: [
+                        { title: searchRegex },
+                        { assignment: { $in: companyAssignments } }
+                    ]
+                });
+            } else {
+                andConditions.push({ title: searchRegex });
+            }
+        }
+
+        if (companyId) {
+            const AssignmentModel = (await import('../models/Assignment')).default;
+            const assignments = await AssignmentModel.find({ companyId }).distinct('_id');
+            andConditions.push({ assignment: { $in: assignments } });
         }
 
         // Roles and permissions visibility enforcement
@@ -90,10 +111,12 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
                 ]
             }).distinct('_id');
 
-            filter.$or = [
-                { assignedTo: req.user!._id },
-                { assignment: { $in: myProjectIds } }
-            ];
+            andConditions.push({
+                $or: [
+                    { assignedTo: req.user!._id },
+                    { assignment: { $in: myProjectIds } }
+                ]
+            });
         } else if (req.user!.role === 'manager') {
             // Managers see tasks in projects they manage OR projects they are part of
             const Team = (await import('../models/Team')).default;
@@ -107,16 +130,16 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
                 ]
             }).distinct('_id');
 
-            filter.assignment = { $in: myProjectIds };
+            andConditions.push({ assignment: { $in: myProjectIds } });
         }
         // Admins have no additional filters (see all)
 
         // Special handling for 'Under Review' filter
         if (status === 'review') {
-            filter.status = 'review';
-            // Only Managers and Admins should ideally process reviews, 
-            // but the visibility filter above already handles project-level access.
+            // Handled dynamically via `andConditions`
         }
+
+        const filter = andConditions.length > 0 ? { $and: andConditions } : {};
 
         const tasks = await Task.find(filter)
             .populate('assignedTo', 'name email avatar')
