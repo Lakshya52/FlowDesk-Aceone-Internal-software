@@ -48,6 +48,9 @@ const ClientsPage: React.FC = () => {
     const [loadingAssignments, setLoadingAssignments] = useState(false);
     const [editingCompany, setEditingCompany] = useState<Company | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedCompanyIds, setSelectedCompanyIds] = useState<Set<string>>(new Set());
+    const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+    const [isSelectDataMode, setIsSelectDataMode] = useState(false);
 
     // for debugging
     // console.log(selected);
@@ -215,33 +218,33 @@ const ClientsPage: React.FC = () => {
 
     // const tree = buildTree();
 
-    const handleAddContact = () => {
-        setEditingContact(null);
-        setContactForm({
-            name: "",
-            email: "",
-            phone: "",
-            position: "",
-            department: "",
-            isPrimary: false,
-            notes: ""
-        });
-        setShowContactForm(true);
-    };
+    // const handleAddContact = () => {
+    //     setEditingContact(null);
+    //     setContactForm({
+    //         name: "",
+    //         email: "",
+    //         phone: "",
+    //         position: "",
+    //         department: "",
+    //         isPrimary: false,
+    //         notes: ""
+    //     });
+    //     setShowContactForm(true);
+    // };
 
-    const handleEditContact = (contact: Contact) => {
-        setEditingContact(contact);
-        setContactForm({
-            name: contact.name,
-            email: contact.email || "",
-            phone: contact.phone || "",
-            position: contact.position || "",
-            department: contact.department || "",
-            isPrimary: contact.isPrimary,
-            notes: contact.notes || ""
-        });
-        setShowContactForm(true);
-    };
+    // const handleEditContact = (contact: Contact) => {
+    //     setEditingContact(contact);
+    //     setContactForm({
+    //         name: contact.name,
+    //         email: contact.email || "",
+    //         phone: contact.phone || "",
+    //         position: contact.position || "",
+    //         department: contact.department || "",
+    //         isPrimary: contact.isPrimary,
+    //         notes: contact.notes || ""
+    //     });
+    //     setShowContactForm(true);
+    // };
 
     const handleSaveContact = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -272,16 +275,33 @@ const ClientsPage: React.FC = () => {
         }
     };
 
+    // const handleExportExcel = async () => {
+    //     try {
+    //         const response = await api.get('/companies/export/excel', { responseType: 'blob' });
+    //         const url = window.URL.createObjectURL(new Blob([response.data]));
+    //         const link = document.createElement('a');
+    //         link.href = url;
+    //         link.setAttribute('download', `companies_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    //         document.body.appendChild(link);
+    //         link.click();
+    //         link.remove();
+    //     } catch (e: any) {
+    //         alert(e.response?.data?.message || "Export failed");
+    //     }
+    // };
+
     const handleExportExcel = async () => {
         try {
-            const response = await api.get('/companies/export/excel', { responseType: 'blob' });
+            const idsParam = selectedCompanyIds.size > 0 ? `?ids=${Array.from(selectedCompanyIds).join(',')}` : '';
+            const response = await api.get(`/companies/export/excel${idsParam}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `companies_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+            link.setAttribute('download', `clients_export_${new Date().toISOString().split('T')[0]}.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            setIsExportDropdownOpen(false);
         } catch (e: any) {
             alert(e.response?.data?.message || "Export failed");
         }
@@ -289,23 +309,25 @@ const ClientsPage: React.FC = () => {
 
     const handleExportPDF = async () => {
         try {
-            const response = await api.get('/companies/export/pdf', { responseType: 'blob' });
+            const idsParam = selectedCompanyIds.size > 0 ? `?ids=${Array.from(selectedCompanyIds).join(',')}` : '';
+            const response = await api.get(`/companies/export/pdf${idsParam}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `companies_export_${new Date().toISOString().split('T')[0]}.pdf`);
+            link.setAttribute('download', `clients_export_${new Date().toISOString().split('T')[0]}.pdf`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            setIsExportDropdownOpen(false);
         } catch (e: any) {
             alert(e.response?.data?.message || "Export failed");
         }
     };
 
-    const handleImportClick = () => {
-        setShowImport(true);
-        setImportResult(null);
-    };
+    // const handleImportClick = () => {
+    //     setShowImport(true);
+    //     setImportResult(null);
+    // };
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -344,110 +366,319 @@ const ClientsPage: React.FC = () => {
         }
     };
 
+    const toggleSelection = (id: string) => {
+        setSelectedCompanyIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const selectAll = () => {
+        if (selectedCompanyIds.size === companies.length) {
+            setSelectedCompanyIds(new Set());
+        } else {
+            setSelectedCompanyIds(new Set(companies.map(c => c._id)));
+        }
+    };
+
+    const exportToCSV = () => {
+        const targetCompanies = selectedCompanyIds.size > 0
+            ? companies.filter(c => selectedCompanyIds.has(c._id))
+            : companies;
+
+        if (targetCompanies.length === 0) {
+            alert("No data to export");
+            return;
+        }
+
+        const headers = [
+            "Company Name", "Industry", "Website", "Company Email", "Company Phone", "Status",
+            "Contact Name", "Contact Email", "Contact Phone", "Position", "Department", "Is Primary?"
+        ];
+
+        const rows: any[] = [];
+
+        targetCompanies.forEach(c => {
+            // Find contacts for this company from the 'companies' flat list if they exist
+            // (The flat list might have contacts if they were populated by the server)
+            const contacts = c.contacts || [];
+
+            if (contacts.length > 0) {
+                contacts.forEach((contact: any) => {
+                    rows.push([
+                        `"${c.name}"`,
+                        `"${c.industry || ""}"`,
+                        `"${c.website || ""}"`,
+                        `"${c.email || ""}"`,
+                        `"${c.phone || ""}"`,
+                        `"${c.status}"`,
+                        `"${contact.name}"`,
+                        `"${contact.email || ""}"`,
+                        `"${contact.phone || ""}"`,
+                        `"${contact.position || ""}"`,
+                        `"${contact.department || ""}"`,
+                        `"${contact.isPrimary ? "Yes" : "No"}"`
+                    ]);
+                });
+            } else {
+                rows.push([
+                    `"${c.name}"`,
+                    `"${c.industry || ""}"`,
+                    `"${c.website || ""}"`,
+                    `"${c.email || ""}"`,
+                    `"${c.phone || ""}"`,
+                    `"${c.status}"`,
+                    `""`, `""`, `""`, `""`, `""`, `""`
+                ]);
+            }
+        });
+
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `clients_export_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const navigate = useNavigate();
 
     return (
-        <div style={{ display: "flex", height: "100%" }}>
-            {/* list of companies sidebar */}
-            <div style={{ width: 320, borderRight: "1px solid var(--color-border)", padding: 16, display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <h2 style={{ fontSize: "1rem", fontWeight: 600 }}>Companies & Clients</h2>
-                    <button className="btn btn-primary btn-xs " onClick={() => setShowCreate(true)} style={{ padding: "10px" }}>
-                        <Plus size={16} />
-                    </button>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 24, maxWidth: 1200, margin: '0 auto' }}>
+            {/* Header section with actions */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                    <h1 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Companies & Clients</h1>
+                    <p style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)", marginTop: 4 }}>Manage client relationships, contacts, and projects</p>
                 </div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-                    <button className="btn btn-secondary btn-xs" onClick={handleImportClick} style={{ padding: "10px" }} title="Import Excel" disabled={importing}>
-                        <Upload size={14} />
+                <div style={{ display: "flex", gap: 10 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setShowImport(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Upload size={14} />Import
                     </button>
-                    <button className="btn btn-secondary btn-xs" onClick={handleExportExcel} style={{ padding: "10px" }} title="Export Excel">
-                        <FileSpreadsheet size={14} />
-                    </button>
-                    <button className="btn btn-secondary btn-xs" onClick={handleExportPDF} style={{ padding: "10px" }} title="Export PDF">
-                        <FileText size={14} />
-                    </button>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        accept=".xlsx,.xls"
-                        style={{ display: 'none' }}
-                    />
-                </div>
-
-                <div style={{ marginBottom: 16 }}>
-                    <input
-                        className="input"
-                        placeholder="Search companies..."
-                        style={{ padding: '6px 10px', fontSize: '0.85rem' }}
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                    />
-                </div>
-
-                {loading ? (
-                    <div style={{ opacity: 0.6 }}>Loading...</div>
-                ) : (
-                    <div style={{ flex: 1, overflowY: "auto" }}>
-                        {(() => {
-                            const tree = buildTree();
-                            const filteredTree = searchQuery
-                                ? tree.filter((node: any) =>
-                                    node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    (node.children && node.children.some((child: any) => child.name.toLowerCase().includes(searchQuery.toLowerCase())))
-                                )
-                                : tree;
-
-                            if (filteredTree.length === 0) {
-                                return (
-                                    <div style={{ opacity: 0.6, fontSize: "0.9rem", textAlign: 'center', padding: 20 }}>
-                                        {searchQuery ? "No companies match your search" : "No companies yet"}
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                    {filteredTree.map((node) => (
-                                        <CompanyNode
-                                            key={node._id}
-                                            node={node}
-                                            onSelect={setSelected}
-                                            onEdit={handleEditCompany}
-                                            onDelete={handleDeleteCompany}
-                                            selectedId={selected?._id}
-                                            expandedCompanies={expandedCompanies}
-                                            toggleExpand={toggleExpand}
-                                            isSearchActive={searchQuery.length > 0}
-                                        />
-                                    ))}
+                    
+                    <div style={{ position: 'relative' }}>
+                        <div style={{ display: "flex", gap: 10 }}>
+                            <button 
+                                className="btn btn-secondary btn-sm" 
+                                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)} 
+                                style={{ display: "flex", alignItems: "center", gap: 6 }}
+                            >
+                                <Download size={14} />
+                                {isSelectDataMode ? `Export Selected (${selectedCompanyIds.size})` : 'Export'}
+                            </button>
+                            
+                            {isSelectDataMode && (
+                                <button 
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => {
+                                        setIsSelectDataMode(false);
+                                        setSelectedCompanyIds(new Set());
+                                    }}
+                                    style={{ color: 'var(--color-error)' }}
+                                    title="Cancel Selection"
+                                >
+                                    <X size={14} /> Cancel
+                                </button>
+                            )}
+                        </div>
+                        
+                        {isExportDropdownOpen && (
+                            <>
+                                <div 
+                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                                    onClick={() => setIsExportDropdownOpen(false)} 
+                                />
+                                <div className="card shadow-xl" style={{ 
+                                    position: 'absolute', top: '100%', right: 0, zIndex: 101, 
+                                    marginTop: 8, width: 220, padding: 8,
+                                    background: 'var(--color-surface)', border: '1px solid var(--color-border)' 
+                                }}>
+                                    {isSelectDataMode ? (
+                                        <>
+                                            <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
+                                                Choose Format ({selectedCompanyIds.size} Selected)
+                                            </div>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { exportToCSV(); setIsExportDropdownOpen(false); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
+                                            >
+                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to CSV
+                                            </button>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { handleExportExcel(); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
+                                            >
+                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to Excel
+                                            </button>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { handleExportPDF(); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
+                                            >
+                                                <FileText size={14} style={{ marginRight: 10 }} /> Export to PDF
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
+                                                Export Options
+                                            </div>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { setIsSelectDataMode(true); setIsExportDropdownOpen(false); setSelectedCompanyIds(new Set()); }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <div style={{ width: 14, height: 14, border: '1px solid currentColor', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 10 }}>✓</span></div> Select Data
+                                                </div>
+                                            </button>
+                                            <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                                            <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
+                                                Export All Formats
+                                            </div>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); exportToCSV(); setIsExportDropdownOpen(false); }}
+                                            >
+                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to CSV
+                                            </button>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); handleExportExcel(); }}
+                                            >
+                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to Excel (.xlsx)
+                                            </button>
+                                            <button 
+                                                className="btn btn-ghost btn-sm w-full" 
+                                                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
+                                                onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); handleExportPDF(); }}
+                                            >
+                                                <FileText size={14} style={{ marginRight: 10 }} /> Export to PDF (.pdf)
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
-                            );
-                        })()}
+                            </>
+                        )}
                     </div>
-                )}
+
+                    <button className="btn btn-primary btn-sm" onClick={() => { setEditingCompany(null); resetCompanyForm(); setShowCreate(true); }} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Plus size={16} />Add Company
+                    </button>
+                </div>
             </div>
 
-            {/* right section - details of the company */}
-            <div style={{ flex: 1, padding: 24, overflowY: "auto" }}>
-                {!selected ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.6 }}>
-                        <Building2 size={64} style={{ marginBottom: 16 }} />
-                        <p>Select a company from the list to view details</p>
+            <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 24, height: "calc(100vh - 180px)", minHeight: 600 }}>
+                {/* Left panel: Company List & Hierarchy */}
+                <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                    <div style={{ padding: 16, borderBottom: "1px solid var(--color-border)" }}>
+                        <div style={{ position: 'relative', marginBottom: 12 }}>
+                            <input
+                                placeholder="Search companies..."
+                                className="input w-full"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            {isSelectDataMode ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox"
+                                        checked={selectedCompanyIds.size === companies.length && companies.length > 0}
+                                        onChange={selectAll}
+                                    />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                        {selectedCompanyIds.size > 0 ? `${selectedCompanyIds.size} Selected` : 'Select All'}
+                                    </span>
+                                </div>
+                            ) : (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Companies List
+                                </span>
+                            )}
+                            <span className="badge" style={{ fontSize: '0.65rem' }}>{companies.length} total</span>
+                        </div>
                     </div>
-                ) : (
-                    <CompanyDetails
-                        company={selected}
-                        activeTab={activeTab}
-                        setActiveTab={setActiveTab}
-                        onAddContact={handleAddContact}
-                        onEditContact={handleEditContact}
-                        onDeleteContact={handleDeleteContact}
-                        assignments={companyAssignments}
-                        loadingAssignments={loadingAssignments}
-                        onProjectClick={(id: string) => navigate(`/assignments/${id}`)}
-                    />
-                )}
+
+                    <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                        {loading ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
+                        ) : (
+                            (() => {
+                                const rootCompanies = buildTree();
+                                const filteredTree = searchQuery
+                                    ? companies.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    : rootCompanies;
+
+                                if (filteredTree.length === 0) {
+                                    return (
+                                        <div style={{ opacity: 0.6, fontSize: "0.875rem", textAlign: 'center', padding: 40 }}>
+                                            {searchQuery ? "No matches found" : "No companies yet"}
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                        {filteredTree.map((company) => (
+                                            <CompanyNode
+                                                key={company._id}
+                                                node={company}
+                                                onSelect={setSelected}
+                                                onEdit={handleEditCompany}
+                                                onDelete={handleDeleteCompany}
+                                                selectedId={selected?._id}
+                                                selectedCompanyIds={selectedCompanyIds}
+                                                toggleSelection={toggleSelection}
+                                                expandedCompanies={expandedCompanies}
+                                                toggleExpand={toggleExpand}
+                                                isSearchActive={searchQuery.length > 0}
+                                                isSelectDataMode={isSelectDataMode}
+                                            />
+                                        ))}
+                                    </div>
+                                );
+                            })()
+                        )}
+                    </div>
+                </div>
+
+                {/* Right section - details of the company */}
+                <div className="card" style={{ overflowY: "auto", padding: 0, position: 'relative' }}>
+                    {!selected ? (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.4 }}>
+                            <Building2 size={64} style={{ marginBottom: 16 }} />
+                            <h3 style={{ fontWeight: 700 }}>Company Details</h3>
+                            <p style={{ fontSize: '0.875rem' }}>Select a company from the list to view full details</p>
+                        </div>
+                    ) : (
+                        <div style={{ padding: 32 }}>
+                            <CompanyDetailView
+                                company={selected}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                onAddContact={() => { setEditingContact(null); setContactForm({ name: "", email: "", phone: "", position: "", department: "", isPrimary: false, notes: "" }); setShowContactForm(true); }}
+                                onEditContact={(contact: Contact) => { setEditingContact(contact); setContactForm({ name: contact.name, email: contact.email || "", phone: contact.phone || "", position: contact.position || "", department: contact.department || "", isPrimary: contact.isPrimary, notes: contact.notes || "" }); setShowContactForm(true); }}
+                                onDeleteContact={handleDeleteContact}
+                                assignments={companyAssignments}
+                                loadingAssignments={loadingAssignments}
+                                onProjectClick={(pid: string) => navigate(`/assignments/${pid}`)}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {showCreate && (
@@ -493,11 +724,12 @@ const ClientsPage: React.FC = () => {
 
 export default ClientsPage;
 
-const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCompanies, toggleExpand, isSearchActive, level = 0 }: any) => {
+const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, selectedCompanyIds, toggleSelection, expandedCompanies, toggleExpand, isSearchActive, isSelectDataMode, level = 0 }: any) => {
     const [isHovered, setIsHovered] = useState(false);
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = isSearchActive || expandedCompanies.has(node._id);
     const isSelected = selectedId === node._id;
+    const isChecked = selectedCompanyIds.has(node._id);
 
     return (
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -540,6 +772,7 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
 
                 {hasChildren ? (
                     <button
+                        className="expand-button"
                         style={{
                             background: "none",
                             border: "none",
@@ -559,6 +792,19 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
                     </button>
                 ) : (
                     <span style={{ width: 20, display: "inline-block" }} />
+                )}
+
+                {isSelectDataMode && (
+                    <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                            e.stopPropagation();
+                            toggleSelection(node._id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ marginRight: 10, cursor: 'pointer' }}
+                    />
                 )}
 
                 <Building2 size={14} style={{ marginRight: 8, opacity: 0.7 }} />
@@ -607,9 +853,12 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
                             onEdit={onEdit}
                             onDelete={onDelete}
                             selectedId={selectedId}
+                            selectedCompanyIds={selectedCompanyIds}
+                            toggleSelection={toggleSelection}
                             expandedCompanies={expandedCompanies}
                             toggleExpand={toggleExpand}
                             isSearchActive={isSearchActive}
+                            isSelectDataMode={isSelectDataMode}
                         />
                     ))}
                 </div>
@@ -618,7 +867,7 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
     );
 };
 
-const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEditContact, onDeleteContact, assignments, loadingAssignments, onProjectClick }: any) => (
+const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onEditContact, onDeleteContact, assignments, loadingAssignments, onProjectClick }: any) => (
     <div>
         <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid var(--color-border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -891,8 +1140,8 @@ const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEdit
                                             </span>
                                         </div>
                                         <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                                            {a.dueDate && new Date(a.dueDate).getFullYear() > 1970 
-                                                ? `Due ${new Date(a.dueDate).toLocaleDateString()}` 
+                                            {a.dueDate && new Date(a.dueDate).getFullYear() > 1970
+                                                ? `Due ${new Date(a.dueDate).toLocaleDateString()}`
                                                 : 'No due date'} · Status: <span style={{ textTransform: 'capitalize' }}>{a.status.replace('_', ' ')}</span>
                                         </div>
                                     </div>

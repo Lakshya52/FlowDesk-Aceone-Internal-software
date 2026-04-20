@@ -480,8 +480,15 @@ export const exportCompaniesToExcel = async (req: Request, res: Response) => {
             fgColor: { argb: 'FFE0E0E0' },
         };
 
-        // Fetch all companies with contacts
-        const companies = await Company.find().populate('contacts').lean();
+        // Fetch companies with optional ID filtering
+        const { ids } = req.query;
+        let queryFilter = {};
+        if (ids) {
+            const idList = (ids as string).split(',');
+            queryFilter = { _id: { $in: idList } };
+        }
+        
+        const companies = await Company.find(queryFilter).populate('contacts').lean();
 
         // Get parent company names map
         const parentIds = [...new Set(companies.map(c => c.parentCompanyId).filter(Boolean))];
@@ -566,8 +573,15 @@ export const exportCompaniesToPDF = async (req: Request, res: Response) => {
         doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toLocaleString()}`, { align: 'center' });
         doc.moveDown(1);
 
-        // Fetch all companies with contacts
-        const companies = await Company.find().sort({ name: 1 }).populate('contacts');
+        // Fetch companies with optional ID filtering
+        const { ids } = req.query;
+        let queryFilter = {};
+        if (ids) {
+            const idList = (ids as string).split(',');
+            queryFilter = { _id: { $in: idList } };
+        }
+        
+        const companies = await Company.find(queryFilter).sort({ name: 1 }).populate('contacts');
 
         // Get parent company names map
         const parentIds = [...new Set(companies.map(c => c.parentCompanyId).filter(Boolean))];
