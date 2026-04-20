@@ -152,8 +152,14 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
             return;
         }
 
-        // Everyone authorized to update
-        // (Removed role/creator check)
+        // Authorization check: Admin OR In Team OR Creator
+        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
+        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        
+        if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
 
         // Capture changes for detailed logging
         const changes: Record<string, { old: any, new: any }> = {};
@@ -226,8 +232,14 @@ export const deleteAssignment = async (req: AuthRequest, res: Response): Promise
             return;
         }
 
-        // Everyone authorized to delete
-        // (Removed role/creator check)
+        // Authorization check: Admin OR In Team OR Creator
+        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
+        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        
+        if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
 
         await assignment.deleteOne();
 

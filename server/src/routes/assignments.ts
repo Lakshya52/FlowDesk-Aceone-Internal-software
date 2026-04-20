@@ -9,8 +9,8 @@ router.use(authenticate);
 router.post('/', authorize('admin', 'manager', 'member'), createAssignment);
 router.get('/', getAssignments);
 router.get('/:id', getAssignment);
-router.put('/:id', authorize('admin', 'manager'), updateAssignment);
+router.put('/:id', authorize('admin', 'manager', 'member'), updateAssignment);
 router.patch('/:id/canvas', updateAssignmentCanvas);
-router.delete('/:id', authorize('admin', 'manager'), deleteAssignment);
+router.delete('/:id', authorize('admin', 'manager', 'member'), deleteAssignment);
 
 export default router;

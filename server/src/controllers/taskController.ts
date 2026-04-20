@@ -8,15 +8,30 @@ import { AuthRequest } from '../middlewares/auth';
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+        // Sync project status to "In Progress" if it's currently "Not Started"
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment: any = await AssignmentModel.findById(req.body.assignment);
+        
+        if (!assignment) {
+            res.status(404).json({ message: 'Assignment not found' });
+            return;
+        }
+
+        // Authorization check: Admin OR In Team OR Creator
+        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
+        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        
+        if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
+
         const task = await Task.create({
             ...req.body,
             createdBy: req.user!._id,
         });
 
-        // Sync project status to "In Progress" if it's currently "Not Started"
-        const AssignmentModel = mongoose.model('Assignment');
-        const assignment = await AssignmentModel.findById(task.assignment);
-        if (assignment && assignment.status === 'not_started') {
+        if (assignment.status === 'not_started') {
             assignment.status = 'in_progress';
             await assignment.save();
         }
@@ -157,17 +172,26 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        // Security check for update
+        // Authorization check: Admin OR In Team OR Creator
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment: any = await AssignmentModel.findById(oldTask.assignment);
+        const isProjectCreator = assignment?.createdBy.toString() === req.user!._id.toString();
+        const isInProjectTeam = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        
+        if (req.user!.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
+
+        // Security check for status override
         if (req.user!.role === 'member') {
-             // Member can only edit their own assigned tasks or tasks in their project
-             // And CANNOT set status to completed directly
+             // Member CANNOT set status to completed directly
              if (req.body.status === 'completed') {
                  req.body.status = 'review';
              }
         }
-
-        // Everyone authorized to update everything
-        // (Removed role/creator/assignee checks)
+        
+        // Everyone authorized above to update everything
         const userId = req.user!._id.toString();
 
         const task = await Task.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
@@ -214,11 +238,24 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
 
 export const deleteTask = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const task = await Task.findByIdAndDelete(req.params.id);
+        const task = await Task.findById(req.params.id);
         if (!task) {
             res.status(404).json({ message: 'Task not found' });
             return;
         }
+
+        // Authorization check: Admin OR In Team OR Creator
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment: any = await AssignmentModel.findById(task.assignment);
+        const isProjectCreator = assignment?.createdBy.toString() === req.user!._id.toString();
+        const isInProjectTeam = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
+        
+        if (req.user!.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
+
+        await task.deleteOne();
 
         await ActivityLog.create({
             action: 'Task deleted',
