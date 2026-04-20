@@ -624,7 +624,6 @@ const ClientsPage: React.FC = () => {
                                             c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                             (c.children && c.children.some(matchCompany));
                                         const filterCompany = (c: any): any => {
-                                            const matches = c.name.toLowerCase().includes(searchQuery.toLowerCase());
                                             return {
                                                 ...c,
                                                 children: c.children?.map(filterCompany).filter((child: any) => matchCompany(child) || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
