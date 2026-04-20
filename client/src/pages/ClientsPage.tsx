@@ -619,7 +619,19 @@ const ClientsPage: React.FC = () => {
                             (() => {
                                 const rootCompanies = buildTree();
                                 const filteredTree = searchQuery
-                                    ? companies.filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    ? (() => {
+                                        const matchCompany = (c: any): boolean =>
+                                            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                            (c.children && c.children.some(matchCompany));
+                                        const filterCompany = (c: any): any => {
+                                            const matches = c.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                            return {
+                                                ...c,
+                                                children: c.children?.map(filterCompany).filter((child: any) => matchCompany(child) || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                            };
+                                        };
+                                        return rootCompanies.map(filterCompany).filter((c: any) => matchCompany(c) || c.children?.length > 0);
+                                    })()
                                     : rootCompanies;
 
                                 if (filteredTree.length === 0) {

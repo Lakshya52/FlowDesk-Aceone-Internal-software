@@ -13,7 +13,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
         await ActivityLog.create({
             action: 'Team created',
             user: req.user!._id,
-            entityType: EntityType.USER,
+            entityType: EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name },
         });
@@ -97,7 +97,7 @@ export const updateTeam = async (req: AuthRequest, res: Response): Promise<void>
         await ActivityLog.create({
             action: 'Team updated',
             user: req.user!._id,
-            entityType: EntityType.USER,
+            entityType: EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name, updates: Object.keys(req.body) },
         });
@@ -127,7 +127,7 @@ export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void>
         await ActivityLog.create({
             action: 'Team deleted',
             user: req.user!._id,
-            entityType: EntityType.USER,
+            entityType: EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name },
         });
@@ -164,7 +164,7 @@ export const updateTeamMembers = async (req: AuthRequest, res: Response): Promis
         await ActivityLog.create({
             action: 'Team members updated',
             user: req.user!._id,
-            entityType: EntityType.USER,
+            entityType: EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name, memberCount: members.length },
         });
