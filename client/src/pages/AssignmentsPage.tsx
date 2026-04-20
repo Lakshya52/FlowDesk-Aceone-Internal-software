@@ -22,6 +22,7 @@ const AssignmentsPage: React.FC = () => {
         clientName: '',
         companyId: '',
         description: '',
+        priority: 'medium',
         status: 'not_started',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
@@ -39,10 +40,7 @@ const AssignmentsPage: React.FC = () => {
     const [companySearch, setCompanySearch] = useState('');
     const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
 
-    const isAdmin = user?.role === 'admin';
-    const isManager = user?.role === 'manager';
-    const isEmployee = user?.role === 'member';
-    const canCreate = isAdmin || isManager || isEmployee;
+    const canCreate = true; // Everyone can create projects
 
     const fetchAssignments = async () => {
         try {
@@ -99,8 +97,9 @@ const AssignmentsPage: React.FC = () => {
             });
             setShowCreate(false);
             setForm({
-                title: '', clientName: '', companyId: '', description: '', priority: 'medium',
-                startDate: new Date().toISOString().split('T')[0],
+                title: '', clientName: '', companyId: '', description: '', priority: 'medium', 
+                status: 'not_started',
+                startDate: new Date().toISOString().split('T')[0], 
                 dueDate: '', noDueDate: false, team: [], teams: [],
                 isRecurring: false, recurringPattern: 'monthly', recurringStartDate: ''
             });
