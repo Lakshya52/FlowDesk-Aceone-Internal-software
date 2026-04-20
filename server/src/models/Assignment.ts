@@ -44,7 +44,7 @@ const assignmentSchema = new Schema<IAssignment>(
         priority: { type: String, enum: Object.values(Priority), default: Priority.MEDIUM },
         status: { type: String, enum: Object.values(AssignmentStatus), default: AssignmentStatus.NOT_STARTED },
         startDate: { type: Date, required: true },
-        dueDate: { type: Date, required: true },
+        dueDate: { type: Date, default: null },
         createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         team: [{ type: Schema.Types.ObjectId, ref: 'User' }],
         teams: [{ type: Schema.Types.ObjectId, ref: 'Team' }],

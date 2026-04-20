@@ -75,7 +75,18 @@ const ClientsPage: React.FC = () => {
     const fetchCompanies = async () => {
         try {
             const { data } = await api.get("/companies");
-            setCompanies(data.companies || []);
+
+            // Flatten the hierarchy from server for easier frontend filtering and rebuilding
+            const flatList: Company[] = [];
+            const flatten = (list: any[]) => {
+                list.forEach(item => {
+                    const { children, ...rest } = item;
+                    flatList.push(rest);
+                    if (children) flatten(children);
+                });
+            };
+            flatten(data.companies || []);
+            setCompanies(flatList);
         } catch (e) {
             console.error(e);
         } finally {
@@ -384,10 +395,13 @@ const ClientsPage: React.FC = () => {
                 ) : (
                     <div style={{ flex: 1, overflowY: "auto" }}>
                         {(() => {
+                            const tree = buildTree();
                             const filteredTree = searchQuery
-                                ? companies.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    (c.childCompanies && c.childCompanies.some((child: any) => child.name.toLowerCase().includes(searchQuery.toLowerCase()))))
-                                : companies;
+                                ? tree.filter((node: any) =>
+                                    node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    (node.children && node.children.some((child: any) => child.name.toLowerCase().includes(searchQuery.toLowerCase())))
+                                )
+                                : tree;
 
                             if (filteredTree.length === 0) {
                                 return (
@@ -397,20 +411,23 @@ const ClientsPage: React.FC = () => {
                                 );
                             }
 
-                            return filteredTree.map((node) => (
-                                <CompanyNode
-                                    key={node._id}
-                                    node={node}
-                                    onSelect={setSelected}
-                                    onEdit={handleEditCompany}
-                                    onDelete={handleDeleteCompany}
-                                    selectedId={selected?._id}
-                                    expandedCompanies={expandedCompanies}
-                                    toggleExpand={toggleExpand}
-                                    expandedParentData={expandedParentData}
-                                    isSearchActive={searchQuery.length > 0}
-                                />
-                            ));
+                            return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                    {filteredTree.map((node) => (
+                                        <CompanyNode
+                                            key={node._id}
+                                            node={node}
+                                            onSelect={setSelected}
+                                            onEdit={handleEditCompany}
+                                            onDelete={handleDeleteCompany}
+                                            selectedId={selected?._id}
+                                            expandedCompanies={expandedCompanies}
+                                            toggleExpand={toggleExpand}
+                                            isSearchActive={searchQuery.length > 0}
+                                        />
+                                    ))}
+                                </div>
+                            );
                         })()}
                     </div>
                 )}
@@ -480,31 +497,51 @@ const ClientsPage: React.FC = () => {
 
 export default ClientsPage;
 
-const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCompanies, toggleExpand, expandedParentData, isSearchActive }: any) => {
+const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCompanies, toggleExpand, isSearchActive, level = 0 }: any) => {
     const [isHovered, setIsHovered] = useState(false);
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = isSearchActive || expandedCompanies.has(node._id);
     const isSelected = selectedId === node._id;
-    const showChildList = expandedParentData && expandedParentData.id === node._id;
 
     return (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
             <div
                 className="company-node-row"
                 style={{
                     display: "flex",
                     alignItems: "center",
                     padding: "8px 10px",
+                    paddingLeft: level > 0 ? (level * 16) + 10 : 10,
                     cursor: "pointer",
                     borderRadius: 6,
                     background: isSelected ? "var(--color-surface-hover)" : "transparent",
-                    marginBottom: 2,
+                    marginBottom: 1,
                     position: 'relative'
                 }}
-                onClick={() => onSelect(node)}
+                onClick={() => {
+                    onSelect(node);
+                    if (hasChildren) {
+                        toggleExpand(node._id);
+                    }
+                }}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
+                {/* Branching lines for nested items */}
+                {level > 0 && (
+                    <div style={{
+                        position: "absolute",
+                        left: (level - 1) * 16 + 12,
+                        top: -10,
+                        bottom: "50%",
+                        width: 12,
+                        borderLeft: "1px solid var(--color-border)",
+                        borderBottom: "1px solid var(--color-border)",
+                        borderBottomLeftRadius: 4,
+                        pointerEvents: "none"
+                    }} />
+                )}
+
                 {hasChildren ? (
                     <button
                         style={{
@@ -513,7 +550,9 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
                             cursor: "pointer",
                             padding: 0,
                             marginRight: 6,
-                            display: "flex"
+                            display: "flex",
+                            color: "var(--color-text-secondary)",
+                            zIndex: 2
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -528,108 +567,57 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
 
                 <Building2 size={14} style={{ marginRight: 8, opacity: 0.7 }} />
 
-                <span style={{ flex: 1, fontSize: "0.9rem", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{
+                    flex: 1,
+                    fontSize: "0.85rem",
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: isSelected ? 600 : 400
+                }}>
                     {node.name}
                 </span>
 
                 {/* Actions */}
-                {isHovered && (
-                    <div className="hover-actions" style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-                        <button className="btn btn-secondary btn-xs" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); onEdit(node); }}>
-                            <Edit2 size={12} />
-                        </button>
-                        <button className="btn btn-secondary btn-xs" style={{ padding: 4, color: 'var(--color-error)' }} onClick={(e) => { e.stopPropagation(); onDelete(node._id); }}>
-                            <Trash2 size={12} />
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Show child list when expandedParentData matches this node */}
-            {showChildList ? (
-                <div style={{ paddingLeft: "30px", marginTop: "10px", marginBottom: "10px", display: "flex", flexDirection: "column", gap: 8 }}>
-                    {expandedParentData.children.map((child: any, idx: number) => {
-                        const isLast = idx === expandedParentData.children.length - 1;
-                        return (
-                            <ChildCompanyItem
-                                key={child._id}
-                                child={child}
-                                isLast={isLast}
-                                onSelect={onSelect}
-                                onEdit={onEdit}
-                                onDelete={onDelete}
-                                selectedId={selectedId}
-                            />
-                        );
-                    })}
+                <div className="hover-actions" style={{
+                    display: isHovered ? 'flex' : 'none',
+                    gap: 4,
+                    position: 'absolute',
+                    right: 8,
+                    background: isSelected ? "var(--color-surface-hover)" : "white",
+                    padding: '2px',
+                    borderRadius: 4,
+                    boxShadow: 'var(--shadow-sm)',
+                    zIndex: 10
+                }}>
+                    <button className="btn btn-secondary btn-xs" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); onEdit(node); }}>
+                        <Edit2 size={12} />
+                    </button>
+                    <button className="btn btn-secondary btn-xs" style={{ padding: 4, color: 'var(--color-error)' }} onClick={(e) => { e.stopPropagation(); onDelete(node._id); }}>
+                        <Trash2 size={12} />
+                    </button>
                 </div>
-            ) : null}
-        </div>
-    );
-};
-
-const ChildCompanyItem = ({ child, isLast, onSelect, onEdit, onDelete, selectedId }: any) => {
-    const [isHovered, setIsHovered] = useState(false);
-
-    return (
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            {/* Vertical & Horizontal Branching Line */}
-            <div style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                bottom: isLast ? "50%" : "-4px",
-                borderLeft: "2px solid var(--color-border)",
-                borderBottom: isLast ? "2px solid var(--color-border)" : "none",
-                borderBottomLeftRadius: isLast ? "8px" : "0",
-                width: isLast ? "20px" : "0"
-            }} />
-            {!isLast && (
-                <div style={{
-                    position: "absolute",
-                    left: 0,
-                    top: "50%",
-                    width: "20px",
-                    borderTop: "2px solid var(--color-border)",
-                }} />
-            )}
-            <div
-                className="card company-card"
-                style={{
-                    padding: "10px 14px",
-                    fontSize: "0.9rem",
-                    marginLeft: "24px",
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    cursor: "pointer",
-                    background: selectedId === child._id ? "var(--color-surface-hover)" : undefined,
-                    borderColor: selectedId === child._id ? "var(--color-primary)" : undefined,
-                    position: 'relative'
-                }}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onSelect(child);
-                }}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-            >
-                <Building2 size={14} style={{ marginRight: 6, opacity: 0.7 }} />
-                <span style={{ flex: 1 }}>{child.name}</span>
-
-                {/* Actions */}
-                {isHovered && (
-                    <div className="hover-actions" style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn btn-secondary btn-xs" style={{ padding: 4 }} onClick={(e) => { e.stopPropagation(); onEdit(child); }}>
-                            <Edit2 size={12} />
-                        </button>
-                        <button className="btn btn-secondary btn-xs" style={{ padding: 4, color: 'var(--color-error)' }} onClick={(e) => { e.stopPropagation(); onDelete(child._id); }}>
-                            <Trash2 size={12} />
-                        </button>
-                    </div>
-                )}
             </div>
+
+            {/* Recursively render children */}
+            {isExpanded && hasChildren && (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                    {node.children.map((child: any) => (
+                        <CompanyNode
+                            key={child._id}
+                            node={child}
+                            level={level + 1}
+                            onSelect={onSelect}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            selectedId={selectedId}
+                            expandedCompanies={expandedCompanies}
+                            toggleExpand={toggleExpand}
+                            isSearchActive={isSearchActive}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
@@ -926,7 +914,7 @@ const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEdit
     </div>
 );
 
-const CreateCompanyModal = ({ 
+const CreateCompanyModal = ({
     // showCreate, 
     setShowCreate, companies, companyForm, setCompanyForm, handleCreate, resetForm, isEditing }: any) => (
     <div
@@ -1075,7 +1063,7 @@ const CreateCompanyModal = ({
     </div>
 );
 
-const ContactModal = ({ 
+const ContactModal = ({
     // showContactForm,
     setShowContactForm, editingContact, contactForm, setContactForm, handleSave }: any) => (
     <div
@@ -1175,7 +1163,7 @@ const ContactModal = ({
     </div>
 );
 
-const ImportModal = ({ 
+const ImportModal = ({
     // showImport,
     setShowImport, setImportResult, importing, importResult, fileInputRef, handleFileSelect, handleDownloadSample }: any) => {
     const handleDropzoneClick = () => {
