@@ -28,7 +28,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
                 type: NotificationType.TASK_ASSIGNED,
                 title: 'New Task Assigned',
                 message: `You have been assigned task: ${task.title}`,
-                link: `/assignments/${task.assignment}/tasks/${task._id}`,
+                link: `/assignments/${task.assignment}?tab=tasks&taskId=${task._id}`,
             });
         }
 
@@ -183,7 +183,7 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
                 type: NotificationType.STATUS_CHANGED,
                 title: 'Task Status Updated',
                 message: `Task "${oldTask.title}" status changed to ${req.body.status}`,
-                link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
+                link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
             });
 
             // Notify task creator (manager) if someone else updated it
@@ -193,7 +193,7 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
                     type: NotificationType.STATUS_CHANGED,
                     title: 'Task Status Updated',
                     message: `Task "${oldTask.title}" status changed to ${req.body.status} by ${req.user!.name}`,
-                    link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
+                    link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
                 });
             }
         }

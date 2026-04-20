@@ -77,18 +77,35 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const msgId = params.get('msgId');
+        const taskId = params.get('taskId');
         
         if (activeTab === 'chat' && msgId && chatMessages.length > 0) {
             // Need a slight delay to ensure elements are mounted
             setTimeout(() => {
                 scrollToOriginalMessage(msgId);
-                
-                // Clear the msgId from URL so it doesn't repeatedly scroll on re-renders,
-                // but keep the tab
-                window.history.replaceState(null, '', `/assignments/${id}?tab=chat`);
+                navigate(`/assignments/${id}?tab=chat`, { replace: true });
+            }, 500);
+        } else if (activeTab === 'tasks' && taskId && tasks.length > 0) {
+            setTimeout(() => {
+                const el = document.getElementById(`task-${taskId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.style.transition = 'all 0.5s ease';
+                    el.style.backgroundColor = 'var(--color-primary-light)';
+                    el.style.transform = 'scale(1.02)';
+                    el.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
+                    
+                    setTimeout(() => {
+                        el.style.backgroundColor = '';
+                        el.style.transform = '';
+                        el.style.boxShadow = '';
+                    }, 2000);
+                    
+                    navigate(`/assignments/${id}?tab=tasks`, { replace: true });
+                }
             }, 500);
         }
-    }, [location.search, activeTab, chatMessages.length, id]);
+    }, [location.search, activeTab, chatMessages.length, tasks.length, id]);
 
     const assignmentMembers = React.useMemo(() => {
         if (!assignment) return [];
@@ -832,7 +849,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {tasks
                                 .map(t => (
-                                    <div key={t._id} className="card" style={{ padding: '14px 18px' }}>
+                                    <div key={t._id} id={`task-${t._id}`} className="card" style={{ padding: '14px 18px' }}>
                                         {editingTask === t._id ? (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 } as React.CSSProperties}>
                                                 <input className="input" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />

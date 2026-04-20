@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { Plus, Building2, Users, FolderKanban, ChevronRight, ChevronDown, Edit2, Trash2, X, Phone, Mail, Globe, Upload, Download, FileSpreadsheet, FileText } from "lucide-react";
 
@@ -343,6 +344,8 @@ const ClientsPage: React.FC = () => {
         }
     };
 
+    const navigate = useNavigate();
+
     return (
         <div style={{ display: "flex", height: "100%" }}>
             {/* list of companies sidebar */}
@@ -442,6 +445,7 @@ const ClientsPage: React.FC = () => {
                         onDeleteContact={handleDeleteContact}
                         assignments={companyAssignments}
                         loadingAssignments={loadingAssignments}
+                        onProjectClick={(id: string) => navigate(`/assignments/${id}`)}
                     />
                 )}
             </div>
@@ -614,7 +618,7 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, expandedCom
     );
 };
 
-const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEditContact, onDeleteContact, assignments, loadingAssignments }: any) => (
+const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEditContact, onDeleteContact, assignments, loadingAssignments, onProjectClick }: any) => (
     <div>
         <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid var(--color-border)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -872,7 +876,7 @@ const CompanyDetails = ({ company, activeTab, setActiveTab, onAddContact, onEdit
                 ) : assignments.length > 0 ? (
                     <div style={{ display: 'grid', gap: 12 }}>
                         {assignments.map((a: any) => (
-                            <div key={a._id} className="card" style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => window.location.href = `/assignments/${a._id}`}>
+                            <div key={a._id} className="card" style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => onProjectClick(a._id)}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
