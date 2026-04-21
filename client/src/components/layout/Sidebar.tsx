@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import packageJson from '../../../package.json';
 import {
     LayoutDashboard,
     FolderKanban,
@@ -266,7 +267,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                         whiteSpace: 'nowrap'
                     }}
                 >
-                    FlowDesk v1.0.0
+                    FlowDesk v{packageJson.version}
                 </div>
             )}
         </aside>

@@ -60,7 +60,7 @@ export const subscribePush = async (req: AuthRequest, res: Response): Promise<vo
             user.pushSubscriptions.push(subscription);
             await user.save();
         } else {
-            console.log(`ℹ️ Subscription already exists for ${user.name}`);
+            console.log(`Subscription already exists for ${user.name}`);
         }
 
         res.status(201).json({ message: 'Push subscription added successfully' });
