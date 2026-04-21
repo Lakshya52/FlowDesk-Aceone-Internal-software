@@ -105,9 +105,6 @@ function createMainWindow() {
 
   ipcMain.on('reload-app', () => mainWindow?.reload());
 
-  // Handle focus-app request from renderer (e.g. on notification click)
-    }
-  });
 
   // Handle show-notification request from renderer (delegation)
   ipcMain.on('show-notification', (event, payload: { title: string; message: string; link?: string }) => {
