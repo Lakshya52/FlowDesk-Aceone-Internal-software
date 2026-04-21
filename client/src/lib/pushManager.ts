@@ -18,8 +18,15 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export async function registerPushNotifications() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.warn('Push notifications are not supported by this browser.');
+    // Check if running in Electron environment
+    const isElectron = !!window.electronAPI;
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || isElectron) {
+        if (isElectron) {
+            console.info('ℹ️ standard Web Push is not available in Electron. Real-time notifications will be handled via Socket.io.');
+        } else {
+            console.warn('Push notifications are not supported by this browser.');
+        }
         return;
     }
 

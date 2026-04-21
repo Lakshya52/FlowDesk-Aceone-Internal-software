@@ -15,6 +15,22 @@ let updateOverlay: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting = false;
 
+// ─── Single Instance Lock ──────────────────────────────────────────────────
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // ─── Auto-updater configuration ────────────────────────────────────────────
 autoUpdater.autoDownload = true;          // Download silently in background
 autoUpdater.autoInstallOnAppQuit = true;  // Install when user quits normally
