@@ -45,26 +45,38 @@ const Header: React.FC = () => {
         socketRef.current = socket;
 
         socket.on('connect', () => {
+            console.log('📡 Notification socket connected');
             if (user?._id) {
+                console.log(`📡 Joining notification room: user_${user._id}`);
                 socket.emit('join_user', user._id);
             }
         });
 
         socket.on('new_notification', (notification: any) => {
+            console.log('🔔 New notification received via socket:', notification);
             setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
 
-            // Trigger native notification for Electron/Desktop feel
-            if (Notification.permission === 'granted') {
-                new Notification(notification.title, {
-                    body: notification.message,
-                    icon: '/favicon.ico' // Or your app icon
-                }).onclick = () => {
-                    window.focus();
-                    if (notification.link) navigate(notification.link);
-                };
+            // Trigger native notification ONLY in Electron by delegating to main process
+            if (window.electronAPI) {
+                console.log('🔔 Delegating notification to main process for Desktop feel...');
+                window.electronAPI.showNotification({
+                    title: notification.title,
+                    message: notification.message,
+                    link: notification.link
+                });
+            } else {
+                console.log('ℹ️ Browser detected: Native popups are disabled as requested.');
             }
         });
+
+        // Listen for navigation requests from the main process (e.g. from notification click)
+        if (window.electronAPI) {
+            window.electronAPI.onNavigate((link) => {
+                console.log('🔗 Navigation requested from main process:', link);
+                navigate(link);
+            });
+        }
 
         return () => {
             socket.disconnect();

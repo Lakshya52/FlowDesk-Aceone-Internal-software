@@ -18,18 +18,11 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export async function registerPushNotifications() {
-    // Check if running in Electron environment
-    const isElectron = !!window.electronAPI;
+    // Web Push is completely disabled in favor of Electron-only notifications
+    console.info('ℹ️ Web Push notifications are reaching their end of life in this app. Using Electron-only socket notifications.');
+    return;
 
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || isElectron) {
-        if (isElectron) {
-            console.info('ℹ️ standard Web Push is not available in Electron. Real-time notifications will be handled via Socket.io.');
-        } else {
-            console.warn('Push notifications are not supported by this browser.');
-        }
-        return;
-    }
-
+    /* Remaining code is kept for reference but is unreachable
     try {
         console.log('📡 Initializing push notification registration...');
         // Register service worker if not already registered
@@ -69,4 +62,5 @@ export async function registerPushNotifications() {
     } catch (error: any) {
         console.error('❌ Failed to register push notifications:', error);
     }
+    */
 }
