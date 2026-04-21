@@ -52,14 +52,20 @@ var AssignmentStatus;
 const assignmentSchema = new mongoose_1.Schema({
     title: { type: String, required: true, trim: true },
     clientName: { type: String, required: true, trim: true },
+    companyId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Company', default: null },
     description: { type: String, default: '' },
     priority: { type: String, enum: Object.values(Priority), default: Priority.MEDIUM },
     status: { type: String, enum: Object.values(AssignmentStatus), default: AssignmentStatus.NOT_STARTED },
     startDate: { type: Date, required: true },
-    dueDate: { type: Date, required: true },
+    dueDate: { type: Date, default: null },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     team: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
     teams: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Team' }],
+    isRecurring: { type: Boolean, default: false },
+    recurringPattern: { type: String, enum: ['daily', 'weekly', 'monthly', 'yearly'], default: undefined },
+    recurringStartDate: { type: Date, default: undefined },
+    parentAssignmentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Assignment', default: null },
+    canvasData: { type: mongoose_1.Schema.Types.Mixed, default: null },
 }, { timestamps: true });
 assignmentSchema.index({ status: 1 });
 assignmentSchema.index({ dueDate: 1 });

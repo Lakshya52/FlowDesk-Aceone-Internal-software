@@ -8,5 +8,6 @@ router.use(auth_1.authenticate);
 router.get('/', notificationController_1.getNotifications);
 router.put('/:id/read', notificationController_1.markAsRead);
 router.put('/read-all', notificationController_1.markAllAsRead);
+// subscribe/unsubscribe routes removed - native notifications via Electron IPC
 exports.default = router;
 //# sourceMappingURL=notifications.js.map

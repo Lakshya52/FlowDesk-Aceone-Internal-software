@@ -40,29 +40,41 @@ exports.deleteTask = exports.updateTask = exports.getTask = exports.getTasks = e
 const mongoose_1 = __importDefault(require("mongoose"));
 const mongoose = mongoose_1.default;
 const Task_1 = __importDefault(require("../models/Task"));
-const Notification_1 = __importStar(require("../models/Notification"));
 const ActivityLog_1 = __importStar(require("../models/ActivityLog"));
+const notificationService_1 = require("../services/notificationService");
+const Notification_1 = require("../models/Notification");
 const createTask = async (req, res) => {
     try {
+        // Sync project status to "In Progress" if it's currently "Not Started"
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment = await AssignmentModel.findById(req.body.assignment);
+        if (!assignment) {
+            res.status(404).json({ message: 'Assignment not found' });
+            return;
+        }
+        // Authorization check: Admin OR In Team OR Creator
+        const isCreator = assignment.createdBy.toString() === req.user._id.toString();
+        const isInTeam = assignment.team?.some((id) => id.toString() === req.user._id.toString());
+        if (req.user.role !== 'admin' && !isCreator && !isInTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
         const task = await Task_1.default.create({
             ...req.body,
             createdBy: req.user._id,
         });
-        // Sync project status to "In Progress" if it's currently "Not Started"
-        const AssignmentModel = mongoose.model('Assignment');
-        const assignment = await AssignmentModel.findById(task.assignment);
-        if (assignment && assignment.status === 'not_started') {
+        if (assignment.status === 'not_started') {
             assignment.status = 'in_progress';
             await assignment.save();
         }
         // Notify assigned user
         if (task.assignedTo.toString() !== req.user._id.toString()) {
-            await Notification_1.default.create({
+            await (0, notificationService_1.createNotification)({
                 user: task.assignedTo,
                 type: Notification_1.NotificationType.TASK_ASSIGNED,
                 title: 'New Task Assigned',
                 message: `You have been assigned task: ${task.title}`,
-                link: `/assignments/${task.assignment}/tasks/${task._id}`,
+                link: `/assignments/${task.assignment}?tab=tasks&taskId=${task._id}`,
             });
         }
         await ActivityLog_1.default.create({
@@ -85,33 +97,73 @@ const createTask = async (req, res) => {
 exports.createTask = createTask;
 const getTasks = async (req, res) => {
     try {
-        const { assignment: assignmentId, status, priority, assignedTo, search } = req.query;
-        const filter = {};
+        const { assignment: assignmentId, status, priority, assignedTo, search, companyId } = req.query;
+        let andConditions = [];
         if (assignmentId)
-            filter.assignment = assignmentId;
+            andConditions.push({ assignment: assignmentId });
         if (status)
-            filter.status = status;
+            andConditions.push({ status: status });
         if (priority)
-            filter.priority = priority;
+            andConditions.push({ priority: priority });
         if (assignedTo)
-            filter.assignedTo = assignedTo;
+            andConditions.push({ assignedTo: assignedTo });
         if (search) {
-            filter.title = { $regex: search, $options: 'i' };
-        }
-        // Roles and permissions
-        if (req.user.role === 'member') {
-            if (assignmentId) {
-                const AssignmentModel = mongoose.model('Assignment');
-                const assignment = await AssignmentModel.findById(assignmentId);
-                const isPartOfTeam = assignment?.team?.some((id) => id.toString() === req.user._id.toString());
-                if (!isPartOfTeam) {
-                    filter.assignedTo = req.user._id;
-                }
+            const searchRegex = { $regex: search, $options: 'i' };
+            // Search by task title OR by company name via assignment
+            const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+            const CompanyModel = (await Promise.resolve().then(() => __importStar(require('../models/Company')))).default;
+            const matchedCompany = await CompanyModel.findOne({ name: searchRegex });
+            if (matchedCompany) {
+                const companyAssignments = await AssignmentModel.find({ companyId: matchedCompany._id }).distinct('_id');
+                andConditions.push({
+                    $or: [
+                        { title: searchRegex },
+                        { assignment: { $in: companyAssignments } }
+                    ]
+                });
             }
             else {
-                filter.assignedTo = req.user._id;
+                andConditions.push({ title: searchRegex });
             }
         }
+        if (companyId) {
+            const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+            const assignments = await AssignmentModel.find({ companyId }).distinct('_id');
+            andConditions.push({ assignment: { $in: assignments } });
+        }
+        // Roles and permissions visibility enforcement
+        if (req.user.role === 'member') {
+            // Employees see tasks assigned to them OR tasks in projects where they are in the team
+            const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+            const myProjectIds = await AssignmentModel.find({
+                $or: [
+                    { team: req.user._id },
+                    { createdBy: req.user._id }
+                ]
+            }).distinct('_id');
+            andConditions.push({
+                $or: [
+                    { assignedTo: req.user._id },
+                    { assignment: { $in: myProjectIds } }
+                ]
+            });
+        }
+        else if (req.user.role === 'manager') {
+            // Managers see tasks in projects they manage OR projects they are part of
+            const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
+            const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+            const managedTeams = await Team.find({ manager: req.user._id }).distinct('_id');
+            const myProjectIds = await AssignmentModel.find({
+                $or: [
+                    { createdBy: req.user._id },
+                    { teams: { $in: managedTeams } },
+                    { team: req.user._id }
+                ]
+            }).distinct('_id');
+            andConditions.push({ assignment: { $in: myProjectIds } });
+        }
+        // Admins have no additional filters (see all)
+        const filter = andConditions.length > 0 ? { $and: andConditions } : {};
         const tasks = await Task_1.default.find(filter)
             .populate('assignedTo', 'name email avatar')
             .populate('createdBy', 'name email')
@@ -135,6 +187,16 @@ const getTask = async (req, res) => {
             res.status(404).json({ message: 'Task not found' });
             return;
         }
+        // Security check
+        if (req.user.role !== 'admin') {
+            const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+            const assignment = await AssignmentModel.findById(task.assignment);
+            const isMember = assignment?.team?.some((id) => id.toString() === req.user._id.toString());
+            if (!isMember && req.user.role === 'member') {
+                res.status(403).json({ message: 'Access denied' });
+                return;
+            }
+        }
         res.json({ task });
     }
     catch (error) {
@@ -149,28 +211,24 @@ const updateTask = async (req, res) => {
             res.status(404).json({ message: 'Task not found' });
             return;
         }
-        const userRole = req.user.role;
+        // Authorization check: Admin OR In Team OR Creator
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment = await AssignmentModel.findById(oldTask.assignment);
+        const isProjectCreator = assignment?.createdBy.toString() === req.user._id.toString();
+        const isInProjectTeam = assignment?.team?.some((id) => id.toString() === req.user._id.toString());
+        if (req.user.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
+        // Security check for status override
+        if (req.user.role === 'member') {
+            // Member CANNOT set status to completed directly
+            if (req.body.status === 'completed') {
+                req.body.status = 'review';
+            }
+        }
+        // Everyone authorized above to update everything
         const userId = req.user._id.toString();
-        // Permission check
-        if (userRole === 'member') {
-            // Member can only update tasks assigned to them
-            if (oldTask.assignedTo.toString() !== userId) {
-                res.status(403).json({ message: 'You can only update tasks assigned to you.' });
-                return;
-            }
-            // Member can only update status or spent time/subtasks
-            const allowedUpdates = ['status', 'timeSpent', 'subtasks'];
-            const updates = Object.keys(req.body);
-            const isAllowed = updates.every(u => allowedUpdates.includes(u));
-            if (!isAllowed) {
-                res.status(403).json({ message: 'You only have permission to update task status and progress.' });
-                return;
-            }
-        }
-        // Completion workflow: If member marks as completed, set to review
-        if (userRole === 'member' && req.body.status === 'completed') {
-            req.body.status = 'review';
-        }
         const task = await Task_1.default.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
             .populate('assignedTo', 'name email avatar')
             .populate('createdBy', 'name email')
@@ -178,21 +236,23 @@ const updateTask = async (req, res) => {
         // Notify on status change
         if (req.body.status && req.body.status !== oldTask.status) {
             // Notify assigned user
-            await Notification_1.default.create({
-                user: oldTask.assignedTo,
-                type: Notification_1.NotificationType.STATUS_CHANGED,
-                title: 'Task Status Updated',
-                message: `Task "${oldTask.title}" status changed to ${req.body.status}`,
-                link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
-            });
+            if (userId !== oldTask.assignedTo.toString()) {
+                await (0, notificationService_1.createNotification)({
+                    user: oldTask.assignedTo,
+                    type: Notification_1.NotificationType.STATUS_CHANGED,
+                    title: 'Task Status Updated',
+                    message: `Task "${oldTask.title}" status changed to ${req.body.status}`,
+                    link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
+                });
+            }
             // Notify task creator (manager) if someone else updated it
             if (userId !== oldTask.createdBy.toString()) {
-                await Notification_1.default.create({
+                await (0, notificationService_1.createNotification)({
                     user: oldTask.createdBy,
                     type: Notification_1.NotificationType.STATUS_CHANGED,
                     title: 'Task Status Updated',
                     message: `Task "${oldTask.title}" status changed to ${req.body.status} by ${req.user.name}`,
-                    link: `/assignments/${oldTask.assignment}/tasks/${oldTask._id}`,
+                    link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
                 });
             }
         }
@@ -212,11 +272,21 @@ const updateTask = async (req, res) => {
 exports.updateTask = updateTask;
 const deleteTask = async (req, res) => {
     try {
-        const task = await Task_1.default.findByIdAndDelete(req.params.id);
+        const task = await Task_1.default.findById(req.params.id);
         if (!task) {
             res.status(404).json({ message: 'Task not found' });
             return;
         }
+        // Authorization check: Admin OR In Team OR Creator
+        const AssignmentModel = mongoose.model('Assignment');
+        const assignment = await AssignmentModel.findById(task.assignment);
+        const isProjectCreator = assignment?.createdBy.toString() === req.user._id.toString();
+        const isInProjectTeam = assignment?.team?.some((id) => id.toString() === req.user._id.toString());
+        if (req.user.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
+            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
+            return;
+        }
+        await task.deleteOne();
         await ActivityLog_1.default.create({
             action: 'Task deleted',
             user: req.user._id,

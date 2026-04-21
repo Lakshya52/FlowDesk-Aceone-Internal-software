@@ -15,6 +15,14 @@ export interface IUser extends Document {
     lastLogin?: Date;
     resetPasswordOtp?: string;
     resetPasswordExpires?: Date;
+    pushSubscriptions?: {
+        endpoint: string;
+        expirationTime?: number | null;
+        keys: {
+            p256dh: string;
+            auth: string;
+        };
+    }[];
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;

@@ -53,6 +53,16 @@ const userSchema = new mongoose_1.Schema({
     employeeId: { type: String, unique: true, sparse: true },
     avatar: { type: String },
     isActive: { type: Boolean, default: true },
+    pushSubscriptions: [
+        {
+            endpoint: { type: String, required: true },
+            expirationTime: { type: Number },
+            keys: {
+                p256dh: { type: String, required: true },
+                auth: { type: String, required: true },
+            },
+        },
+    ],
     lastLogin: { type: Date },
     resetPasswordOtp: { type: String },
     resetPasswordExpires: { type: Date },

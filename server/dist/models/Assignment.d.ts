@@ -14,6 +14,7 @@ export declare enum AssignmentStatus {
 export interface IAssignment extends Document {
     title: string;
     clientName: string;
+    companyId?: mongoose.Types.ObjectId | null;
     description: string;
     priority: Priority;
     status: AssignmentStatus;
@@ -22,6 +23,11 @@ export interface IAssignment extends Document {
     createdBy: mongoose.Types.ObjectId;
     team: mongoose.Types.ObjectId[];
     teams: mongoose.Types.ObjectId[];
+    isRecurring: boolean;
+    recurringPattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurringStartDate?: Date;
+    parentAssignmentId?: mongoose.Types.ObjectId | null;
+    canvasData?: any;
     createdAt: Date;
     updatedAt: Date;
 }

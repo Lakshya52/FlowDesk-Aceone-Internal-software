@@ -24,11 +24,8 @@ const getDashboardStats = async (req, res) => {
         if (userRole === 'member') {
             assignmentFilter.team = userId;
             taskFilter.assignedTo = userId;
-            // Activity related to their team
-            const userTeams = await Team_1.default.find({ members: userId }).distinct('_id');
             activityFilter['$or'] = [
-                { user: userId },
-                { team: { $in: userTeams } }
+                { user: userId }
             ];
         }
         else if (userRole === 'manager') {
@@ -42,11 +39,11 @@ const getDashboardStats = async (req, res) => {
             // Managers see tasks they assigned OR assigned to their team members
             taskFilter['$or'] = [
                 { assignedTo: { $in: managedMembers } },
-                { createdBy: userId }, // Case where they assigned a task directly
-                { assignedTo: userId } // Case where they are working on a task
+                { createdBy: userId },
+                { assignedTo: userId }
             ];
             activityFilter['$or'] = [
-                { team: { $in: managedTeams } },
+                { user: userId },
                 { user: { $in: managedMembers } },
                 { user: userId }
             ];
@@ -93,64 +90,33 @@ const getDashboardStats = async (req, res) => {
             .skip(skip)
             .limit(limit);
         const totalActivities = await ActivityLog_1.default.countDocuments(activityFilter);
-        // Team workload (admin/manager only)
-        let teamWorkload = [];
-        if (userRole === 'admin') {
-            teamWorkload = await Task_1.default.aggregate([
-                { $match: { status: { $ne: 'completed' } } },
-                { $group: { _id: '$assignedTo', taskCount: { $sum: 1 } } },
-                {
-                    $lookup: {
-                        from: 'users',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'user',
-                    },
+        // Team workload (Available to everyone)
+        const teamWorkload = await Task_1.default.aggregate([
+            { $match: { status: { $ne: 'completed' } } },
+            { $group: { _id: '$assignedTo', taskCount: { $sum: 1 } } },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'user',
                 },
-                { $unwind: '$user' },
-                {
-                    $project: {
-                        _id: 0,
-                        userId: '$_id',
-                        name: '$user.name',
-                        email: '$user.email',
-                        avatar: '$user.avatar',
-                        taskCount: 1,
-                    },
+            },
+            { $unwind: '$user' },
+            {
+                $project: {
+                    _id: 0,
+                    userId: '$_id',
+                    name: '$user.name',
+                    email: '$user.email',
+                    avatar: '$user.avatar',
+                    taskCount: 1,
                 },
-                { $sort: { taskCount: -1 } },
-                { $limit: 10 },
-            ]);
-        }
-        else if (userRole === 'manager') {
-            const managedMembers = await Team_1.default.find({ manager: userId }).distinct('members');
-            teamWorkload = await Task_1.default.aggregate([
-                { $match: { assignedTo: { $in: managedMembers }, status: { $ne: 'completed' } } },
-                { $group: { _id: '$assignedTo', taskCount: { $sum: 1 } } },
-                {
-                    $lookup: {
-                        from: 'users',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'user',
-                    },
-                },
-                { $unwind: '$user' },
-                {
-                    $project: {
-                        _id: 0,
-                        userId: '$_id',
-                        name: '$user.name',
-                        email: '$user.email',
-                        avatar: '$user.avatar',
-                        taskCount: 1,
-                    },
-                },
-                { $sort: { taskCount: -1 } },
-                { $limit: 10 },
-            ]);
-        }
-        // Upcoming deadlines (role-based)
+            },
+            { $sort: { taskCount: -1 } },
+            { $limit: 10 },
+        ]);
+        // Upcoming deadlines
         const upcomingDeadlines = await Task_1.default.find({
             ...taskFilter,
             dueDate: { $gte: todayStart },
@@ -242,18 +208,43 @@ const getReportFilters = async (req, res) => {
         let teams = [];
         let employees = [];
         if (userRole === 'admin') {
-            teams = await Team_1.default.find().select('name members manager');
-            employees = await User_1.default.find().select('name email employeeId');
+            teams = await Team_1.default.find().select('name _id members manager').lean();
+            employees = await User_1.default.find().select('name _id email employeeId').lean();
         }
         else if (userRole === 'manager') {
-            teams = await Team_1.default.find({ manager: userId }).select('name members manager');
+            // Include teams managed by the user AND teams where they are a member
+            teams = await Team_1.default.find({
+                $or: [
+                    { manager: userId },
+                    { members: userId }
+                ]
+            }).select('name _id members manager').lean();
             const teamIds = teams.map(t => t._id);
             const teamMembers = await Team_1.default.find({ _id: { $in: teamIds } }).distinct('members');
-            employees = await User_1.default.find({ _id: { $in: [...teamMembers, userId] } }).select('name email employeeId');
+            employees = await User_1.default.find({
+                $or: [
+                    { _id: { $in: [...teamMembers, userId] } },
+                    { _id: userId }
+                ]
+            }).select('name _id email employeeId').lean();
         }
-        res.json({ teams, employees });
+        else {
+            // For members, let them see their own teams and teammates
+            teams = await Team_1.default.find({ members: userId }).select('name _id members manager').lean();
+            const teamIds = teams.map(t => t._id);
+            const teamMembers = await Team_1.default.find({ _id: { $in: teamIds } }).distinct('members');
+            employees = await User_1.default.find({
+                _id: { $in: [...teamMembers, userId] }
+            }).select('name _id email employeeId').lean();
+        }
+        // Ensure we always return arrays and non-null values
+        res.json({
+            teams: Array.isArray(teams) ? teams : [],
+            employees: Array.isArray(employees) ? employees : []
+        });
     }
     catch (error) {
+        console.error('Error in getReportFilters:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -327,17 +318,10 @@ const getReports = async (req, res) => {
             .populate('assignment', 'title')
             .sort({ dueDate: 1 });
         // Assignment completion analytics (Filtered by team if provided)
+        // Everyone sees assignment stats
         const assignmentFilter = {};
         if (teamId) {
             assignmentFilter.teams = teamId;
-        }
-        else if (userRole === 'manager') {
-            const managedTeams = await Team_1.default.find({ manager: userId }).distinct('_id');
-            assignmentFilter.teams = { $in: managedTeams };
-        }
-        else if (userRole === 'member') {
-            // Check if the user is in the 'team' array (participants)
-            assignmentFilter.team = userId;
         }
         const assignmentStats = await Assignment_1.default.aggregate([
             { $match: assignmentFilter },
@@ -399,23 +383,23 @@ const globalSearch = async (req, res) => {
         const assignmentFilter = { $or: [{ title: searchRegex }, { clientName: searchRegex }] };
         const userFilter = { $or: [{ name: searchRegex }, { email: searchRegex }, { employeeId: searchRegex }] };
         const teamFilter = { name: searchRegex };
+        // Role-based visibility
         if (userRole === 'member') {
             taskFilter.assignedTo = userId;
             assignmentFilter.team = userId;
             const myTeams = await Team_1.default.find({ members: userId }).distinct('_id');
             teamFilter._id = { $in: myTeams };
-            // Members can see users only in their teams? Let's say all users for now or filter by team
             const teamMembers = await Team_1.default.find({ members: userId }).distinct('members');
             userFilter._id = { $in: teamMembers };
         }
         else if (userRole === 'manager') {
             const managedTeams = await Team_1.default.find({ manager: userId }).distinct('_id');
             const managedMembers = await Team_1.default.find({ manager: userId }).distinct('members');
-            // Can see all their managed stuff
             taskFilter.assignedTo = { $in: [...managedMembers, userId] };
+            assignmentFilter.$or = assignmentFilter.$or || [];
             assignmentFilter.$or.push({ teams: { $in: managedTeams } });
             teamFilter.$or = [{ manager: userId }, { _id: { $in: managedTeams } }];
-            userFilter._id = { $in: managedMembers };
+            userFilter._id = { $in: [userId, ...managedMembers] };
         }
         const [tasks, assignments, users, teams] = await Promise.all([
             Task_1.default.find(taskFilter).limit(5).populate('assignedTo', 'name').populate('assignment', 'title'),

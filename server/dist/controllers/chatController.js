@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -13,6 +46,23 @@ const gridfs_1 = require("../utils/gridfs");
 const sendMessage = async (req, res) => {
     try {
         const { content, assignmentId, attachments: bodyAttachments, mentions, parentMessageId } = req.body;
+        if (!assignmentId) {
+            res.status(400).json({ message: 'assignmentId is required' });
+            return;
+        }
+        // Authorization: user must be on the assignment team or be the creator
+        const AssignmentModel = (await Promise.resolve().then(() => __importStar(require('../models/Assignment')))).default;
+        const assignment = await AssignmentModel.findById(assignmentId);
+        if (!assignment) {
+            res.status(404).json({ message: 'Assignment not found' });
+            return;
+        }
+        const isInTeam = assignment.team?.some((id) => id.toString() === req.user._id.toString());
+        const isCreator = assignment.createdBy.toString() === req.user._id.toString();
+        if (req.user.role !== 'admin' && !isInTeam && !isCreator) {
+            res.status(403).json({ message: 'Not authorized to send messages in this assignment' });
+            return;
+        }
         let attachmentIds = [];
         if (bodyAttachments && Array.isArray(bodyAttachments) && bodyAttachments.length > 0) {
             for (const att of bodyAttachments) {
@@ -98,6 +148,10 @@ const getMessages = async (req, res) => {
         }
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
+        if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
+            res.status(400).json({ message: 'Invalid pagination parameters' });
+            return;
+        }
         const skip = (pageNum - 1) * limitNum;
         const total = await ChatMessage_1.default.countDocuments({ assignment: assignmentId });
         const messages = await ChatMessage_1.default.find({ assignment: assignmentId })

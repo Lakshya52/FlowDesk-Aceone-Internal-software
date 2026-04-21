@@ -3,7 +3,6 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { registerPushNotifications } from '../../lib/pushManager';
 
 const AppLayout: React.FC = () => {
     const { user } = useAuthStore();
@@ -49,11 +48,7 @@ const AppLayout: React.FC = () => {
         };
     }, [resize, stopResizing]);
 
-    React.useEffect(() => {
-        if (user) {
-            registerPushNotifications();
-        }
-    }, [user]);
+    // Notifications are fully handled by Electron main process via IPC - no browser setup needed
 
     if (!user) {
         return <Navigate to="/login" state={{ from: location }} replace />;

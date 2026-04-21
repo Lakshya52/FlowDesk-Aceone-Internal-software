@@ -13,7 +13,7 @@ router.put('/users/:id', auth_1.authenticate, (0, auth_1.authorize)('admin'), au
 router.delete('/users/:id', (0, auth_1.authorize)('admin'), authController_1.deleteUser);
 router.put('/users/:id/avatar', upload_1.upload.single('avatar'), authController_1.uploadAvatar);
 router.delete('/users/:id/avatar', authController_1.removeAvatar);
-router.delete('/users/:id/permanent', (0, auth_1.authorize)('admin'), authController_1.permanentDeleteUser);
+router.delete('/users/:id/permanent', (0, auth_1.authorize)('admin', 'manager'), authController_1.permanentDeleteUser);
 router.put('/change-password', auth_1.authenticate, authController_1.changePassword);
 router.post('/forgot-password', authController_1.forgotPassword);
 router.post('/verify-forgot-password-otp', authController_1.verifyForgotPasswordOtp);

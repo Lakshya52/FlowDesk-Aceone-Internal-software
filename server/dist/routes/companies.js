@@ -7,8 +7,10 @@ const router = (0, express_1.Router)();
 router.use(auth_1.authenticate);
 // Import/Export routes (must come before /:id to avoid conflicts)
 router.post('/import', companyController_1.upload.single('file'), companyController_1.importCompanies);
+router.get('/import/sample', companyController_1.downloadSampleExcel);
 router.get('/export/excel', companyController_1.exportCompaniesToExcel);
 router.get('/export/pdf', companyController_1.exportCompaniesToPDF);
+router.post('/bulk-email', companyController_1.sendBulkCompanyEmail);
 // Company routes
 router.post('/', companyController_1.createCompany);
 router.get('/', companyController_1.getCompanies);

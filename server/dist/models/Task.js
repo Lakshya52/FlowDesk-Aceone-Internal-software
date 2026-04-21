@@ -59,7 +59,7 @@ const taskSchema = new mongoose_1.Schema({
     assignment: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     assignedTo: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
-    dueDate: { type: Date, required: true },
+    dueDate: { type: Date },
     priority: { type: String, enum: Object.values(Priority), default: Priority.MEDIUM },
     status: { type: String, enum: Object.values(TaskStatus), default: TaskStatus.TODO },
     subtasks: [subtaskSchema],
