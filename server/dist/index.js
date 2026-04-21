@@ -26,6 +26,8 @@ const teams_1 = __importDefault(require("./routes/teams"));
 const chat_1 = __importDefault(require("./routes/chat"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const companies_1 = __importDefault(require("./routes/companies"));
+const canvas_1 = __importDefault(require("./routes/canvas"));
+const recurringTaskService_1 = require("./services/recurringTaskService");
 const errorHandler_1 = require("./middlewares/errorHandler");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -114,6 +116,7 @@ app.use('/api/teams', teams_1.default);
 app.use('/api/chat', chat_1.default);
 app.use('/api/reports', reports_1.default);
 app.use('/api/companies', companies_1.default);
+app.use('/api/canvas', canvas_1.default);
 // Socket.io connection logic
 io.on('connection', (socket) => {
     socket.on('join_assignment', (assignmentId) => {
@@ -149,13 +152,14 @@ const startServer = async () => {
             serverSelectionTimeoutMS: 5000,
             family: 4, // Force IPv4
         });
-        console.log('âœ… Connected to MongoDB');
+        console.log('✅ Connected to MongoDB');
         server.listen(PORT, () => {
-            console.log(`ðŸš€ Server running on port ${PORT}`);
+            console.log(`🚀 Server running on port ${PORT}`);
+            (0, recurringTaskService_1.startRecurringJob)();
         });
     }
     catch (error) {
-        console.error('âŒ Failed to connect to MongoDB:', error);
+        console.error('❌ Failed to connect to MongoDB:', error);
         process.exit(1);
     }
 };

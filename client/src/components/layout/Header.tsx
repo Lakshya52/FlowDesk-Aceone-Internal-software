@@ -34,10 +34,7 @@ const Header: React.FC = () => {
         };
         fetchNotifications();
 
-        // Request notification permission for native alerts
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
+        // Native notifications handled by Electron via IPC (no browser permission needed)
 
         // Socket connection for notifications
         const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
@@ -65,9 +62,8 @@ const Header: React.FC = () => {
                     message: notification.message,
                     link: notification.link
                 });
-            } else {
-                console.log('ℹ️ Browser detected: Native popups are disabled as requested.');
             }
+            // In browser: no notifications shown (Electron-only feature)
         });
 
         // Listen for navigation requests from the main process (e.g. from notification click)

@@ -48,7 +48,7 @@ const createTeam = async (req, res) => {
         await ActivityLog_1.default.create({
             action: 'Team created',
             user: req.user._id,
-            entityType: ActivityLog_1.EntityType.USER,
+            entityType: ActivityLog_1.EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name },
         });
@@ -125,7 +125,7 @@ const updateTeam = async (req, res) => {
         await ActivityLog_1.default.create({
             action: 'Team updated',
             user: req.user._id,
-            entityType: ActivityLog_1.EntityType.USER,
+            entityType: ActivityLog_1.EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name, updates: Object.keys(req.body) },
         });
@@ -152,7 +152,7 @@ const deleteTeam = async (req, res) => {
         await ActivityLog_1.default.create({
             action: 'Team deleted',
             user: req.user._id,
-            entityType: ActivityLog_1.EntityType.USER,
+            entityType: ActivityLog_1.EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name },
         });
@@ -185,7 +185,7 @@ const updateTeamMembers = async (req, res) => {
         await ActivityLog_1.default.create({
             action: 'Team members updated',
             user: req.user._id,
-            entityType: ActivityLog_1.EntityType.USER,
+            entityType: ActivityLog_1.EntityType.TEAM,
             entityId: team._id,
             metadata: { teamName: team.name, memberCount: members.length },
         });

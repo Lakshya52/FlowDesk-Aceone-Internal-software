@@ -42,6 +42,9 @@ var EntityType;
     EntityType["COMMENT"] = "comment";
     EntityType["ATTACHMENT"] = "attachment";
     EntityType["USER"] = "user";
+    EntityType["COMPANY"] = "company";
+    EntityType["CONTACT"] = "contact";
+    EntityType["TEAM"] = "team";
 })(EntityType || (exports.EntityType = EntityType = {}));
 const activityLogSchema = new mongoose_1.Schema({
     action: { type: String, required: true },

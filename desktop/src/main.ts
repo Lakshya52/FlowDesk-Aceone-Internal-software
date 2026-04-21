@@ -108,26 +108,31 @@ function createMainWindow() {
 
   // Handle show-notification request from renderer (delegation)
   ipcMain.on('show-notification', (event, payload: { title: string; message: string; link?: string }) => {
-    // Look for icon.png in assets folder
+    // Use icon.png for notifications (falls back to ico if png not found)
     const iconPath = path.join(__dirname, '../assets/icon.png');
-    
+
     const notification = new Notification({
       title: payload.title,
       body: payload.message,
       icon: iconPath,
+      silent: false,
     });
 
     notification.on('click', () => {
-      console.log(`🔔 Notification clicked: ${payload.title}`);
+      console.log(`[Notification] Clicked: ${payload.title}`);
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         if (!mainWindow.isVisible()) mainWindow.show();
         mainWindow.focus();
-        
+
         if (payload.link) {
           mainWindow.webContents.send('navigate-requested', payload.link);
         }
       }
+    });
+
+    notification.on('show', () => {
+      console.log(`[Notification] Shown: ${payload.title}`);
     });
 
     notification.show();

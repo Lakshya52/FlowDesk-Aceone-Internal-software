@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.markAllAsRead = exports.markAsRead = exports.getNotifications = void 0;
+exports.unsubscribePush = exports.subscribePush = exports.markAllAsRead = exports.markAsRead = exports.getNotifications = void 0;
 const Notification_1 = __importDefault(require("../models/Notification"));
 const getNotifications = async (req, res) => {
     try {
@@ -38,4 +38,13 @@ const markAllAsRead = async (req, res) => {
     }
 };
 exports.markAllAsRead = markAllAsRead;
+// Push subscriptions removed - notifications now use Electron native via Socket.IO
+const subscribePush = async (_req, res) => {
+    res.status(410).json({ message: 'Push subscriptions are deprecated. Native notifications handled via Electron.' });
+};
+exports.subscribePush = subscribePush;
+const unsubscribePush = async (_req, res) => {
+    res.status(410).json({ message: 'Push subscriptions are deprecated. Native notifications handled via Electron.' });
+};
+exports.unsubscribePush = unsubscribePush;
 //# sourceMappingURL=notificationController.js.map

@@ -21,38 +21,48 @@ const getBaseFilters = async (req) => {
     const { teamId, employeeId, projectId, status, startDate, endDate } = req.query;
     let userFilter = {};
     let teamFilter = {};
-    let assignmentFilter = {};
-    let taskMatch = {};
+    const taskMatch = {};
+    const activityMatch = {};
     // 1. Role-based scoping
     if (userRole === 'member') {
         userFilter._id = userId;
         teamFilter.members = userId;
-        assignmentFilter.team = userId;
         taskMatch.assignedTo = userId;
+        activityMatch.user = userId;
     }
     else if (userRole === 'manager') {
         const managedTeams = await Team_1.default.find({ manager: userId }).distinct('_id');
         const managedMembers = await Team_1.default.find({ manager: userId }).distinct('members');
         if (teamId) {
-            teamFilter._id = new mongoose_1.default.Types.ObjectId(teamId);
-            const team = await Team_1.default.findById(teamId);
-            userFilter._id = { $in: team?.members || [] };
+            const tId = new mongoose_1.default.Types.ObjectId(teamId);
+            teamFilter._id = tId;
+            const team = await Team_1.default.findById(tId);
+            const roster = [...(team?.members || []), team?.manager].filter(Boolean);
+            userFilter._id = { $in: roster };
+            taskMatch.assignedTo = { $in: roster };
+            activityMatch.user = { $in: roster };
         }
         else {
             teamFilter._id = { $in: managedTeams };
-            userFilter._id = { $in: managedMembers };
+            const roster = Array.from(new Set([...managedMembers, userId]));
+            userFilter._id = { $in: roster };
+            taskMatch.assignedTo = { $in: roster };
+            activityMatch.user = { $in: roster };
         }
-        assignmentFilter.$or = [
-            { createdBy: userId },
-            { teams: { $in: managedTeams } }
-        ];
     }
     else if (userRole === 'admin') {
         if (teamId) {
-            teamFilter._id = new mongoose_1.default.Types.ObjectId(teamId);
+            const team = await Team_1.default.findById(teamId);
+            const roster = [...(team?.members || []), team?.manager].filter(Boolean);
+            taskMatch.assignedTo = { $in: roster };
+            activityMatch.user = { $in: roster };
+            userFilter._id = { $in: roster };
         }
         if (employeeId) {
-            userFilter._id = new mongoose_1.default.Types.ObjectId(employeeId);
+            const eId = new mongoose_1.default.Types.ObjectId(employeeId);
+            userFilter._id = eId;
+            taskMatch.assignedTo = eId;
+            activityMatch.user = eId;
         }
     }
     // 2. Query-based filters
@@ -60,15 +70,20 @@ const getBaseFilters = async (req) => {
         taskMatch.status = status;
     if (projectId)
         taskMatch.assignment = new mongoose_1.default.Types.ObjectId(projectId);
-    if (employeeId)
-        taskMatch.assignedTo = new mongoose_1.default.Types.ObjectId(employeeId);
-    if (startDate && endDate) {
-        taskMatch.createdAt = {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
-        };
+    if (startDate || endDate) {
+        const dateFilter = {};
+        if (startDate)
+            dateFilter.$gte = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter.$lte = end;
+        }
+        // For reports, we typically care about activity occurring in the range
+        taskMatch.updatedAt = dateFilter;
+        activityMatch.createdAt = dateFilter;
     }
-    return { userFilter, teamFilter, assignmentFilter, taskMatch };
+    return { userFilter, teamFilter, taskMatch, activityMatch };
 };
 const getEmployeeTrackingReport = async (req, res) => {
     try {
@@ -193,10 +208,15 @@ const getWorkloadReport = async (req, res) => {
 exports.getWorkloadReport = getWorkloadReport;
 const getActivityReport = async (req, res) => {
     try {
-        const { taskMatch, assignmentFilter } = await getBaseFilters(req);
-        // Attachment Activity
+        const { activityMatch, taskMatch } = await getBaseFilters(req);
+        // Attachment Activity - filtered by project if specified
+        const attachmentMatch = { assignment: { $exists: true } };
+        if (taskMatch.assignment)
+            attachmentMatch.assignment = taskMatch.assignment;
+        if (taskMatch.createdAt)
+            attachmentMatch.createdAt = taskMatch.createdAt;
         const fileCountPerProject = await Attachment_1.default.aggregate([
-            { $match: { assignment: { $exists: true } } },
+            { $match: attachmentMatch },
             { $group: { _id: '$assignment', fileCount: { $sum: 1 } } },
             { $lookup: { from: 'assignments', localField: '_id', foreignField: '_id', as: 'project' } },
             { $unwind: '$project' },
@@ -204,17 +224,18 @@ const getActivityReport = async (req, res) => {
             { $sort: { fileCount: -1 } },
             { $limit: 10 }
         ]);
-        // Activity Logs
+        // Activity Logs - filtered by user/team/date
         const activityDistribution = await ActivityLog_1.default.aggregate([
+            { $match: activityMatch },
             { $group: { _id: '$action', count: { $sum: 1 } } },
             { $sort: { count: -1 } },
             { $limit: 8 }
         ]);
-        const recentActivities = await ActivityLog_1.default.find()
+        const recentActivities = await ActivityLog_1.default.find(activityMatch)
             .populate('user', 'name avatar')
             .sort({ createdAt: -1 })
             .limit(15);
-        const totalActivities = await ActivityLog_1.default.countDocuments();
+        const totalActivities = await ActivityLog_1.default.countDocuments(activityMatch);
         res.json({
             data: {
                 fileCountPerProject,
@@ -236,7 +257,7 @@ const exportReport = async (req, res) => {
             res.status(400).json({ message: 'Missing type or reportType query parameters' });
             return;
         }
-        const { taskMatch } = await getBaseFilters(req);
+        const { taskMatch, activityMatch } = await getBaseFilters(req);
         let dataToExport = [];
         let columns = [];
         if (reportType === 'employee') {
@@ -285,7 +306,9 @@ const exportReport = async (req, res) => {
         }
         else if (reportType === 'activity') {
             dataToExport = await ActivityLog_1.default.aggregate([
-                { $group: { _id: '$action', count: { $sum: 1 } } }
+                { $match: activityMatch },
+                { $group: { _id: '$action', count: { $sum: 1 } } },
+                { $sort: { count: -1 } }
             ]);
             columns = [
                 { header: 'Action', key: '_id', width: 30 },

@@ -7,7 +7,8 @@ export declare enum NotificationType {
     MENTION = "mention",
     COMMENT_ADDED = "comment_added",
     REPLY = "reply",
-    DIRECT_MESSAGE = "direct_message"
+    DIRECT_MESSAGE = "direct_message",
+    PROJECT_CREATED = "project_created"
 }
 export interface INotification extends Document {
     user: mongoose.Types.ObjectId;

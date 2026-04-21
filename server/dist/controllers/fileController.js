@@ -131,6 +131,10 @@ const deleteFile = async (req, res) => {
             res.status(404).json({ message: 'File not found' });
             return;
         }
+        if (req.user.role !== 'admin' && attachment.uploadedBy.toString() !== req.user._id.toString()) {
+            res.status(403).json({ message: 'Not authorized to delete this file' });
+            return;
+        }
         if (attachment.fileName) {
             await (0, gridfs_1.deleteFromGridFS)(attachment.fileName);
         }

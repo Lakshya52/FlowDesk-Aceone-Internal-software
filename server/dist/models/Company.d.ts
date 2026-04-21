@@ -5,6 +5,7 @@ export interface ICompany extends Document {
     industry?: string;
     description?: string;
     website?: string;
+    email?: string;
     phone?: string;
     address?: {
         street?: string;

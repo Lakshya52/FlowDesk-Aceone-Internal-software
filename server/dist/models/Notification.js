@@ -45,6 +45,7 @@ var NotificationType;
     NotificationType["COMMENT_ADDED"] = "comment_added";
     NotificationType["REPLY"] = "reply";
     NotificationType["DIRECT_MESSAGE"] = "direct_message";
+    NotificationType["PROJECT_CREATED"] = "project_created";
 })(NotificationType || (exports.NotificationType = NotificationType = {}));
 const notificationSchema = new mongoose_1.Schema({
     user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },

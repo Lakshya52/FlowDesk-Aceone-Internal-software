@@ -12,7 +12,7 @@ export interface NotificationPayload {
  */
 export declare const createNotification: (payload: NotificationPayload) => Promise<INotification>;
 /**
- * Bulk create notifications and emit them
+ * Bulk create notifications and emit them via Socket.IO
  */
 export declare const createNotifications: (payloads: NotificationPayload[]) => Promise<INotification[]>;
 //# sourceMappingURL=notificationService.d.ts.map

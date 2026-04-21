@@ -18,20 +18,21 @@ const createNotification = async (payload) => {
         link: payload.link,
         isRead: false,
     });
-    // Emit real-time notification to the user's specific room
+    // Emit real-time notification to the user's specific room via Socket.IO
+    console.log(`[Socket] Emitting notification to user_${payload.user.toString()}`);
     index_1.io.to(`user_${payload.user.toString()}`).emit('new_notification', notification);
     return notification;
 };
 exports.createNotification = createNotification;
 /**
- * Bulk create notifications and emit them
+ * Bulk create notifications and emit them via Socket.IO
  */
 const createNotifications = async (payloads) => {
     const notifications = await Notification_1.default.insertMany(payloads);
-    // Emit to each user
-    notifications.forEach((notif) => {
+    // Emit to each user's socket room
+    for (const notif of notifications) {
         index_1.io.to(`user_${notif.user.toString()}`).emit('new_notification', notif);
-    });
+    }
     return notifications;
 };
 exports.createNotifications = createNotifications;
