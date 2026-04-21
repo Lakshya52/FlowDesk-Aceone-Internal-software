@@ -2,16 +2,17 @@ import { Response } from 'express';
 import mongooseLib from 'mongoose';
 const mongoose = mongooseLib;
 import Task from '../models/Task';
-import Notification, { NotificationType } from '../models/Notification';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
+import { createNotification } from '../services/notificationService';
+import { NotificationType } from '../models/Notification';
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         // Sync project status to "In Progress" if it's currently "Not Started"
         const AssignmentModel = mongoose.model('Assignment');
         const assignment: any = await AssignmentModel.findById(req.body.assignment);
-        
+
         if (!assignment) {
             res.status(404).json({ message: 'Assignment not found' });
             return;
@@ -20,7 +21,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
         // Authorization check: Admin OR In Team OR Creator
         const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
         const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
-        
+
         if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
             res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
             return;
@@ -38,7 +39,7 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
         // Notify assigned user
         if (task.assignedTo.toString() !== req.user!._id.toString()) {
-            await Notification.create({
+            await createNotification({
                 user: task.assignedTo,
                 type: NotificationType.TASK_ASSIGNED,
                 title: 'New Task Assigned',
@@ -104,7 +105,7 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
         if (req.user!.role === 'member') {
             // Employees see tasks assigned to them OR tasks in projects where they are in the team
             const AssignmentModel = (await import('../models/Assignment')).default;
-            const myProjectIds = await AssignmentModel.find({ 
+            const myProjectIds = await AssignmentModel.find({
                 $or: [
                     { team: req.user!._id },
                     { createdBy: req.user!._id }
@@ -193,7 +194,7 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
         const assignment: any = await AssignmentModel.findById(oldTask.assignment);
         const isProjectCreator = assignment?.createdBy.toString() === req.user!._id.toString();
         const isInProjectTeam = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
-        
+
         if (req.user!.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
             res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
             return;
@@ -201,12 +202,12 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
 
         // Security check for status override
         if (req.user!.role === 'member') {
-             // Member CANNOT set status to completed directly
-             if (req.body.status === 'completed') {
-                 req.body.status = 'review';
-             }
+            // Member CANNOT set status to completed directly
+            if (req.body.status === 'completed') {
+                req.body.status = 'review';
+            }
         }
-        
+
         // Everyone authorized above to update everything
         const userId = req.user!._id.toString();
 
@@ -218,17 +219,19 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
         // Notify on status change
         if (req.body.status && req.body.status !== oldTask.status) {
             // Notify assigned user
-            await Notification.create({
-                user: oldTask.assignedTo,
-                type: NotificationType.STATUS_CHANGED,
-                title: 'Task Status Updated',
-                message: `Task "${oldTask.title}" status changed to ${req.body.status}`,
-                link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
-            });
+            if (userId !== oldTask.assignedTo.toString()) {
+                await createNotification({
+                    user: oldTask.assignedTo,
+                    type: NotificationType.STATUS_CHANGED,
+                    title: 'Task Status Updated',
+                    message: `Task "${oldTask.title}" status changed to ${req.body.status}`,
+                    link: `/assignments/${oldTask.assignment}?tab=tasks&taskId=${oldTask._id}`,
+                });
+            }
 
             // Notify task creator (manager) if someone else updated it
             if (userId !== oldTask.createdBy.toString()) {
-                await Notification.create({
+                await createNotification({
                     user: oldTask.createdBy,
                     type: NotificationType.STATUS_CHANGED,
                     title: 'Task Status Updated',
@@ -265,7 +268,7 @@ export const deleteTask = async (req: AuthRequest, res: Response): Promise<void>
         const assignment: any = await AssignmentModel.findById(task.assignment);
         const isProjectCreator = assignment?.createdBy.toString() === req.user!._id.toString();
         const isInProjectTeam = assignment?.team?.some((id: any) => id.toString() === req.user!._id.toString());
-        
+
         if (req.user!.role !== 'admin' && !isProjectCreator && !isInProjectTeam) {
             res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
             return;

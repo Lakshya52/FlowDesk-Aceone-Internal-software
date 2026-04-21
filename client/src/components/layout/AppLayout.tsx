@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { registerPushNotifications } from '../../lib/pushManager';
 
 const AppLayout: React.FC = () => {
     const { user } = useAuthStore();
@@ -39,7 +40,6 @@ const AppLayout: React.FC = () => {
         },
         [isResizing]
     );
-
     React.useEffect(() => {
         window.addEventListener("mousemove", resize);
         window.addEventListener("mouseup", stopResizing);
@@ -48,6 +48,12 @@ const AppLayout: React.FC = () => {
             window.removeEventListener("mouseup", stopResizing);
         };
     }, [resize, stopResizing]);
+
+    React.useEffect(() => {
+        if (user) {
+            registerPushNotifications();
+        }
+    }, [user]);
 
     if (!user) {
         return <Navigate to="/login" state={{ from: location }} replace />;

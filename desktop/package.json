@@ -1,6 +1,6 @@
 {
   "name": "flowdesk-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Desktop wrapper for FlowDesk SaaS",
   "main": "dist/main.js",
   "author": "FlowDesk Team",
@@ -41,7 +41,9 @@
       {
         "from": "assets/",
         "to": "assets/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {

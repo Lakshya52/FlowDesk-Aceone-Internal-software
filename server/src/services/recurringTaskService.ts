@@ -1,6 +1,8 @@
 import Assignment from '../models/Assignment';
-import Task from '../models/Task';
+import Task, { ITask } from '../models/Task';
 import mongoose from 'mongoose';
+import { createNotifications, NotificationPayload } from './notificationService';
+import { NotificationType } from '../models/Notification';
 
 export const processRecurringAssignments = async () => {
     try {
@@ -18,13 +20,13 @@ export const processRecurringAssignments = async () => {
         for (const template of templates) {
             // Check if we already spawned an assignment for the current cycle
             const lastChild = await Assignment.findOne({
-                 parentAssignmentId: template._id 
+                parentAssignmentId: template._id
             }).sort({ startDate: -1 });
 
             let shouldSpawn = false;
             let nextStartDate = new Date(template.recurringStartDate!);
             nextStartDate.setHours(0, 0, 0, 0);
-            
+
             if (!lastChild) {
                 // Never spawned before, and we are past or at start date
                 if (nextStartDate <= today) {
@@ -58,7 +60,7 @@ export const processRecurringAssignments = async () => {
                 if (template.startDate && template.dueDate) {
                     const templateStart = new Date(template.startDate);
                     const templateDue = new Date(template.dueDate);
-                    
+
                     // Only calculate if templateDue is valid and after templateStart
                     if (templateDue.getFullYear() > 1970) {
                         const durationMs = templateDue.getTime() - templateStart.getTime();
@@ -79,7 +81,7 @@ export const processRecurringAssignments = async () => {
                     createdBy: template.createdBy,
                     team: template.team,
                     teams: template.teams,
-                    isRecurring: false, 
+                    isRecurring: false,
                     parentAssignmentId: template._id,
                 });
 
@@ -112,11 +114,51 @@ export const processRecurringAssignments = async () => {
     }
 };
 
+// Process tasks that are near deadline (24 hours)
+export const processTaskDeadlines = async () => {
+    try {
+        const now = new Date();
+        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        
+        // Find tasks due within the next 24 hours that are NOT completed
+        // Also check if they have already triggered the deadline notification (optional, but to avoid spam, we should probably record it. 
+        // For now, let's keep it simple: just notify anything due between now and 24 hours from now)
+        // A better approach is to check if it's due exactly between 23h and 24h from now to only run once per task.
+        
+        const in23Hours = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+
+        const soonTasks = await Task.find({
+            dueDate: { $gte: in23Hours, $lte: tomorrow },
+            status: { $ne: 'completed' },
+            assignedTo: { $exists: true, $ne: null }
+        }).populate('assignment', 'title');
+
+        if (soonTasks.length > 0) {
+            const payloads: NotificationPayload[] = soonTasks.map(task => ({
+                user: task.assignedTo.toString(),
+                type: NotificationType.DEADLINE_APPROACHING,
+                title: 'Task Deadline Approaching',
+                message: `Your task "${task.title}" is due in 24 hours.`,
+                link: `/assignments/${(task.assignment as any)._id}?tab=tasks&taskId=${task._id}`
+            }));
+
+            await createNotifications(payloads);
+            console.log(`[Deadline Checker] Sent ${payloads.length} deadline notifications.`);
+        }
+    } catch (error) {
+        console.error('[Deadline Checker] Error processing task deadlines:', error);
+    }
+};
+
 // Start the background job
 export const startRecurringJob = () => {
     // Run once on start
     processRecurringAssignments();
+    processTaskDeadlines();
     
     // Then run every hour
-    setInterval(processRecurringAssignments, 1000 * 60 * 60);
+    setInterval(() => {
+        processRecurringAssignments();
+        processTaskDeadlines();
+    }, 1000 * 60 * 60);
 };

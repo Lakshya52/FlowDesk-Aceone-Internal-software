@@ -9,6 +9,7 @@ export enum NotificationType {
     COMMENT_ADDED = 'comment_added',
     REPLY = 'reply',
     DIRECT_MESSAGE = 'direct_message',
+    PROJECT_CREATED = 'project_created',
 }
 
 export interface INotification extends Document {

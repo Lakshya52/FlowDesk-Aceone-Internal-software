@@ -165,6 +165,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         priority: '',
         startDate: '',
         dueDate: '',
+        noDueDate: false,
         clientName: '',
         companyId: '',
         isRecurring: false,
@@ -306,7 +307,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const handleUpdateProject = async () => {
         setSaving(true);
         try {
-            const { data } = await api.put(`/assignments/${id}`, editProjectForm);
+            const payload = {
+                ...editProjectForm,
+                dueDate: editProjectForm.noDueDate ? null : editProjectForm.dueDate
+            };
+            const { data } = await api.put(`/assignments/${id}`, payload);
             setAssignment(data.assignment);
             setIsEditingProject(false);
         } catch (e: any) {
@@ -322,7 +327,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             description: assignment.description || '',
             priority: assignment.priority,
             startDate: assignment.startDate ? new Date(assignment.startDate).toISOString().split('T')[0] : '',
-            dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
+            dueDate: assignment.dueDate && new Date(assignment.dueDate).getFullYear() > 1970 ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
+            noDueDate: assignment.noDueDate || (!assignment.dueDate || new Date(assignment.dueDate).getFullYear() <= 1970),
             clientName: assignment.clientName || '',
             companyId: assignment.companyId?._id || assignment.companyId || '',
             isRecurring: assignment.isRecurring || false,
@@ -422,7 +428,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
     const updateTask = async (taskId: string, updates: any) => {
         try {
-            const { data } = await api.put(`/tasks/${taskId}`, updates);
+            const payload = {
+                ...updates,
+                dueDate: updates.noDueDate ? null : updates.dueDate
+            };
+            const { data } = await api.put(`/tasks/${taskId}`, payload);
             setTasks(prev => prev.map(t => t._id === taskId ? data.task : t));
             setEditingTask(null);
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
@@ -746,9 +756,19 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                         <input
                                             className={`input ${!editProjectForm.dueDate ? 'opacity-50' : ''}`}
                                             type="date"
+                                            disabled={editProjectForm.noDueDate}
                                             value={editProjectForm.dueDate}
                                             onChange={e => setEditProjectForm({ ...editProjectForm, dueDate: e.target.value })}
                                         />
+                                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <input
+                                                type="checkbox"
+                                                id="editNoDueDate"
+                                                checked={editProjectForm.noDueDate}
+                                                onChange={e => setEditProjectForm({ ...editProjectForm, noDueDate: e.target.checked })}
+                                            />
+                                            <label htmlFor="editNoDueDate" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>No due date</label>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1052,7 +1072,18 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     <select className="select" value={editTaskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
                                                         {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
                                                     </select>
-                                                    <input className="input" type="date" value={editTaskForm.dueDate?.split('T')[0]} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
+                                                    <div>
+                                                        <input className="input" type="date" disabled={editTaskForm.noDueDate} value={editTaskForm.dueDate?.split('T')[0]} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, dueDate: e.target.value })} />
+                                                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`editTaskNoDueDate-${t._id}`}
+                                                                checked={editTaskForm.noDueDate}
+                                                                onChange={e => setEditTaskForm({ ...editTaskForm, noDueDate: e.target.checked })}
+                                                            />
+                                                            <label htmlFor={`editTaskNoDueDate-${t._id}`} style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>No due date</label>
+                                                        </div>
+                                                    </div>
                                                     <select className="select" value={editTaskForm.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, priority: e.target.value })}>
                                                         {Object.entries(PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                                     </select>
@@ -1125,7 +1156,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                 setEditTaskForm({
                                                                     title: t.title,
                                                                     assignedTo: t.assignedTo?._id,
-                                                                    dueDate: t.dueDate,
+                                                                    dueDate: t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? t.dueDate.split('T')[0] : '',
+                                                                    noDueDate: t.noDueDate || (!t.dueDate || new Date(t.dueDate).getFullYear() <= 1970),
                                                                     priority: t.priority,
                                                                 });
                                                             }}>
