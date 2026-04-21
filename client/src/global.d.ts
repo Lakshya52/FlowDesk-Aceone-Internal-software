@@ -10,3 +10,14 @@ declare module 'lucide-react';
 declare module 'recharts';
 declare module 'socket.io-client';
 declare module 'react-router-dom';
+
+interface Window {
+  electronAPI?: {
+    platform: string;
+    reload: () => void;
+    restartAndInstall: () => void;
+    dismissUpdate: () => void;
+    onDownloadProgress: (callback: (progress: any) => void) => void;
+    onUpdateDownloaded: (callback: (info: any) => void) => void;
+  };
+}
