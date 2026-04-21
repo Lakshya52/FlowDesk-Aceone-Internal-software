@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, Menu, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu, Tray, nativeImage, Notification } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { autoUpdater } from 'electron-updater';
@@ -104,6 +104,37 @@ function createMainWindow() {
   mainWindow.on('resize', repositionOverlay);
 
   ipcMain.on('reload-app', () => mainWindow?.reload());
+
+  // Handle focus-app request from renderer (e.g. on notification click)
+    }
+  });
+
+  // Handle show-notification request from renderer (delegation)
+  ipcMain.on('show-notification', (event, payload: { title: string; message: string; link?: string }) => {
+    // Look for icon.png in assets folder
+    const iconPath = path.join(__dirname, '../assets/icon.png');
+    
+    const notification = new Notification({
+      title: payload.title,
+      body: payload.message,
+      icon: iconPath,
+    });
+
+    notification.on('click', () => {
+      console.log(`🔔 Notification clicked: ${payload.title}`);
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+        
+        if (payload.link) {
+          mainWindow.webContents.send('navigate-requested', payload.link);
+        }
+      }
+    });
+
+    notification.show();
+  });
 }
 
 // ─── Update overlay (banner shown inside the app window) ──────────────────
@@ -237,6 +268,9 @@ function setupAutoUpdater() {
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 app.on('ready', () => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('FlowDesk');
+  }
   Menu.setApplicationMenu(null);
   createLoadingWindow();
   createMainWindow();
