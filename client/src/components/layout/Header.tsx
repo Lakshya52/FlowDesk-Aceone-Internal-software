@@ -34,6 +34,11 @@ const Header: React.FC = () => {
         };
         fetchNotifications();
 
+        // Request notification permission for native alerts
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
         // Socket connection for notifications
         const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
         const socket = io(socketUrl);
@@ -48,6 +53,17 @@ const Header: React.FC = () => {
         socket.on('new_notification', (notification: any) => {
             setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
+
+            // Trigger native notification for Electron/Desktop feel
+            if (Notification.permission === 'granted') {
+                new Notification(notification.title, {
+                    body: notification.message,
+                    icon: '/favicon.ico' // Or your app icon
+                }).onclick = () => {
+                    window.focus();
+                    if (notification.link) navigate(notification.link);
+                };
+            }
         });
 
         return () => {
