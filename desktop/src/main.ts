@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu, Tray, nativeImage } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { autoUpdater } from 'electron-updater';
@@ -12,6 +12,8 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 let mainWindow: BrowserWindow | null = null;
 let loadingWindow: BrowserWindow | null = null;
 let updateOverlay: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuiting = false;
 
 // ─── Auto-updater configuration ────────────────────────────────────────────
 autoUpdater.autoDownload = true;          // Download silently in background
@@ -63,6 +65,14 @@ function createMainWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  mainWindow.on('close', (event) => {
+    if (!isQuiting) {
+      event.preventDefault();
+      mainWindow?.hide();
+      return false;
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -134,6 +144,30 @@ function sendToOverlay(channel: string, data?: any) {
   }
 }
 
+// ─── System Tray ───────────────────────────────────────────────────────────
+function createTray() {
+  const iconPath = path.join(__dirname, '../assets/icon.ico');
+  tray = new Tray(iconPath);
+  
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Open FlowDesk', click: () => mainWindow?.show() },
+    { type: 'separator' },
+    { label: 'Quit FlowDesk', click: () => {
+        isQuiting = true;
+        app.quit();
+    }}
+  ]);
+
+  tray.setToolTip('FlowDesk');
+  tray.setContextMenu(contextMenu);
+
+  tray.on('click', () => {
+    if (mainWindow) {
+      mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
+    }
+  });
+}
+
 // ─── Auto-updater events ───────────────────────────────────────────────────
 function setupAutoUpdater() {
   // Check for updates every 30 minutes while running
@@ -190,11 +224,16 @@ app.on('ready', () => {
   Menu.setApplicationMenu(null);
   createLoadingWindow();
   createMainWindow();
+  createTray();
   setupAutoUpdater();
 });
 
+// Since the window is hidden instead of closed, this might rarely be called 
+// but we still prevent quitting on Mac if they close all windows.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+      if(isQuiting) app.quit();
+  }
 });
 
 app.on('activate', () => {

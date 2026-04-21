@@ -2,6 +2,8 @@ import { Response } from 'express';
 import Assignment from '../models/Assignment';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
+import { createNotifications, NotificationPayload } from '../services/notificationService';
+import { NotificationType } from '../models/Notification';
 
 export const createAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -46,6 +48,25 @@ export const createAssignment = async (req: AuthRequest, res: Response): Promise
                     { path: 'members', select: 'name email avatar role' },
                 ],
             });
+
+        // Notify team members
+        const notificationPayloads: NotificationPayload[] = allMemberIds
+            .filter(userId => userId.toString() !== req.user!._id.toString())
+            .map(userId => ({
+                user: userId,
+                type: NotificationType.PROJECT_CREATED,
+                title: 'New Project Assigned',
+                message: `You have been assigned to a new project: ${assignment.title}`,
+                link: `/assignments/${assignment._id}?tab=tasks`
+            }));
+
+        if (notificationPayloads.length > 0) {
+            console.log(`📡 Creating ${notificationPayloads.length} notifications for project: ${assignment.title}`);
+            console.log(`👥 Target user IDs: ${notificationPayloads.map(p => p.user).join(', ')}`);
+            await createNotifications(notificationPayloads);
+        } else {
+            console.log('⚠️ No other members to notify for this project.');
+        }
 
         res.status(201).json({ assignment: populated });
     } catch (error: any) {
@@ -250,6 +271,24 @@ export const updateAssignment = async (req: AuthRequest, res: Response): Promise
                 changes 
             },
         });
+
+        // Notify team members if status changed
+        if (changes.status) {
+            const teamIds = updated!.team.map((user: any) => user._id.toString());
+            const notificationPayloads: NotificationPayload[] = teamIds
+                .filter((userId: string) => userId !== req.user!._id.toString())
+                .map((userId: string) => ({
+                    user: userId,
+                    type: NotificationType.STATUS_CHANGED,
+                    title: 'Project Status Updated',
+                    message: `Project "${updated!.title}" status was changed to ${updated!.status}`,
+                    link: `/assignments/${updated!._id}`
+                }));
+
+            if (notificationPayloads.length > 0) {
+                await createNotifications(notificationPayloads);
+            }
+        }
 
         res.json({ assignment: updated });
     } catch (error: any) {

@@ -266,7 +266,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                         whiteSpace: 'nowrap'
                     }}
                 >
-                    FlowDesk v1.0
+                    FlowDesk v1.0.0
                 </div>
             )}
         </aside>
