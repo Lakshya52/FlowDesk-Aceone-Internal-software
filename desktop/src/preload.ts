@@ -21,6 +21,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateDownloaded: (callback: (info: any) => void) => {
     ipcRenderer.on('update-downloaded', (_event, info) => callback(info));
   },
+
+  // Renderer → Main: Request window focus
+  focusApp: () => ipcRenderer.send('focus-app'),
+
+  // Renderer → Main: delegate notification popup to main process
+  showNotification: (data: any) => ipcRenderer.send('show-notification', data),
+
+  // Main → Renderer: receive navigation requests (e.g. from notification click)
+  onNavigate: (callback: (link: string) => void) => {
+    ipcRenderer.on('navigate-requested', (_event, link) => callback(link));
+  },
 });
 
 console.log('FlowDesk Preload Bridge Initialized');
