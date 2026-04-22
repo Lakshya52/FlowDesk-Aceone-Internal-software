@@ -2,10 +2,10 @@ import mongoose, { Document } from 'mongoose';
 export interface ITeam extends Document {
     name: string;
     description: string;
-    manager: mongoose.Types.ObjectId;
     members: mongoose.Types.ObjectId[];
     joinRequests: mongoose.Types.ObjectId[];
     createdBy: mongoose.Types.ObjectId;
+    manager: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }

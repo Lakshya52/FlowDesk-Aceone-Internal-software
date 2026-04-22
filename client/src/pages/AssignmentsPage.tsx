@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Search, FolderKanban, Users } from 'lucide-react';
+import { Plus, Search, FolderKanban, Users, Filter, User, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -18,6 +18,13 @@ const AssignmentsPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [activeTab, setActiveTab] = useState<'ongoing' | 'completed' | 'blueprints'>('ongoing');
     const [showCreate, setShowCreate] = useState(false);
+
+    // Admin filter state
+    const [filterMode, setFilterMode] = useState<'all' | 'mine' | 'team' | 'person'>('all');
+    const [filterTeamId, setFilterTeamId] = useState('');
+    const [filterUserId, setFilterUserId] = useState('');
+    const [filterTeams, setFilterTeams] = useState<any[]>([]);
+    const [filterUsers, setFilterUsers] = useState<any[]>([]);
     const [form, setForm] = useState({
         title: '',
         clientName: '',
@@ -34,6 +41,7 @@ const AssignmentsPage: React.FC = () => {
         recurringPattern: 'monthly' as any,
         recurringStartDate: ''
     });
+    // const [selectedTeamForMembers, setSelectedTeamForMembers] = useState<string | null>(null);
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [allTeams, setAllTeams] = useState<any[]>([]);
     const [allCompanies, setAllCompanies] = useState<any[]>([]);
@@ -45,46 +53,99 @@ const AssignmentsPage: React.FC = () => {
     const canCreate = true; // Everyone can create projects
 
     const fetchAssignments = async () => {
+        setLoading(true);
         try {
             const params: any = {};
-            
+
             if (activeTab === 'blueprints') {
                 params.isBlueprint = 'true';
             } else if (activeTab === 'ongoing') {
                 params.isBlueprint = 'false';
-                params.status = ''; // Handle filtering below
+                // Only add status if there's a specific filter
+                if (statusFilter) {
+                    params.status = statusFilter;
+                }
             } else if (activeTab === 'completed') {
                 params.status = 'completed';
                 // Specifically don't set isBlueprint to show ALL completed items
             }
-            
+
             if (search) params.search = search;
-            if (statusFilter && activeTab === 'ongoing') params.status = statusFilter;
-            
+
+            console.log('📡 Fetching assignments with params:', params);
             const { data } = await api.get('/assignments', { params });
-            
+            console.log('✅ Assignments fetched:', data);
+
             let result = data.assignments || [];
-            
+
             // Filter ongoing to exclude completed if no specific status filter is set
             if (activeTab === 'ongoing' && !statusFilter) {
                 result = result.filter((a: any) => a.status !== 'completed');
             }
-            
+
+            console.log('📊 Final result after filtering:', result);
             setAssignments(result);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error('❌ Error fetching assignments:', e);
+        }
         finally { setLoading(false); }
     };
 
     useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab]);
 
+    // Fetch teams and users for admin filter dropdowns
+    useEffect(() => {
+        if (isAdmin) {
+            Promise.all([
+                api.get('/teams?all=true'),
+                api.get('/auth/users?all=true'),
+            ]).then(([tRes, uRes]) => {
+                setFilterTeams(tRes.data.teams || []);
+                setFilterUsers(uRes.data.users || []);
+            }).catch(e => console.error('Failed to load filter data', e));
+        }
+    }, [isAdmin]);
+
+    // Apply admin filters client-side
+    const filteredAssignments = React.useMemo(() => {
+        if (!isAdmin || filterMode === 'all') return assignments;
+
+        return assignments.filter((a: any) => {
+            if (filterMode === 'mine') {
+                const inTeam = a.team?.some((m: any) => {
+                    const memberId = (m._id || m)?.toString?.() || '';
+                    return memberId === user?._id;
+                });
+                const isCreator = a.createdBy?._id?.toString?.() === user?._id || 
+                                  a.createdBy?.toString?.() === user?._id;
+                return inTeam || isCreator;
+            }
+            if (filterMode === 'team' && filterTeamId) {
+                return a.teams?.some((t: any) => {
+                    const teamId = (t._id || t)?.toString?.() || '';
+                    return teamId === filterTeamId;
+                });
+            }
+            if (filterMode === 'person' && filterUserId) {
+                return a.team?.some((m: any) => {
+                    const memberId = (m._id || m)?.toString?.() || '';
+                    return memberId === filterUserId;
+                });
+            }
+            return true;
+        });
+    }, [assignments, filterMode, filterTeamId, filterUserId, isAdmin, user]);
+
     useEffect(() => {
         if (showCreate) {
             Promise.all([
-                api.get('/auth/users'),
-                api.get('/teams'),
+                api.get('/auth/users?all=true'),
+                api.get('/teams?all=true'),
                 api.get('/companies'),
             ]).then(([uRes, tRes, cRes]) => {
+                // console.log("All Users Data : " + JSON.stringify(uRes.data.users));
                 setAllUsers(uRes.data.users || []);
+                // console.log("All Teams Data : " + JSON.stringify(tRes.data.teams));
                 setAllTeams(tRes.data.teams || []);
 
                 // Flatten companies so children are selectable
@@ -99,8 +160,16 @@ const AssignmentsPage: React.FC = () => {
                 flatten(cRes.data.companies || []);
                 setAllCompanies(flatCompanies);
             });
+
+            // Auto-add project creator
+            if (user?._id) {
+                setForm(prev => ({
+                    ...prev,
+                    team: Array.from(new Set([...prev.team, user._id]))
+                }));
+            }
         }
-    }, [showCreate]);
+    }, [showCreate, user]);
 
     const filteredCompanies = allCompanies.filter(c =>
         c.name.toLowerCase().includes(companySearch.toLowerCase())
@@ -110,8 +179,10 @@ const AssignmentsPage: React.FC = () => {
         e.preventDefault();
         setSaving(true);
         try {
+            const creatorTeam = user?._id ? Array.from(new Set([...form.team, user._id])) : form.team;
             const { data } = await api.post('/assignments', {
                 ...form,
+                team: creatorTeam,
                 // Ensure dates are sent correctly if provided
                 dueDate: form.noDueDate ? null : form.dueDate,
                 recurringStartDate: form.isRecurring ? form.recurringStartDate : undefined,
@@ -161,11 +232,123 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const toggleTeam = (id: string) => {
+        setForm(prev => {
+            const teamSelected = prev.teams.includes(id);
+            const nextTeams = teamSelected ? prev.teams.filter(t => t !== id) : [...prev.teams, id];
+            const team = allTeams.find(t => t._id === id);
+            const managerId = team?.manager?._id;
+            const nextTeamMembers = new Set(prev.team);
+
+            // Auto-add manager when team is selected
+            // if (!teamSelected && managerId) {
+            //     nextTeamMembers.add(managerId);
+            // }
+
+            // If unselecting team, keep the manager if they're still relevant from other teams
+            if (teamSelected && managerId) {
+                const stillRelevantManager = nextTeams.some(tid => {
+                    const selectedTeam = allTeams.find(t => t._id === tid);
+                    return selectedTeam?.manager?._id === managerId;
+                });
+                if (!stillRelevantManager) {
+                    nextTeamMembers.delete(managerId);
+                }
+            }
+
+            // Auto-add project creator
+            if (user?._id) {
+                nextTeamMembers.add(user._id);
+            }
+
+            return {
+                ...prev,
+                teams: nextTeams,
+                team: Array.from(nextTeamMembers),
+            };
+        });
+    };
+
+    // const getTeamMembers = (teamId: string) => {
+    //     const team = allTeams.find(t => t._id === teamId);
+    //     if (!team) return [];
+    //     return team.members || [];
+    // };
+
+    // const selectAllTeamMembers = (teamId: string) => {
+    //     const members = getTeamMembers(teamId);
+    //     const memberIds = members.map((m: any) => m._id);
+    //     setForm(prev => ({
+    //         ...prev,
+    //         team: [...new Set([...prev.team, ...memberIds])],
+    //     }));
+    // };
+    const selectAllTeamMembers = (teamId: string) => {
+        const team = allTeams.find(t => t._id === teamId);
+        if (!team) return;
+
+        const memberIds = [
+            ...(team.members?.map((m: any) => m._id) || []),
+            team.manager?._id
+        ].filter(Boolean);
+
         setForm(prev => ({
             ...prev,
-            teams: prev.teams.includes(id) ? prev.teams.filter(t => t !== id) : [...prev.teams, id],
+            team: Array.from(
+                new Set([
+                    ...prev.team,
+                    ...memberIds,
+                    user?._id // ✅ always keep creator
+                ])
+            )
         }));
     };
+
+    // const deselectAllTeamMembers = (teamId: string) => {
+    //     const members = getTeamMembers(teamId);
+    //     const memberIds = members.map((m: any) => m._id);
+    //     setForm(prev => ({
+    //         ...prev,
+    //         team: prev.team.filter(id => !memberIds.includes(id)),
+    //     }));
+    // };
+    const deselectAllTeamMembers = (teamId: string) => {
+        const team = allTeams.find(t => t._id === teamId);
+        if (!team) return;
+
+        const memberIds = [
+            ...(team.members?.map((m: any) => m._id) || []),
+            team.manager?._id
+        ].filter(Boolean);
+
+        setForm(prev => ({
+            ...prev,
+            team: prev.team.filter(id =>
+                !memberIds.includes(id) || id === user?._id // ✅ keep creator
+            )
+        }));
+    };
+
+    // 1. Collect all users who are in ANY team
+    const usersInAnyTeam = new Set(
+        allTeams.flatMap(team => [
+            ...(team.members?.map((m: any) => m._id.toString()) || []),
+            team.manager?._id?.toString()
+        ].filter(Boolean))
+    );
+
+    // 2. Filter users NOT in any team
+    const usersNotInAnyTeam = allUsers.filter(
+        u =>
+            !usersInAnyTeam.has(u._id.toString()) && // not in any team
+            u._id !== user?._id                     // not the creator
+    );
+    // const usersNotInAnyTeam = allUsers.filter(
+    //     user => !usersInAnyTeam.has(user._id.toString())
+    // );
+
+    // const allMembersSelected =
+    //     usersNotInAnyTeam.length > 0 &&
+    //     usersNotInAnyTeam.every(u => form.team.includes(u._id));
 
     return (
         <div style={{ maxWidth: 1200 }}>
@@ -174,7 +357,8 @@ const AssignmentsPage: React.FC = () => {
                 <div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Projects</h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                        {assignments.length} Project{assignments.length !== 1 ? 's' : ''}
+                        {filteredAssignments.length} Project{filteredAssignments.length !== 1 ? 's' : ''}
+                        {isAdmin && filterMode !== 'all' && ` (filtered from ${assignments.length})`}
                     </p>
                 </div>
                 {canCreate && (
@@ -186,7 +370,7 @@ const AssignmentsPage: React.FC = () => {
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--color-border)', marginBottom: 20 }}>
-                <button 
+                <button
                     onClick={() => { setActiveTab('ongoing'); setStatusFilter(''); }}
                     style={{
                         padding: '8px 4px',
@@ -194,12 +378,12 @@ const AssignmentsPage: React.FC = () => {
                         fontWeight: 600,
                         color: activeTab === 'ongoing' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                         borderBottom: `2px solid ${activeTab === 'ongoing' ? 'var(--color-primary)' : 'transparent'}`,
-                        transition: 'all 0.2s'
+                        transition: 'all 0s.2s'
                     }}
                 >
                     Ongoing
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('completed')}
                     style={{
                         padding: '8px 4px',
@@ -212,7 +396,7 @@ const AssignmentsPage: React.FC = () => {
                 >
                     Completed
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('blueprints')}
                     style={{
                         padding: '8px 4px',
@@ -228,7 +412,7 @@ const AssignmentsPage: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
                 <div style={{ flex: 1, maxWidth: 320, position: 'relative' }}>
                     <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
                     <input className="input" style={{ paddingLeft: 36 }} placeholder="Search Projects..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -244,22 +428,133 @@ const AssignmentsPage: React.FC = () => {
                 )}
             </div>
 
+            {/* Admin Filters */}
+            {isAdmin && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 20,
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    flexWrap: 'wrap',
+                }}>
+                    <Filter size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginRight: 4 }}>View:</span>
+
+                    {/* Filter mode pills */}
+                    {[
+                        { key: 'all', label: 'All Projects', icon: <FolderKanban size={13} /> },
+                        { key: 'mine', label: 'My Projects', icon: <User size={13} /> },
+                        { key: 'team', label: 'By Team', icon: <Users size={13} /> },
+                        { key: 'person', label: 'By Person', icon: <User size={13} /> },
+                    ].map(opt => (
+                        <button
+                            key={opt.key}
+                            className={`btn btn-xs ${filterMode === opt.key ? 'btn-primary' : 'btn-ghost'}`}
+                            style={{
+                                borderRadius: 20,
+                                padding: '4px 12px',
+                                fontSize: '0.775rem',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                transition: 'all 0.15s',
+                            }}
+                            onClick={() => {
+                                setFilterMode(opt.key as any);
+                                if (opt.key === 'all' || opt.key === 'mine') {
+                                    setFilterTeamId('');
+                                    setFilterUserId('');
+                                }
+                            }}
+                        >
+                            {opt.icon} {opt.label}
+                        </button>
+                    ))}
+
+                    {/* Team dropdown */}
+                    {filterMode === 'team' && (
+                        <select
+                            className="select"
+                            style={{
+                                width: 200,
+                                fontSize: '0.8125rem',
+                                height: 32,
+                                borderRadius: 8,
+                            }}
+                            value={filterTeamId}
+                            onChange={e => setFilterTeamId(e.target.value)}
+                        >
+                            <option value="">Select a team...</option>
+                            {filterTeams.map(t => (
+                                <option key={t._id} value={t._id}>{t.name}</option>
+                            ))}
+                        </select>
+                    )}
+
+                    {/* Person dropdown */}
+                    {filterMode === 'person' && (
+                        <select
+                            className="select"
+                            style={{
+                                width: 200,
+                                fontSize: '0.8125rem',
+                                height: 32,
+                                borderRadius: 8,
+                            }}
+                            value={filterUserId}
+                            onChange={e => setFilterUserId(e.target.value)}
+                        >
+                            <option value="">Select a person...</option>
+                            {filterUsers.map(u => (
+                                <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
+                            ))}
+                        </select>
+                    )}
+
+                    {/* Clear filter button */}
+                    {filterMode !== 'all' && (
+                        <button
+                            className="btn btn-ghost btn-xs"
+                            style={{ borderRadius: 20, padding: '4px 8px', marginLeft: 'auto' }}
+                            onClick={() => {
+                                setFilterMode('all');
+                                setFilterTeamId('');
+                                setFilterUserId('');
+                            }}
+                            title="Clear filter"
+                        >
+                            <X size={13} /> Clear
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Project List */}
             {loading ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 100, borderRadius: 12 }} />)}
                 </div>
-            ) : assignments.length === 0 ? (
+            ) : filteredAssignments.length === 0 ? (
                 <div className="card" style={{ padding: 48, textAlign: 'center' }}>
                     <FolderKanban size={48} style={{ margin: '0 auto 12px', color: 'var(--color-text-tertiary)', opacity: 0.3 }} />
-                    <div style={{ fontWeight: 500, marginBottom: 4 }}>No Projects found</div>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                        {filterMode !== 'all' ? 'No projects match this filter' : 'No Projects found'}
+                    </div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        {isAdmin ? 'Create your first Project to get started.' : 'No Projects have been assigned to you yet.'}
+                        {filterMode !== 'all' 
+                            ? 'Try a different filter or clear to see all projects.'
+                            : (isAdmin ? 'Create your first Project to get started.' : 'No Projects have been assigned to you yet.')
+                        }
                     </div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {assignments.map(a => (
+                    {filteredAssignments.map(a => (
                         <div
                             key={a._id}
                             className="card"
@@ -417,7 +712,7 @@ const AssignmentsPage: React.FC = () => {
                                         }
                                         setForm({ ...form, ...updates });
                                     }}>
-                                        <option value="false">Normal Project</option>
+                                        <option value="false">Transactional Project</option>
                                         <option value="true">Recurring Project</option>
                                     </select>
                                 </div>
@@ -481,15 +776,22 @@ const AssignmentsPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Assign Teams */}
+                            {/* Step 1: Select Team */}
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Assign Teams</label>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+                                    Manager is automatically added when you select a team.
+                                </p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {allTeams.map(t => (
                                         <button
                                             key={t._id}
                                             type="button"
                                             className={`btn btn-sm ${form.teams.includes(t._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                            // onClick={() => {
+                                            //     toggleTeam(t._id);
+                                            //     setSelectedTeamForMembers(t._id);
+                                            // }}
                                             onClick={() => toggleTeam(t._id)}
                                         >
                                             <Users size={12} /> {t.name}
@@ -499,21 +801,288 @@ const AssignmentsPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Individual Members (Hidden for Admin) */}
-                            {!isAdmin && (
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Individual Members</label>
+
+                            {form.teams.length > 0 && (
+                                <div style={{ marginTop: 16 }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 500,
+                                        marginBottom: 8,
+                                        color: 'var(--color-text-secondary)'
+                                    }}>
+                                        Team Members
+                                    </label>
+
+                                    {form.teams.map(teamId => {
+                                        // const team = allTeams.find(t => t._id === teamId);
+                                        // if (!team) return null;
+
+                                        const team = allTeams.find(t => t._id === teamId);
+                                        if (!team) return null;
+                                        
+                                        const manager = team.manager;
+                                        const members = team.members || [];
+                                        
+                                        const memberIds = [
+                                            ...(team.members?.map((m: any) => m._id) || []),
+                                            team.manager?._id
+                                        ].filter(Boolean);
+
+                                        const allMembersSelected =
+                                            memberIds.length > 0 &&
+                                            memberIds.every(id => form.team.includes(id));
+
+                                        return (
+                                            <div key={teamId} style={{
+                                                marginBottom: 12,
+                                                padding: 12,
+                                                border: '1px solid var(--color-border)',
+                                                borderRadius: 8
+                                            }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    marginBottom: 8
+                                                }}>
+                                                    <strong>{team.name}</strong>
+
+                                                    {/* <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-primary"
+                                                        onClick={() => selectAllTeamMembers(teamId)}
+                                                    >
+                                                        Select All
+                                                    </button> */}
+                                                    {allMembersSelected ? (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-secondary"
+                                                            onClick={() => deselectAllTeamMembers(teamId)}
+                                                        >
+                                                            Deselect All
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-primary"
+                                                            onClick={() => selectAllTeamMembers(teamId)}
+                                                        >
+                                                            Select All
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+
+                                                    {/* Manager */}
+                                                    {manager && (
+                                                        <button
+                                                            type="button"
+                                                            className={`btn btn-sm ${form.team.includes(manager._id)
+                                                                ? 'btn-primary'
+                                                                : 'btn-secondary'
+                                                                }`}
+                                                            onClick={() => toggleTeamMember(manager._id)}
+                                                        >
+                                                            {manager.name} (Manager)
+                                                        </button>
+                                                    )}
+
+                                                    {/* Members */}
+                                                    {members.map((m: any) => (
+                                                        <button
+                                                            key={m._id}
+                                                            type="button"
+                                                            className={`btn btn-sm ${form.team.includes(m._id)
+                                                                ? 'btn-primary'
+                                                                : 'btn-secondary'
+                                                                }`}
+                                                            onClick={() => toggleTeamMember(m._id)}
+                                                        >
+                                                            {m.name}
+                                                        </button>
+                                                    ))}
+
+                                                    {members.length === 0 && !manager && (
+                                                        <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>
+                                                            No members in this team
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Step 2: Select Members from Selected Team */}
+                            {/* {form.teams.length > 0 && (
+                                <div style={{ marginTop: 16 }}>
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>2. Select Members</label>
+
+                                    {/* Team selector for viewing members
+                                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                                        {form.teams.map(teamId => {
+                                            const team = allTeams.find(t => t._id === teamId);
+                                            if (!team) return null;
+                                            return (
+                                                <button
+                                                    key={teamId}
+                                                    type="button"
+                                                    className={`btn btn-sm ${selectedTeamForMembers === teamId ? 'btn-primary' : 'btn-secondary'}`}
+                                                    onClick={() => setSelectedTeamForMembers(teamId)}
+                                                >
+                                                    {team.name}
+                                                    {team.manager?.name && (
+                                                        <span style={{ marginLeft: 6, fontSize: '0.7rem', opacity: 0.8 }}>
+                                                            ({team.manager.name})
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Members of the selected team 
+                                    {selectedTeamForMembers && form.teams.includes(selectedTeamForMembers) && (() => {
+                                        const team = allTeams.find(t => t._id === selectedTeamForMembers);
+                                        if (!team) return null;
+                                        const manager = team.manager;
+                                        const members = team.members || [];
+                                        const allMembersSelected = members.length > 0 && members.every((m: any) => form.team.includes(m._id));
+
+                                        return (
+                                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 8, background: 'var(--color-surface)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{team.name} Members</span>
+                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                        {!allMembersSelected ? (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-sm btn-primary"
+                                                                onClick={() => selectAllTeamMembers(selectedTeamForMembers)}
+                                                            >
+                                                                Select All
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-sm btn-secondary"
+                                                                onClick={() => deselectAllTeamMembers(selectedTeamForMembers)}
+                                                            >
+                                                                Deselect All
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* All members including manager 
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                    {manager && (
+                                                        <button
+                                                            key={manager._id}
+                                                            type="button"
+                                                            className={`btn btn-sm ${form.team.includes(manager._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                                            onClick={() => toggleTeamMember(manager._id)}
+                                                        >
+                                                            {manager.name} {manager._id === user?._id ? '(You)' : ''}
+                                                        </button>
+                                                    )}
+                                                    {members.map((member: any) => (
+                                                        <button
+                                                            key={member._id}
+                                                            type="button"
+                                                            className={`btn btn-sm ${form.team.includes(member._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                                            onClick={() => toggleTeamMember(member._id)}
+                                                        >
+                                                            {member.name}{member._id === user?._id ? ' (You)' : ''}
+                                                        </button>
+                                                    ))}
+                                                    {!manager && members.length === 0 && (
+                                                        <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>No members in this team</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )} */}
+
+                            {/* Other Individual Members (not in any selected team) */}
+                            {allUsers.length > 0 && (
+                                // previous logic
+                                // <div style={{ marginTop: 16 }}>
+                                //     <label style={{ 
+                                //         display: 'block', 
+                                //         fontSize: '0.8125rem', 
+                                //         fontWeight: 500, 
+                                //         marginBottom: 8, 
+                                //         color: 'var(--color-text-secondary)' 
+                                //     }}>
+                                //         Add Other Members (not in any teams)
+                                //     </label>
+                                //     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                //         {allUsers
+                                //             .filter(u => {
+                                //                 const isInSelectedTeam = form.teams.some(teamId => {
+                                //                     const team = allTeams.find(t => t._id === teamId);
+                                //                     return team?.members?.some((m: any) => m._id === u._id);
+                                //                 });
+                                //                 return !isInSelectedTeam;
+                                //             })
+                                //             .map(u => (
+                                //                 <button
+                                //                     key={u._id}
+                                //                     type="button"
+                                //                     className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                //                     onClick={() => toggleTeamMember(u._id)}
+                                //                 >
+                                //                     {u.name}
+                                //                 </button>
+                                //             ))}
+                                //         {allUsers.every(u => form.teams.some(teamId => {
+                                //             const team = allTeams.find(t => t._id === teamId);
+                                //             return team?.members?.some((m: any) => m._id === u._id);
+                                //         })) && (
+                                //                 <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>All members are in selected teams</span>
+                                //             )}
+                                //     </div>
+                                // </div>
+                                <div style={{ marginTop: 16 }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 500,
+                                        marginBottom: 8,
+                                        color: 'var(--color-text-secondary)'
+                                    }}>
+                                        Add Other Users (not in any team)
+                                    </label>
+
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                        {allUsers.map(u => (
+                                        {usersNotInAnyTeam.map(u => (
                                             <button
                                                 key={u._id}
                                                 type="button"
-                                                className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`}
+                                                className={`btn btn-sm ${form.team.includes(u._id)
+                                                    ? 'btn-primary'
+                                                    : 'btn-secondary'
+                                                    }`}
                                                 onClick={() => toggleTeamMember(u._id)}
                                             >
-                                                {u.name}
+                                                {u.name} ({u.role})
                                             </button>
                                         ))}
+
+                                        {usersNotInAnyTeam.length === 0 && (
+                                            <span style={{
+                                                fontSize: '0.8125rem',
+                                                color: 'var(--color-text-tertiary)'
+                                            }}>
+                                                All users are already assigned to teams
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             )}

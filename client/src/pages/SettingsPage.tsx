@@ -93,7 +93,7 @@ const SettingsPage: React.FC = () => {
         e.preventDefault();
         setPasswordError('');
         setPasswordSuccess('');
-        
+
         if (passwordData.newPassword !== passwordData.confirmPassword) {
             setPasswordError('Passwords do not match');
             return;
@@ -253,21 +253,21 @@ const SettingsPage: React.FC = () => {
                 <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400 }}>
                     {passwordError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{passwordError}</div>}
                     {passwordSuccess && <div style={{ color: 'var(--color-success)', fontSize: '0.875rem' }}>{passwordSuccess}</div>}
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>New Password</label>
                         <div style={{ position: 'relative' }}>
-                            <input 
-                                className="input" 
-                                type={showNewPassword ? 'text' : 'password'} 
-                                required 
+                            <input
+                                className="input"
+                                type={showNewPassword ? 'text' : 'password'}
+                                required
                                 minLength={6}
-                                value={passwordData.newPassword} 
-                                onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })} 
+                                value={passwordData.newPassword}
+                                onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                 style={{ width: '100%', paddingRight: 40 }}
                             />
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setShowNewPassword(!showNewPassword)}
                                 style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                             >
@@ -279,17 +279,17 @@ const SettingsPage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Confirm New Password</label>
                         <div style={{ position: 'relative' }}>
-                            <input 
-                                className="input" 
-                                type={showConfirmPassword ? 'text' : 'password'} 
-                                required 
+                            <input
+                                className="input"
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                required
                                 minLength={6}
-                                value={passwordData.confirmPassword} 
-                                onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} 
+                                value={passwordData.confirmPassword}
+                                onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                                 style={{ width: '100%', paddingRight: 40 }}
                             />
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                 style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                             >
@@ -341,36 +341,36 @@ const SettingsPage: React.FC = () => {
                         {users
                             .filter(u => u._id !== user?._id)
                             .map(u => (
-                            <div key={u._id} style={{
-                                padding: '10px 14px', borderRadius: 8,
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                background: u.isActive ? 'transparent' : 'var(--color-surface-hover)',
-                                opacity: u.isActive ? 1 : 0.5,
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <Avatar src={u.avatar} name={u.name} size={32} />
-                                    <div>
-                                        <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{u.email}</div>
+                                <div key={u._id} style={{
+                                    padding: '10px 14px', borderRadius: 8,
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    background: u.isActive ? 'transparent' : 'var(--color-surface-hover)',
+                                    opacity: u.isActive ? 1 : 0.5,
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <Avatar src={u.avatar} name={u.name} size={32} />
+                                        <div>
+                                            <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{u.email}</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span className="badge" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+                                            {ROLE_LABELS[u.role]}
+                                        </span>
+                                        {u.isActive && u._id !== user?._id && (
+                                            <button className="btn btn-ghost btn-sm" onClick={() => deactivateUser(u._id)} style={{ color: 'var(--color-warning)' }} title="Deactivate">
+                                                <Shield size={14} />
+                                            </button>
+                                        )}
+                                        {u._id !== user?._id && (
+                                            <button className="btn btn-ghost btn-sm" onClick={() => permanentDeleteUser(u._id)} style={{ color: 'var(--color-error)' }} title="Delete Permanently">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span className="badge" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
-                                        {ROLE_LABELS[u.role]}
-                                    </span>
-                                    {u.isActive && u._id !== user?._id && (
-                                        <button className="btn btn-ghost btn-sm" onClick={() => deactivateUser(u._id)} style={{ color: 'var(--color-warning)' }} title="Deactivate">
-                                            <Shield size={14} />
-                                        </button>
-                                    )}
-                                    {u._id !== user?._id && (
-                                        <button className="btn btn-ghost btn-sm" onClick={() => permanentDeleteUser(u._id)} style={{ color: 'var(--color-error)' }} title="Delete Permanently">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                            ))}
                     </div>
                 </div>
             )}

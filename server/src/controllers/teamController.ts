@@ -8,6 +8,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
         const team = await Team.create({
             ...req.body,
             createdBy: req.user!._id,
+            manager: req.user!._id,
         });
 
         await ActivityLog.create({
@@ -19,9 +20,9 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
         });
 
         const populated = await Team.findById(team._id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
-            .populate('createdBy', 'name email');
+            .populate('createdBy', 'name email')
+            .populate('manager', 'name email');
 
         res.status(201).json({ team: populated });
     } catch (error: any) {
@@ -31,24 +32,18 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getTeams = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const userRole = req.user!.role;
-        const userId = req.user!._id;
+        const { all } = req.query;
 
         let query = {};
-        if (userRole !== 'admin') {
-            query = {
-                $or: [
-                    { manager: userId },
-                    { members: userId }
-                ]
-            };
+        // If ?all=true is passed, return all teams for everyone
+        if (all !== 'true') {
+            query = { members: req.user!._id };
         }
 
         const teams = await Team.find(query)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
-            .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email')
+            .populate('manager', 'name email')
             .sort({ createdAt: -1 });
 
         res.json({ teams });
@@ -60,7 +55,6 @@ export const getTeams = async (req: AuthRequest, res: Response): Promise<void> =
 export const getTeam = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const team = await Team.findById(req.params.id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('createdBy', 'name email');
 
@@ -83,14 +77,8 @@ export const updateTeam = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        // Only admin or team manager can update
-        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to update this team' });
-            return;
-        }
-
+        // Everyone can update team
         const updated = await Team.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('createdBy', 'name email');
 
@@ -116,12 +104,7 @@ export const deleteTeam = async (req: AuthRequest, res: Response): Promise<void>
             return;
         }
 
-        // Only admin or team manager can delete
-        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to delete this team' });
-            return;
-        }
-
+        // Everyone can delete team
         await team.deleteOne();
 
         await ActivityLog.create({
@@ -146,18 +129,12 @@ export const updateTeamMembers = async (req: AuthRequest, res: Response): Promis
             return;
         }
 
-        // Only admin or team manager can update members
-        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to manage team members' });
-            return;
-        }
-
+        // Everyone can update team members
         const { members } = req.body;
         team.members = members;
         await team.save();
 
         const populated = await Team.findById(team._id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('createdBy', 'name email');
 
@@ -183,7 +160,7 @@ export const requestJoinTeam = async (req: AuthRequest, res: Response): Promise<
             return;
         }
 
-        if (team.members.includes(req.user!._id) || team.manager.toString() === req.user!._id.toString()) {
+        if (team.members.includes(req.user!._id)) {
             res.status(400).json({ message: 'Already a member of this team' });
             return;
         }
@@ -197,7 +174,6 @@ export const requestJoinTeam = async (req: AuthRequest, res: Response): Promise<
         await team.save();
 
         const populated = await Team.findById(team._id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email');
@@ -216,11 +192,7 @@ export const approveJoinRequest = async (req: AuthRequest, res: Response): Promi
             return;
         }
 
-        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to approve join requests.' });
-            return;
-        }
-
+        // Everyone can approve join requests
         const userId = req.params.userId;
         const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
 
@@ -237,7 +209,6 @@ export const approveJoinRequest = async (req: AuthRequest, res: Response): Promi
         await team.save();
 
         const populated = await Team.findById(team._id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email');
@@ -256,11 +227,7 @@ export const rejectJoinRequest = async (req: AuthRequest, res: Response): Promis
             return;
         }
 
-        if (req.user!.role !== 'admin' && team.manager.toString() !== req.user!._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to reject join requests.' });
-            return;
-        }
-
+        // Everyone can reject join requests
         const userId = req.params.userId;
         const requestIndex = team.joinRequests.findIndex(id => id.toString() === userId);
 
@@ -273,7 +240,6 @@ export const rejectJoinRequest = async (req: AuthRequest, res: Response): Promis
         await team.save();
 
         const populated = await Team.findById(team._id)
-            .populate('manager', 'name email avatar')
             .populate('members', 'name email avatar role')
             .populate('joinRequests', 'name email avatar role')
             .populate('createdBy', 'name email');

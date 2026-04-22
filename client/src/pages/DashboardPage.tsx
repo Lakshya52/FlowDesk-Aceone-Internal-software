@@ -388,7 +388,7 @@ const DashboardPage: React.FC = () => {
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ fontSize: '0.8125rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{team.name}</div>
                                                 <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)' }}>
-                                                    {team.members?.length || 0} members · {team.manager?.name?.split(' ')[0]}
+                                                    {team.members?.length || 0} members
                                                 </div>
                                             </div>
                                         </div>

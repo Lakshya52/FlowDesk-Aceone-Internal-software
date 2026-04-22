@@ -44,21 +44,22 @@ const Notification_1 = require("../models/Notification");
 const createAssignment = async (req, res) => {
     try {
         const { teams: teamIds, team: memberIds = [], ...rest } = req.body;
-        let allMemberIds = [...memberIds];
+        // Always include the project creator
+        let allMemberIds = new Set([req.user._id.toString(), ...memberIds.map(String)]);
         if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
             const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
             const teams = await Team.find({ _id: { $in: teamIds } });
-            // Include both team manager and all members
-            const teamInvites = teams.flatMap(t => [
-                t.manager.toString(),
-                ...t.members.map(m => m.toString())
-            ]);
-            allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
+            // Include all team members
+            const teamInvites = teams.flatMap(t => t.members.map(m => m.toString()));
+            teamInvites.forEach(id => allMemberIds.add(id));
+            // Collect managers and add them
+            const managerIds = teams.map(t => t.manager?.toString()).filter(Boolean);
+            managerIds.forEach(id => allMemberIds.add(id));
         }
         const assignment = await Assignment_1.default.create({
             ...rest,
             teams: teamIds,
-            team: allMemberIds,
+            team: Array.from(allMemberIds),
             createdBy: req.user._id,
         });
         await ActivityLog_1.default.create({
@@ -79,9 +80,9 @@ const createAssignment = async (req, res) => {
                 { path: 'members', select: 'name email avatar role' },
             ],
         });
-        // Notify team members
-        const notificationPayloads = allMemberIds
-            .filter(userId => userId.toString() !== req.user._id.toString())
+        // Notify team members (except creator)
+        const notificationPayloads = Array.from(allMemberIds)
+            .filter(userId => userId !== req.user._id.toString())
             .map(userId => ({
             user: userId,
             type: Notification_1.NotificationType.PROJECT_CREATED,
@@ -250,12 +251,9 @@ const updateAssignment = async (req, res) => {
             if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
                 const Team = (await Promise.resolve().then(() => __importStar(require('../models/Team')))).default;
                 const teams = await Team.find({ _id: { $in: teamIds } });
-                // Include both team manager and all members
-                const teamInvites = teams.flatMap(t => [
-                    t.manager.toString(),
-                    ...t.members.map(m => m.toString())
-                ]);
-                // Merge with manual IDs, but respect the fact that some might have been 
+                // Include all team members
+                const teamInvites = teams.flatMap(t => t.members.map(m => m.toString()));
+                // Merge with manual IDs, but respect the fact that some might have been
                 // explicitly removed from the manual list (optional behavior)
                 // For now, keep the policy: Team members ALWAYS have access.
                 allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));

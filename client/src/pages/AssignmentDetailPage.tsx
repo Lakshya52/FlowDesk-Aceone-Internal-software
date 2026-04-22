@@ -56,6 +56,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [selectedMentions, setSelectedMentions] = useState<Set<string>>(new Set());
     const [replyTo, setReplyTo] = useState<any>(null);
     const [mentionIndex, setMentionIndex] = useState(0);
+    const [canvasUnlocked, setCanvasUnlocked] = useState(false);
 
     // Auto-switch tabs and scroll based on URL params
     useEffect(() => {
@@ -78,7 +79,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         const params = new URLSearchParams(location.search);
         const msgId = params.get('msgId');
         const taskId = params.get('taskId');
-        
+
         if (activeTab === 'chat' && msgId && chatMessages.length > 0) {
             // Need a slight delay to ensure elements are mounted
             setTimeout(() => {
@@ -94,13 +95,13 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     el.style.backgroundColor = 'var(--color-primary-light)';
                     el.style.transform = 'scale(1.02)';
                     el.style.boxShadow = '0 10px 25px rgba(0,0,0,0.1)';
-                    
+
                     setTimeout(() => {
                         el.style.backgroundColor = '';
                         el.style.transform = '';
                         el.style.boxShadow = '';
                     }, 2000);
-                    
+
                     navigate(`/assignments/${id}?tab=tasks`, { replace: true });
                 }
             }, 500);
@@ -112,7 +113,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         const individualMembers = assignment.team || [];
         const teamManagers = (assignment.teams || []).map((t: any) => t.manager).filter(Boolean);
         const teamMembers = (assignment.teams || []).flatMap((t: any) => t.members || []);
-        
+
         // Combine all members and deduplicate by _id
         const all = [...individualMembers, ...teamManagers, ...teamMembers];
         const unique = Array.from(new Map(all.map(u => [u?._id, u])).values()).filter(Boolean);
@@ -141,10 +142,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         const el = document.getElementById(`chat-msg-${parentId}`);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             // Double blink effect for the entire message row just like WhatsApp
             el.style.transition = 'background-color 0.4s ease';
-            
+
             const blink = () => {
                 el.style.backgroundColor = 'var(--color-chat-highlight)';
                 setTimeout(() => {
@@ -207,7 +208,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                     api.get(`/tasks?assignment=${id}`),
                     api.get(`/comments?assignmentId=${id}`),
                     api.get(`/files?assignmentId=${id}`),
-                    api.get('/auth/users'),
+                    api.get('/auth/users?all=true'),
                     api.get(`/chat?assignmentId=${id}`),
                 ]);
                 setAssignment(aRes.data.assignment);
@@ -268,7 +269,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     useEffect(() => {
         const draft = localStorage.getItem(`chat_draft_${id}`);
         if (draft) setChatInput(draft);
-        
+
         const replyDraft = localStorage.getItem(`reply_draft_${id}`);
         if (replyDraft) {
             try {
@@ -407,19 +408,19 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const createTask = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const payload = { 
-                ...taskForm, 
+            const payload = {
+                ...taskForm,
                 assignment: id,
-                dueDate: taskForm.noDueDate ? null : taskForm.dueDate 
+                dueDate: taskForm.noDueDate ? null : taskForm.dueDate
             };
             const { data } = await api.post('/tasks', payload);
             setTasks(prev => [data.task, ...prev]);
             setShowTaskForm(false);
-            setTaskForm({ 
-                title: '', 
-                description: '', 
-                assignedTo: '', 
-                dueDate: '', 
+            setTaskForm({
+                title: '',
+                description: '',
+                assignedTo: '',
+                dueDate: '',
                 priority: 'medium',
                 noDueDate: !assignment.dueDate || new Date(assignment.dueDate).getFullYear() <= 1970
             });
@@ -712,9 +713,9 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                 <div className="card shadow-xl" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 101, marginTop: 4, maxHeight: 200, overflow: 'auto', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
                                                     {filteredCompanies.length > 0 ? (
                                                         filteredCompanies.map(c => (
-                                                            <div 
-                                                                key={c._id} 
-                                                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }} 
+                                                            <div
+                                                                key={c._id}
+                                                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }}
                                                                 className="hover-bg"
                                                                 onClick={() => {
                                                                     setEditProjectForm({ ...editProjectForm, clientName: c.name, companyId: c._id });
@@ -727,7 +728,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             </div>
                                                         ))
                                                     ) : companySearch ? (
-                                                        <div 
+                                                        <div
                                                             style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-primary-light)' }}
                                                             className="hover-bg"
                                                             onClick={() => handleQuickAddCompany(companySearch)}
@@ -774,21 +775,21 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
                                 <div className="card" style={{ padding: '12px 16px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: editProjectForm.isRecurring ? 12 : 0 }}>
-                                        <input 
-                                            type="checkbox" 
+                                        <input
+                                            type="checkbox"
                                             id="editIsRecurring"
                                             checked={editProjectForm.isRecurring}
                                             onChange={e => setEditProjectForm({ ...editProjectForm, isRecurring: e.target.checked })}
                                         />
                                         <label htmlFor="editIsRecurring" style={{ fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}>Recurring Project Blueprint</label>
                                     </div>
-                                    
+
                                     {editProjectForm.isRecurring && (
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                             <div>
                                                 <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Pattern</label>
-                                                <select 
-                                                    className="select" 
+                                                <select
+                                                    className="select"
                                                     value={editProjectForm.recurringPattern}
                                                     onChange={e => setEditProjectForm({ ...editProjectForm, recurringPattern: e.target.value })}
                                                 >
@@ -800,8 +801,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                             </div>
                                             <div>
                                                 <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Anchor Start Date</label>
-                                                <input 
-                                                    className="input" 
+                                                <input
+                                                    className="input"
                                                     type="date"
                                                     value={editProjectForm.recurringStartDate}
                                                     onChange={e => setEditProjectForm({ ...editProjectForm, recurringStartDate: e.target.value })}
@@ -824,10 +825,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                     <span className={`badge badge-${assignment.priority}`}>{PRIORITY_LABELS[assignment.priority]}</span>
                                 </div>
                                 {assignment.isRecurring && !assignment.parentAssignmentId && (
-                                    <div style={{ 
-                                        padding: '12px 16px', 
-                                        background: 'var(--color-primary-light)', 
-                                        borderRadius: 8, 
+                                    <div style={{
+                                        padding: '12px 16px',
+                                        background: 'var(--color-primary-light)',
+                                        borderRadius: 8,
                                         marginBottom: 16,
                                         border: '1px solid var(--color-primary)',
                                         display: 'flex',
@@ -846,8 +847,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Clock size={14} /> Due: <strong>
-                                            {assignment.dueDate && new Date(assignment.dueDate).getFullYear() > 1970 
-                                                ? format(new Date(assignment.dueDate), 'MMM d, yyyy') 
+                                            {assignment.dueDate && new Date(assignment.dueDate).getFullYear() > 1970
+                                                ? format(new Date(assignment.dueDate), 'MMM d, yyyy')
                                                 : 'No Due Date'}
                                         </strong>
                                     </span>
@@ -955,16 +956,16 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             paddingBottom: 12,
                         }}
                     >
-                        {t.label} 
+                        {t.label}
                         {t.key !== 'notes' ? (
                             <span style={{ fontWeight: 400, fontSize: '0.75rem', opacity: 0.6, marginLeft: 6 }}>({t.count})</span>
                         ) : (
-                            <span style={{ 
-                                fontSize: '0.6rem', 
-                                background: '#22c55e', 
-                                color: 'white', 
-                                padding: '2px 6px', 
-                                borderRadius: 10, 
+                            <span style={{
+                                fontSize: '0.6rem',
+                                background: '#22c55e',
+                                color: 'white',
+                                padding: '2px 6px',
+                                borderRadius: 10,
                                 marginLeft: 8,
                                 fontWeight: 700,
                                 textTransform: 'uppercase'
@@ -976,17 +977,109 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
             {/* Notes/Whiteboard Tab */}
             {activeTab === 'notes' && (
-                <div ref={whiteboardRef} >
+                <div ref={whiteboardRef}>
                     <div style={{ marginBottom: 16 }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 4 }}>Project Whiteboard</h3>
                         <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
                             Collaborative space for visual notes and brainstorming. All project members can see and edit these notes.
                         </p>
                     </div>
-                    <ProjectCanvas 
-                        assignmentId={id!} 
-                        initialData={assignment.canvasData} 
-                    />
+                    {/* Canvas Gate Overlay */}
+                    {!canvasUnlocked ? (
+                        <div style={{
+                            position: 'relative',
+                            height: 500,
+                            borderRadius: 12,
+                            overflow: 'hidden',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-bg)',
+                        }}>
+                            {/* Blurred preview background */}
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                backgroundImage: 'radial-gradient(circle at 1px 1px, var(--color-text-tertiary) 1px, transparent 0)',
+                                backgroundSize: '20px 20px',
+                                opacity: 0.15,
+                            }} />
+                            {/* Decorative fake notes */}
+                            <div style={{ position: 'absolute', inset: 0, filter: 'blur(3px)', opacity: 0.4, pointerEvents: 'none' }}>
+                                {['#fef9c3', '#dcfce7', '#dbeafe', '#f3e8ff'].map((color, i) => (
+                                    <div key={i} style={{
+                                        position: 'absolute',
+                                        left: 60 + i * 180,
+                                        top: 80 + (i % 2) * 100,
+                                        width: 160,
+                                        height: 120,
+                                        background: color,
+                                        borderRadius: 10,
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                    }} />
+                                ))}
+                            </div>
+                            {/* Overlay content */}
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 16,
+                                background: 'rgba(255,255,255,0.05)',
+                                backdropFilter: 'blur(2px)',
+                                zIndex: 10,
+                            }}>
+                                <div style={{
+                                    width: 64,
+                                    height: 64,
+                                    borderRadius: 16,
+                                    background: 'linear-gradient(135deg, var(--color-primary), #818cf8)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+                                }}>
+                                    <FolderKanban size={28} color="#fff" />
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>
+                                        Collaborative Canvas
+                                    </h3>
+                                    <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', maxWidth: 360 }}>
+                                        An interactive whiteboard shared with your project team. Add, edit, and organize notes collaboratively.
+                                    </p>
+                                </div>
+                                <button
+                                    className="btn btn-primary"
+                                    style={{
+                                        padding: '10px 28px',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600,
+                                        borderRadius: 10,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        marginTop: 4,
+                                        boxShadow: '0 4px 16px rgba(99,102,241,0.25)',
+                                    }}
+                                    onClick={() => setCanvasUnlocked(true)}
+                                >
+                                    <Eye size={16} /> Enter Collaborative Canvas
+                                </button>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                                    {assignment.team?.length || 0} team member{(assignment.team?.length || 0) !== 1 ? 's' : ''} have access
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <ProjectCanvas
+                            assignmentId={id!}
+                            initialData={assignment.canvasData}
+                            startFullScreen={true}
+                            onExitFullScreen={() => setCanvasUnlocked(false)}
+                        />
+                    )}
                 </div>
             )}
 
@@ -1027,13 +1120,13 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                     <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Due Date *</label>
-                                    <input 
-                                        className="input" 
-                                        type="date" 
-                                        required={!taskForm.noDueDate} 
+                                    <input
+                                        className="input"
+                                        type="date"
+                                        required={!taskForm.noDueDate}
                                         disabled={taskForm.noDueDate}
-                                        value={taskForm.dueDate} 
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })} 
+                                        value={taskForm.dueDate}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
                                     />
                                     <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <input
@@ -1110,15 +1203,15 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     {t.status === 'review' && (isAdmin || isManager) ? (
                                                         <div style={{ display: 'flex', gap: 6 }}>
-                                                            <button 
-                                                                className="btn btn-xs" 
+                                                            <button
+                                                                className="btn btn-xs"
                                                                 style={{ backgroundColor: '#22c55e', color: 'white', border: 'none' }}
                                                                 onClick={() => updateTaskStatus(t._id, 'completed')}
                                                             >
                                                                 Approve
                                                             </button>
-                                                            <button 
-                                                                className="btn btn-xs" 
+                                                            <button
+                                                                className="btn btn-xs"
                                                                 style={{ backgroundColor: '#ef4444', color: 'white', border: 'none' }}
                                                                 onClick={() => updateTaskStatus(t._id, 'in_progress')}
                                                             >
@@ -1208,7 +1301,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                 {msg.sender?.name} · {format(new Date(msg.createdAt), 'h:mm a')}
                                             </div>
                                             {msg.parentMessage && (
-                                                <div 
+                                                <div
                                                     style={{
                                                         fontSize: '0.75rem',
                                                         color: 'var(--color-text-tertiary)',
@@ -1460,12 +1553,12 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                             filteredMentionUsers.map((u: any, idx: number) => (
                                                 <div
                                                     key={u._id}
-                                                    style={{ 
-                                                        padding: '8px 12px', 
-                                                        display: 'flex', 
-                                                        alignItems: 'center', 
-                                                        gap: 8, 
-                                                        cursor: 'pointer', 
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                        cursor: 'pointer',
                                                         transition: 'background 0.15s',
                                                         background: mentionIndex === idx ? 'var(--color-surface-hover)' : 'transparent'
                                                     }}
@@ -1576,13 +1669,13 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflow: 'auto', marginBottom: 20 } as React.CSSProperties}>
                                 {users.map(u => {
                                     const isManualMember = assignment.team?.some((m: any) => m._id === u._id);
-                                    const assignedTeam = assignment.teams?.find((t: any) => 
-                                        t.manager?._id === u._id || 
+                                    const assignedTeam = assignment.teams?.find((t: any) =>
+                                        t.manager?._id === u._id ||
                                         t.members?.some((m: any) => m._id === u._id) ||
                                         t.manager === u._id ||
                                         t.members?.includes(u._id)
                                     );
-                                    
+
                                     return (
                                         <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: 'var(--color-surface-hover)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1596,25 +1689,21 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     )}
                                                 </div>
                                             </div>
-                                            {assignedTeam ? (
-                                                <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)', fontSize: '0.65rem' }}>
-                                                    Implicit Member
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    className={`btn btn-xs ${isManualMember ? 'btn-secondary' : 'btn-primary'}`}
-                                                    disabled={updatingTeam}
-                                                    onClick={() => {
-                                                        const currentIds = assignment.team?.map((m: any) => m._id || m) || [];
-                                                        const nextIds = isManualMember 
-                                                            ? currentIds.filter((tid: string) => tid !== u._id) 
-                                                            : [...currentIds, u._id];
-                                                        handleUpdateTeam(nextIds);
-                                                    }}
-                                                >
-                                                    {isManualMember ? 'Remove' : 'Add'}
-                                                </button>
-                                            )}
+
+                                            <button
+                                                className={`btn btn-xs ${isManualMember ? 'btn-secondary' : 'btn-primary'}`}
+                                                disabled={updatingTeam}
+                                                onClick={() => {
+                                                    const currentIds = assignment.team?.map((m: any) => m._id || m) || [];
+                                                    const nextIds = isManualMember
+                                                        ? currentIds.filter((tid: string) => tid !== u._id)
+                                                        : [...currentIds, u._id];
+                                                    handleUpdateTeam(nextIds);
+                                                }}
+                                            >
+                                                {isManualMember ? 'Remove' : 'Add'}
+                                            </button>
+
                                         </div>
                                     );
                                 })}

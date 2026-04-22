@@ -239,7 +239,7 @@ const Header: React.FC = () => {
                                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                     >
                                         <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{team.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>Managed by {team.manager?.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{team.members?.length || 0} members</div>
                                     </div>
                                 ))}
                             </div>
