@@ -6,10 +6,13 @@
  * up to the server to persist collaboration. Tracks note authorship and edit history.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand } from "lucide-react";
+import { Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand, X } from "lucide-react";
 import api from "../../lib/api";
 import { useAuthStore } from "../../store/authStore";
 import Avatar from "../common/Avatar";
+import CanvasNavigator from "../common/CanvasNavigator";
+import RichTextEditor from "../common/RichTextEditor";
+import NoteExportMenu from "../common/NoteExportMenu";
 
 interface Note {
     id: string; // Internal temporary ID or from server
@@ -37,9 +40,11 @@ const COLORS = ["#fef9c3", "#dcfce7", "#dbeafe", "#f3e8ff", "#fee2e2"];
 interface ProjectCanvasProps {
     assignmentId: string;
     initialData?: any;
+    startFullScreen?: boolean;
+    onExitFullScreen?: () => void;
 }
 
-const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData }) => {
+const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData, startFullScreen = false, onExitFullScreen }) => {
     const { user } = useAuthStore();
     const [notes, setNotes] = useState<Note[]>(initialData || []);
     
@@ -58,8 +63,9 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     const [activeEditId, setActiveEditId] = useState<string | null>(null);
     const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 });
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
-    const [isFullScreen, setIsFullScreen] = useState(false);
+    const [isFullScreen, setIsFullScreen] = useState(startFullScreen);
     const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -68,6 +74,18 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     useEffect(() => {
         notesRef.current = notes;
     }, [notes]);
+
+    useEffect(() => {
+        const updateSize = () => {
+            if (containerRef.current) {
+                const rect = containerRef.current.getBoundingClientRect();
+                setContainerSize({ width: rect.width, height: rect.height });
+            }
+        };
+        updateSize();
+        window.addEventListener('resize', updateSize);
+        return () => window.removeEventListener('resize', updateSize);
+    }, []);
 
     /**
      * Persistently syncs the entire current state of the canvas notes to the backend.
@@ -239,8 +257,8 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
             x: x - 100,
             y: y - 60,
             width: 200,
-            height: 140,
-            content: "New Note",
+            height: 200,
+            content: "<p>New Note</p>",
             color: COLORS[Math.floor(Math.random() * COLORS.length)],
             createdBy: user ? { _id: user._id, name: user.name, avatar: user.avatar } : undefined,
             editedBy: []
@@ -370,53 +388,69 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                     >
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, opacity: 0.4 }}>
                             <Move size={14} style={{ cursor: "grab" }} />
-                            <Trash2
-                                size={14}
-                                style={{ cursor: "pointer" }}
-                                onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
-                            />
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                <NoteExportMenu noteContent={note.content} noteId={note.id} iconSize={14} />
+                                {activeEditId === note.id && (
+                                    <X
+                                        size={14}
+                                        style={{ cursor: "pointer", }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            saveContent(note.id, note.content);
+                                            setActiveEditId(null);
+                                        }}
+                                    />
+                                )}
+                                <Trash2
+                                    size={14}
+                                    style={{ cursor: "pointer" }}
+                                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                                />
+                            </div>
                         </div>
 
-                        {activeEditId === note.id ? (
-                            <textarea
-                                autoFocus
-                                onFocus={(e) => e.target.select()}
-                                value={note.content}
-                                onChange={(e) => updateNoteContent(note.id, e.target.value)}
-                                onMouseDown={(e) => e.stopPropagation()} // Prevent creating new note underneath
-                                onBlur={() => {
-                                    saveContent(note.id, note.content);
-                                    setActiveEditId(null);
-                                }}
-                                style={{
-                                    width: "100%",
-                                    flex: 1,
-                                    background: "transparent",
-                                    border: "none",
-                                    outline: "none",
-                                    resize: "none",
-                                    fontSize: "0.9rem",
-                                    fontFamily: "inherit"
-                                }}
-                            />
-                        ) : (
-                            <div
-                                onDoubleClick={() => setActiveEditId(note.id)}
-                                style={{
-                                    flex: 1,
-                                    fontSize: "0.9rem",
-                                    lineHeight: 1.5,
-                                    whiteSpace: "pre-wrap",
-                                    overflow: "hidden"
-                                }}
-                            >
-                                {note.content}
+                        <div
+                            style={{
+                                flex: 1,
+                                background: 'rgba(255,255,255,0.5)',
+                                borderRadius: 8,
+                                overflow: 'hidden'
+                            }}
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                                if (activeEditId !== note.id) {
+                                    setActiveEditId(note.id);
+                                }
+                            }}
+                        >
+                            {activeEditId === note.id ? (
+                                <RichTextEditor
+                                    content={note.content}
+                                    onChange={(html) => updateNoteContent(note.id, html)}
+                                    onBlur={() => {
+                                        saveContent(note.id, note.content);
+                                        setActiveEditId(null);
+                                    }}
+                                />
+                            ) : (
+                                <div
+                                    onClick={() => setActiveEditId(note.id)}
+                                    style={{
+                                        padding: 8,
+                                        flex: 1,
+                                        fontSize: "0.9rem",
+                                        lineHeight: 1.5,
+                                        cursor: 'text'
+                                    }}
+                                    dangerouslySetInnerHTML={{ __html: note.content }}
+                                />
+                            )}
+                        </div>
+                        {activeEditId !== note.id && (
+                            <div style={{ fontSize: '0.65rem', opacity: 0.4, textAlign: 'right', marginTop: 6 }}>
+                                Click to edit
                             </div>
                         )}
-
-                        <div style={{ fontSize: '0.6rem', opacity: 0.3, textAlign: 'right', marginTop: 8 }}>
-                            Double click to edit
-                        </div>
 
                         {/* Authorship Info */}
                         <div style={{
@@ -516,7 +550,12 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 <button className="btn btn-ghost btn-xs" onClick={resetView} title="Reset View"><Focus size={14} /></button>
                 <button
                     className={`btn ${isFullScreen ? 'btn-primary' : 'btn-ghost'} btn-xs`}
-                    onClick={() => setIsFullScreen(!isFullScreen)}
+                    onClick={() => {
+                        if (isFullScreen && onExitFullScreen) {
+                            onExitFullScreen();
+                        }
+                        setIsFullScreen(!isFullScreen);
+                    }}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
                     {isFullScreen ? <Shrink size={14} /> : <Maximize size={14} />}
@@ -591,6 +630,15 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 <span style={{ opacity: 0.5 }}>|</span>
                 <span><b>V</b> Select • <b>H</b> Pan</span>
             </div>
+
+            {/* Canvas Navigator */}
+            <CanvasNavigator
+                notes={notes}
+                scale={scale}
+                offset={offset}
+                containerWidth={containerSize.width}
+                containerHeight={containerSize.height}
+            />
         </div>
     );
 };

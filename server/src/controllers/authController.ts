@@ -78,10 +78,14 @@ export const getUsers = async (req: AuthRequest, res: Response): Promise<void> =
     try {
         const userRole = req.user!.role;
         const userId = req.user!._id;
+        const { all } = req.query;
 
         let query: any = {};
 
-        if (userRole === 'manager') {
+        // If ?all=true is passed, return all users for everyone
+        if (all === 'true') {
+            query = {};
+        } else if (userRole === 'manager') {
             // Managers only see users from their teams
             const managedTeams = await Team.find({ manager: userId });
             const memberIds = managedTeams.flatMap(t => t.members.map(m => m.toString()));
