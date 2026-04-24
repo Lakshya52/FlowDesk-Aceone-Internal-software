@@ -733,7 +733,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             className="hover-bg"
                                                             onClick={() => handleQuickAddCompany(companySearch)}
                                                         >
-                                                            <Plus size={14} color="var(--color-primary)" />
+                                                            <Plus size={16} color="var(--color-primary)" />
                                                             <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
                                                                 Add <strong>"{companySearch}"</strong> as new company
                                                             </div>
@@ -843,10 +843,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 )}
                                 {assignment.description && <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 12 }}>{assignment.description}</p>}
                                 <div style={{ display: 'flex', gap: 20, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={14} /> Client: <strong>{assignment.clientName}</strong></span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase size={16} /> Client: <strong>{assignment.clientName}</strong></span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={16} /> Start: {format(new Date(assignment.startDate), 'MMM d, yyyy')}</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Clock size={14} /> Due: <strong>
+                                        <Clock size={16} /> Due: <strong>
                                             {assignment.dueDate && new Date(assignment.dueDate).getFullYear() > 1970
                                                 ? format(new Date(assignment.dueDate), 'MMM d, yyyy')
                                                 : 'No Due Date'}
@@ -1097,7 +1097,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 }));
                             }
                         }}>
-                            <Plus size={14} /> Add Task
+                            <Plus size={16} /> Add Task
                         </button>
                     )}
                     {showTaskForm && (
@@ -1107,8 +1107,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                 <input className="input" required placeholder="Enter task title" value={taskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaskForm({ ...taskForm, title: e.target.value })} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Description</label>
-                                <textarea className="input" rows={2} placeholder="Enter task description..." value={taskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTaskForm({ ...taskForm, description: e.target.value })} />
+                                <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Detailed Task Description *</label>
+                                <textarea className="input" required rows={2} placeholder="Enter task description..." value={taskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTaskForm({ ...taskForm, description: e.target.value })} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1160,7 +1160,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                     <div key={t._id} id={`task-${t._id}`} className="card" style={{ padding: '14px 18px' }}>
                                         {editingTask === t._id ? (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 } as React.CSSProperties}>
-                                                <input className="input" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
+                                                <input className="input" required placeholder="Enter task title" value={editTaskForm.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTaskForm({ ...editTaskForm, title: e.target.value })} />
+                                                <textarea className="input" required rows={2} placeholder="Enter task description..." value={editTaskForm.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditTaskForm({ ...editTaskForm, description: e.target.value })} />
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                                                     <select className="select" value={editTaskForm.assignedTo} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditTaskForm({ ...editTaskForm, assignedTo: e.target.value })}>
                                                         {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
@@ -1194,9 +1195,24 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         <span className={`badge badge-${t.priority}`}>{PRIORITY_LABELS[t.priority]}</span>
                                                         <span className={`badge badge-${t.status}`}>{TASK_STATUS_LABELS[t.status]}</span>
                                                     </div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }} >
+
+                                                        {t.description ? (
+                                                            <>
+                                                                <span className="font-semibold text-(--color-text-secondary)">Task Description :</span> {t.description}
+                                                            </>
+                                                        ) : null}
+
+                                                    </div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                                        Assigned to {t.assignedTo?.name} · <span style={{ color: getDueDateColor(t.dueDate) }}>
-                                                            {t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(t.dueDate), 'MMM d')}` : 'No due date'}
+                                                        Assigned to {t.assignedTo?.name}<span style={{ color: getDueDateColor(t.dueDate) }}>
+                                                            <span style={{ color: 'var(--color-text-secondary)' }} > · </span>
+                                                            {t.status === "completed" ? (
+                                                                <span className='line-through text-(--color-success) ' >{t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(t.dueDate), 'MMM d')}` : 'No due date'}</span>
+                                                            ) : (
+                                                                <span>{t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(t.dueDate), 'MMM d')}` : 'No due date'}</span>
+                                                            )}
+
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1244,16 +1260,17 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     )}
                                                     {canEdit && (
                                                         <>
-                                                            <button className="btn btn-ghost btn-xs" onClick={() => {
-                                                                setEditingTask(t._id);
-                                                                setEditTaskForm({
-                                                                    title: t.title,
-                                                                    assignedTo: t.assignedTo?._id,
-                                                                    dueDate: t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? t.dueDate.split('T')[0] : '',
-                                                                    noDueDate: t.noDueDate || (!t.dueDate || new Date(t.dueDate).getFullYear() <= 1970),
-                                                                    priority: t.priority,
-                                                                });
-                                                            }}>
+                                                              <button className="btn btn-ghost btn-xs" onClick={() => {
+                                                                  setEditingTask(t._id);
+                                                                  setEditTaskForm({
+                                                                      title: t.title,
+                                                                      description: t.description || '',
+                                                                      assignedTo: t.assignedTo?._id,
+                                                                      dueDate: t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? t.dueDate.split('T')[0] : '',
+                                                                      noDueDate: t.noDueDate || (!t.dueDate || new Date(t.dueDate).getFullYear() <= 1970),
+                                                                      priority: t.priority,
+                                                                  });
+                                                              }}>
                                                                 <Edit3 size={13} />
                                                             </button>
                                                             <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }} onClick={() => deleteTask(t._id)}>
@@ -1399,7 +1416,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                         }}
                                                         title="Reply"
                                                     >
-                                                        <Reply size={14} />
+                                                        <Reply size={16} />
                                                     </button>
                                                 </div>
                                             )}
@@ -1472,7 +1489,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                         {(att.fileSize / 1024).toFixed(1)} KB
                                                                     </div>
                                                                 </div>
-                                                                <Download size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+                                                                <Download size={16} style={{ color: 'var(--color-text-tertiary)' }} />
                                                             </div>
                                                         )}
                                                     </div>
@@ -1599,7 +1616,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             </>
                         )}
                         <button type="submit" className="btn btn-primary btn-sm" disabled={(!chatInput.trim() && stagedFiles.length === 0) || isUploadingFile}>
-                            <Send size={14} /> Send
+                            <Send size={16} /> Send
                         </button>
                     </form>
                 </div>
@@ -1623,11 +1640,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                         ) : (
                             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                                 <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
-                                    <Upload size={14} /> Upload File
+                                    <Upload size={16} /> Upload File
                                     <input type="file" style={{ display: 'none' }} onChange={uploadFile} />
                                 </label>
                                 <button className="btn btn-ghost btn-sm" onClick={async () => { const { data } = await api.get(`/files?assignmentId=${id}`); setFiles(data.attachments || []); }} title="Refresh files">
-                                    <RefreshCw size={14} /> Refresh
+                                    <RefreshCw size={16} /> Refresh
                                 </button>
                             </div>
                         )}
@@ -1647,7 +1664,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                             </div>
                                         </div>
                                         <button className="btn btn-ghost btn-sm" onClick={() => downloadFile(f._id, f.originalName)} title="Download">
-                                            <Download size={14} />
+                                            <Download size={16} />
                                         </button>
                                     </div>
                                 ))}

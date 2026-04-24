@@ -1,10 +1,11 @@
-﻿import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IContact extends Document {
     companyId: mongoose.Types.ObjectId;
     name: string;
     email?: string;
     phone?: string;
+    phoneCountryCode?: string;
     position?: string;
     department?: string;
     isPrimary: boolean;
@@ -19,6 +20,7 @@ const contactSchema = new Schema<IContact>(
         name: { type: String, required: true, trim: true },
         email: { type: String, trim: true, lowercase: true },
         phone: { type: String, trim: true },
+        phoneCountryCode: { type: String, trim: true, default: '+91' },
         position: { type: String, trim: true },
         department: { type: String, trim: true },
         isPrimary: { type: Boolean, default: false },

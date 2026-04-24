@@ -13,7 +13,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Create Company
 export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
-        const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
+        const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
         
         const companyData: any = {
             name,
@@ -23,6 +23,7 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
             website,
             email,
             phone,
+            phoneCountryCode: phoneCountryCode || '+91',
             address,
             status: status || 'active',
         };
@@ -97,7 +98,7 @@ export const getCompany = async (req: Request, res: Response) => {
 // Update Company
 export const updateCompany = async (req: AuthRequest, res: Response) => {
     try {
-        const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
+        const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
 
         const updateData: any = {
             name,
@@ -107,6 +108,7 @@ export const updateCompany = async (req: AuthRequest, res: Response) => {
             website,
             email,
             phone,
+            phoneCountryCode,
             address,
             status
         };
@@ -376,6 +378,7 @@ export const importCompanies = async (req: AuthRequest, res: Response) => {
                     website: getCell('website') || undefined,
                     email: getCell('company email') || undefined,
                     phone: getCell('phone') || getCell('contact') || undefined,
+                    phoneCountryCode: getCell('phone country code') || getCell('country code') || '+91',
                     address: {
                         street: getCell('street') || undefined,
                         city: getCell('city') || undefined,
@@ -466,6 +469,7 @@ export const exportCompaniesToExcel = async (req: Request, res: Response) => {
             { header: 'Description', key: 'description', width: 40 },
             { header: 'Website', key: 'website', width: 25 },
             { header: 'Email', key: 'email', width: 25 },
+            { header: 'Phone Country Code', key: 'phoneCountryCode', width: 10 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Street', key: 'street', width: 25 },
             { header: 'City', key: 'city', width: 15 },
@@ -515,6 +519,7 @@ export const exportCompaniesToExcel = async (req: Request, res: Response) => {
                 description: company.description || '',
                 website: company.website || '',
                 email: company.email || '',
+                phoneCountryCode: company.phoneCountryCode || '+91',
                 phone: company.phone || '',
                 street: company.address?.street || '',
                 city: company.address?.city || '',
@@ -613,7 +618,10 @@ export const exportCompaniesToPDF = async (req: Request, res: Response) => {
             // Company details
             doc.fontSize(10).font('Helvetica');
             if (company.industry) doc.text(`Industry: ${company.industry}`);
-            if (company.phone) doc.text(`Phone: ${company.phone}`);
+            if (company.phone) {
+                const phoneDisplay = company.phoneCountryCode ? `${company.phoneCountryCode} ${company.phone}` : company.phone;
+                doc.text(`Phone: ${phoneDisplay}`);
+            }
             if (company.website) doc.text(`Website: ${company.website}`);
             if (company.description) doc.text(`Description: ${company.description}`, { width: 500 });
 
@@ -735,6 +743,7 @@ export const downloadSampleExcel = async (req: Request, res: Response) => {
             { header: 'Description', key: 'description', width: 30 },
             { header: 'Website', key: 'website', width: 25 },
             { header: 'Company Email', key: 'email', width: 25 },
+            { header: 'Phone Country Code', key: 'phoneCountryCode', width: 10 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Street', key: 'street', width: 20 },
             { header: 'City', key: 'city', width: 15 },
@@ -767,6 +776,7 @@ export const downloadSampleExcel = async (req: Request, res: Response) => {
             description: 'A sample technology company',
             website: 'https://example.com',
             email: 'contact@samplecorp.com',
+            phoneCountryCode: '+91',
             phone: '1234567890',
             street: '123 Tech Park',
             city: 'Bangalore',

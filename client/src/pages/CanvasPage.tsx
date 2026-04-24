@@ -49,6 +49,7 @@ const CanvasPage: React.FC = () => {
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+    // const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -365,6 +366,8 @@ const CanvasPage: React.FC = () => {
                             display: "flex",
                             flexDirection: "column"
                         }}
+                        // onMouseEnter={() => setHoveredNoteId(note._id)}
+                        // onMouseLeave={() => setHoveredNoteId(null)}
                         onMouseDown={(e) => {
                             // Always stop propagation in Select mode to prevent canvas-level actions
                             if (selectedTool === 'select') {
@@ -394,7 +397,7 @@ const CanvasPage: React.FC = () => {
                             borderBottom: '1px solid rgba(0,0,0,0.08)'
                         }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Move size={14} style={{ cursor: "grab", opacity: 0.5 }} />
+                                <Move size={16} style={{ cursor: "grab", opacity: 0.5 }} />
                                 <div style={{
                                     width: 8,
                                     height: 8,
@@ -404,7 +407,7 @@ const CanvasPage: React.FC = () => {
                                 }} />
                             </div>
                             <div style={{ display: 'flex', gap: 6 }}>
-                                <NoteExportMenu noteContent={note.content} noteId={note._id} iconSize={14} />
+                                <NoteExportMenu noteContent={note.content} noteId={note._id} iconSize={16} />
                                 {activeEditId === note._id && (
                                     <button
                                         onClick={(e) => {
@@ -423,7 +426,7 @@ const CanvasPage: React.FC = () => {
                                             opacity: 0.6
                                         }}
                                     >
-                                        <X size={14} />
+                                        <X size={16} />
                                     </button>
                                 )}
                                 <button
@@ -439,7 +442,7 @@ const CanvasPage: React.FC = () => {
                                         opacity: 0.6
                                     }}
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={16} />
                                 </button>
                             </div>
                         </div>
@@ -472,14 +475,12 @@ const CanvasPage: React.FC = () => {
                                 />
                             ) : (
                                 <div
+                                    className="note-content-area"
                                     onClick={() => setActiveEditId(note._id)}
                                     style={{
-                                        padding: '8px 12px',
                                         flex: 1,
-                                        fontSize: "0.9rem",
-                                        lineHeight: 1.6,
                                         cursor: 'text',
-                                        color: '#1e293b'
+                                        maxWidth: 'none'
                                     }}
                                     dangerouslySetInnerHTML={{ __html: note.content }}
                                 />
@@ -662,6 +663,7 @@ const CanvasPage: React.FC = () => {
                 offset={offset}
                 containerWidth={containerSize.width}
                 containerHeight={containerSize.height}
+                onOffsetChange={setOffset}
             />
         </div>
     );

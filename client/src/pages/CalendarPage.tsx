@@ -524,7 +524,7 @@ const CalendarPage: React.FC = () => {
                                 <Calendar size={16} />
                                 <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em' }}>{view} View</span>
                                 <ChevronDown
-                                    size={14}
+                                    size={16}
                                     className={`transition-transform duration-300 ${isViewDropdownOpen ? "rotate-180" : ""}`}
                                 />
                             </button>
@@ -535,7 +535,7 @@ const CalendarPage: React.FC = () => {
                                         className="fixed inset-0 z-40"
                                         onClick={() => setIsViewDropdownOpen(false)}
                                     ></div>
-                                    <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-50 animate-fade-in p-2 backdrop-blur-xl border border-border/50">
+                                    <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-50 animate-fade-in p-2 backdrop-blur-xl border border-border/50" style={{ padding: "10px", marginTop: "5px" }}>
                                         {[
                                             { id: 'year', label: 'Yearly', icon: <Layers size={16} />, color: 'primary' },
                                             { id: 'month', label: 'Monthly', icon: <Calendar size={16} />, color: 'success' },
@@ -548,7 +548,7 @@ const CalendarPage: React.FC = () => {
                                                     setView(v.id as any);
                                                     setIsViewDropdownOpen(false);
                                                 }}
-                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-xl group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'
+                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-[22px] group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3 cursor-pointer hover:bg-(--color-primary) w-full rounded-xl my-2 ">
@@ -558,9 +558,9 @@ const CalendarPage: React.FC = () => {
                                                     </div>
                                                     {v.label}
                                                 </div>
-                                                {view === v.id && (
+                                                {/* {view === v.id && (
                                                     <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                                                )}
+                                                )} */}
                                             </button>
                                         ))}
                                     </div>

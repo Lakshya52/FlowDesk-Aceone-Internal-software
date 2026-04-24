@@ -94,7 +94,7 @@ const htmlToPlainText = (html: string): string => {
 const NoteExportMenu: React.FC<NoteExportMenuProps> = ({
     noteContent,
     noteId,
-    iconSize = 14,
+    iconSize = 16,
     style = {}
 }) => {
     const [open, setOpen] = useState(false);

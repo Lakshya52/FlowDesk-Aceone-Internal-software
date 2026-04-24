@@ -343,7 +343,7 @@ const Header: React.FC = () => {
                             <div style={{ fontSize: '0.8125rem', fontWeight: 500, lineHeight: 1.2 }}>{user?.name}</div>
                             <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', lineHeight: 1.2 }}>{roleLabel}</div>
                         </div>
-                        <ChevronDown size={14} color="var(--color-text-tertiary)" />
+                        <ChevronDown size={16} color="var(--color-text-tertiary)" />
                     </button>
 
                     {showProfile && (

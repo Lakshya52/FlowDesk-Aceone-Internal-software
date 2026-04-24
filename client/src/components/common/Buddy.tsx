@@ -438,7 +438,7 @@ const Buddy: React.FC = () => {
                                     }}
                                     title="Clear chat"
                                 >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={16} />
                                 </button>
                             )}
                             <button
@@ -455,7 +455,7 @@ const Buddy: React.FC = () => {
                                 }}
                                 title="Close"
                             >
-                                <X size={14} />
+                                <X size={16} />
                             </button>
                         </div>
                     </div>
@@ -527,7 +527,7 @@ const Buddy: React.FC = () => {
                                                 e.currentTarget.style.color = "#475569";
                                             }}
                                         >
-                                            <MessageCircle size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
+                                            <MessageCircle size={16} style={{ opacity: 0.5, flexShrink: 0 }} />
                                             {q}
                                         </button>
                                     ))}
@@ -552,7 +552,7 @@ const Buddy: React.FC = () => {
                                         marginTop: 2,
                                     }}
                                 >
-                                    {msg.role === "user" ? <User size={14} color="white" /> : <Sparkles size={14} color="#6366f1" />}
+                                    {msg.role === "user" ? <User size={16} color="white" /> : <Sparkles size={16} color="#6366f1" />}
                                 </div>
 
                                 {/* Message bubble */}
@@ -593,7 +593,7 @@ const Buddy: React.FC = () => {
                                         flexShrink: 0,
                                     }}
                                 >
-                                    <Sparkles size={14} color="#6366f1" />
+                                    <Sparkles size={16} color="#6366f1" />
                                 </div>
                                 <div
                                     style={{

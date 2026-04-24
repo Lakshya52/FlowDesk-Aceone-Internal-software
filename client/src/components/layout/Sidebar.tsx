@@ -1,4 +1,5 @@
-import React from 'react';
+"use client"
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import packageJson from '../../../package.json';
 import {
@@ -13,6 +14,7 @@ import {
     Users,
     Menu,
     ChevronLeft,
+    ChevronDown,
     // ChevronRight
     Building2,
     Shapes,
@@ -33,14 +35,15 @@ const navItems = [
         icon: FolderKanban,
         label: 'Projects',
         subItems: [
+            { to: '/assignments', label: 'Projects' },
             { to: '/tasks', label: 'Tasks' },
             // { to: '/reports/workload', label: 'Workload' },
             // { to: '/reports/activity', label: 'User Activity' }
         ]
-    },
-    { to: '/clients', icon: Building2, label: 'Companies & Clients', new: true },
-    { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: true },
-    { to: '/canvas', icon: Shapes, label: 'Canvas', new: true },
+    },  
+    { to: '/clients', icon: Building2, label: 'Companies & Clients', new: false },
+    { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: false },
+    { to: '/canvas', icon: Shapes, label: 'Canvas', new: false },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
     {
         to: '/reports',
@@ -56,6 +59,16 @@ const navItems = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
+
+    const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+    
+    const toggleExpand = (to: string) => {
+        setExpandedItems(prev => ({
+            ...prev,
+            [to]: !prev[to]
+        }));
+    };
+    
     return (
         <aside
             style={{
@@ -135,55 +148,102 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
             <nav style={{ flex: 1, padding: isOpen ? '12px' : '12px 8px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {navItems.map((item) => {
+                        const hasSubItems = !!item.subItems && item.subItems.length > 0;
+                        const isExpanded = expandedItems[item.to] ?? false;
+                        
                         return (
                             <div key={item.to} style={{ display: 'flex', flexDirection: 'column' }}>
-                                <NavLink
-                                    to={item.to}
-                                    end={item.to === '/dashboard'}
-                                    style={({ isActive }) => ({
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: isOpen ? 'flex-start' : 'center',
-                                        gap: '12px',
-                                        padding: isOpen ? '10px 12px' : '12px',
-                                        borderRadius: '8px',
-                                        fontSize: '0.875rem',
-                                        fontWeight: isActive ? 600 : 400,
-                                        color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                                        background: isActive ? 'var(--color-primary-light)' : 'transparent',
-                                        textDecoration: 'none',
-                                        transition: 'all 0.15s ease',
-                                    })}
-                                    onMouseEnter={(e) => {
-                                        const el = e.currentTarget;
-                                        if (!el.classList.contains('active')) {
-                                            el.style.background = 'var(--color-surface-hover)';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        const el = e.currentTarget;
-                                        if (!el.classList.contains('active')) {
-                                            el.style.background = 'transparent';
-                                        }
-                                    }}
-                                >
-                                    <item.icon size={20} style={{ flexShrink: 0 }} />
-                                    {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
-                                    {item.new && isOpen && (
-                                        <span style={{ 
-                                            fontSize: '0.6rem', 
-                                            background: '#22c55e', 
-                                            color: 'white', 
-                                            padding: '2px 6px', 
-                                            borderRadius: 10, 
-                                            fontWeight: 700,
-                                            textTransform: 'uppercase',
-                                            lineHeight: 1
-                                        }}>New</span>
-                                    )}
-                                </NavLink>
+                                {hasSubItems ? (
+                                    // Parent with subItems - clickable to toggle
+                                    <div
+                                        onClick={() => toggleExpand(item.to)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: isOpen ? 'flex-start' : 'center',
+                                            gap: '12px',
+                                            padding: isOpen ? '10px 12px' : '12px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.875rem',
+                                            fontWeight: 400,
+                                            color: 'var(--color-text-secondary)',
+                                            background: 'transparent',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease',
+                                            textDecoration: 'none',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'var(--color-surface-hover)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'transparent';
+                                        }}
+                                    >
+                                        <item.icon size={20} style={{ flexShrink: 0 }} />
+                                        {isOpen && (
+                                            <>
+                                                <span style={{ whiteSpace: 'nowrap', flex: 1 }}>{item.label}</span>
+                                                <ChevronDown 
+                                                    size={16} 
+                                                    style={{ 
+                                                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                        transition: 'transform 0.2s ease',
+                                                        flexShrink: 0 
+                                                    }} 
+                                                />
+                                            </>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <NavLink
+                                        to={item.to}
+                                        end={item.to === '/dashboard'}
+                                        style={({ isActive }) => ({
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: isOpen ? 'flex-start' : 'center',
+                                            gap: '12px',
+                                            padding: isOpen ? '10px 12px' : '12px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.875rem',
+                                            fontWeight: isActive ? 600 : 400,
+                                            color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                            background: isActive ? 'var(--color-primary-light)' : 'transparent',
+                                            textDecoration: 'none',
+                                            transition: 'all 0.15s ease',
+                                        })}
+                                        onMouseEnter={(e) => {
+                                            const el = e.currentTarget;
+                                            if (!el.classList.contains('active')) {
+                                                el.style.background = 'var(--color-surface-hover)';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            const el = e.currentTarget;
+                                            if (!el.classList.contains('active')) {
+                                                el.style.background = 'transparent';
+                                            }
+                                        }}
+                                    >
+                                        <item.icon size={20} style={{ flexShrink: 0 }} />
+                                        {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                                        {item.new && isOpen && (
+                                            <span style={{ 
+                                                fontSize: '0.6rem', 
+                                                background: '#22c55e', 
+                                                color: 'white', 
+                                                padding: '2px 6px', 
+                                                borderRadius: 10, 
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                                lineHeight: 1
+                                            }}>New</span>
+                                        )}
+                                    </NavLink>
+                                )}
 
-                                {item.subItems && isOpen && (
+
+                                {item.subItems && isOpen && isExpanded && (
                                     <div style={{
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -249,6 +309,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                         })}
                                     </div>
                                 )}
+
                             </div>
                         );
                     })}

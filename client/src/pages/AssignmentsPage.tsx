@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Search, FolderKanban, Users, Filter, User, X } from 'lucide-react';
+import { Plus, Search, FolderKanban, Users, Filter, User, X, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -16,11 +16,13 @@ const AssignmentsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [companyFilter, setCompanyFilter] = useState('');
+    const [filterCompanies, setFilterCompanies] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'ongoing' | 'completed' | 'blueprints'>('ongoing');
     const [showCreate, setShowCreate] = useState(false);
 
     // Admin filter state
-    const [filterMode, setFilterMode] = useState<'all' | 'mine' | 'team' | 'person'>('all');
+    const [filterMode, setFilterMode] = useState<'All' | 'My Projects' | 'By Team' | 'By Person' | 'By Company'>('All');
     const [filterTeamId, setFilterTeamId] = useState('');
     const [filterUserId, setFilterUserId] = useState('');
     const [filterTeams, setFilterTeams] = useState<any[]>([]);
@@ -71,6 +73,7 @@ const AssignmentsPage: React.FC = () => {
             }
 
             if (search) params.search = search;
+            if (companyFilter) params.companyId = companyFilter;
 
             console.log('📡 Fetching assignments with params:', params);
             const { data } = await api.get('/assignments', { params });
@@ -91,7 +94,7 @@ const AssignmentsPage: React.FC = () => {
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab]);
+    useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab, companyFilter]);
 
     // Fetch teams and users for admin filter dropdowns
     useEffect(() => {
@@ -99,42 +102,58 @@ const AssignmentsPage: React.FC = () => {
             Promise.all([
                 api.get('/teams?all=true'),
                 api.get('/auth/users?all=true'),
-            ]).then(([tRes, uRes]) => {
+                api.get('/companies'),
+            ]).then(([tRes, uRes, cRes]) => {
                 setFilterTeams(tRes.data.teams || []);
                 setFilterUsers(uRes.data.users || []);
+                // Flatten companies for filter dropdown
+                const flatCompanies: any[] = [];
+                const flatten = (items: any[]) => {
+                    items.forEach(item => {
+                        const { children, ...rest } = item;
+                        flatCompanies.push(rest);
+                        if (children) flatten(children);
+                    });
+                };
+                flatten(cRes.data.companies || []);
+                setFilterCompanies(flatCompanies);
             }).catch(e => console.error('Failed to load filter data', e));
         }
     }, [isAdmin]);
 
     // Apply admin filters client-side
     const filteredAssignments = React.useMemo(() => {
-        if (!isAdmin || filterMode === 'all') return assignments;
+        if (!isAdmin || filterMode === 'All') return assignments;
 
         return assignments.filter((a: any) => {
-            if (filterMode === 'mine') {
+            if (filterMode === 'My Projects') {
                 const inTeam = a.team?.some((m: any) => {
                     const memberId = (m._id || m)?.toString?.() || '';
                     return memberId === user?._id;
                 });
-                const isCreator = a.createdBy?._id?.toString?.() === user?._id || 
-                                  a.createdBy?.toString?.() === user?._id;
+                const isCreator = a.createdBy?._id?.toString?.() === user?._id ||
+                    a.createdBy?.toString?.() === user?._id;
                 return inTeam || isCreator;
             }
-            if (filterMode === 'team' && filterTeamId) {
+            if (filterMode === 'By Team' && filterTeamId) {
                 return a.teams?.some((t: any) => {
                     const teamId = (t._id || t)?.toString?.() || '';
                     return teamId === filterTeamId;
                 });
             }
-            if (filterMode === 'person' && filterUserId) {
+            if (filterMode === 'By Person' && filterUserId) {
                 return a.team?.some((m: any) => {
                     const memberId = (m._id || m)?.toString?.() || '';
                     return memberId === filterUserId;
                 });
             }
+            if (filterMode === 'By Company' && companyFilter) {
+                const assignmentCompanyId = a.companyId?._id?.toString() || a.companyId?.toString();
+                return assignmentCompanyId === companyFilter;
+            }
             return true;
         });
-    }, [assignments, filterMode, filterTeamId, filterUserId, isAdmin, user]);
+    }, [assignments, filterMode, filterTeamId, filterUserId, companyFilter, isAdmin, user]);
 
     useEffect(() => {
         if (showCreate) {
@@ -358,7 +377,7 @@ const AssignmentsPage: React.FC = () => {
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Projects</h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
                         {filteredAssignments.length} Project{filteredAssignments.length !== 1 ? 's' : ''}
-                        {isAdmin && filterMode !== 'all' && ` (filtered from ${assignments.length})`}
+                        {isAdmin && filterMode !== 'All' && ` (filtered from ${assignments.length})`}
                     </p>
                 </div>
                 {canCreate && (
@@ -412,19 +431,49 @@ const AssignmentsPage: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <div style={{ flex: 1, maxWidth: 320, position: 'relative' }}>
-                    <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
-                    <input className="input" style={{ paddingLeft: 36 }} placeholder="Search Projects..." value={search} onChange={e => setSearch(e.target.value)} />
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+                <div style={{ flex: 1, maxWidth: 360, position: 'relative' }}>
+                    <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
+                    <input
+                        className="input"
+                        style={{
+                            paddingLeft: 40,
+                            height: 40,
+                            borderRadius: 10,
+                            fontSize: '0.875rem',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
+                        }}
+                        placeholder="Search projects..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
                 </div>
                 {activeTab === 'ongoing' && (
-                    <select className="select" style={{ width: 180 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                        <option value="">Status: All Active</option>
-                        {Object.entries(STATUS_LABELS)
-                            .filter(([k]) => k !== 'completed')
-                            .map(([k, v]) => <option key={k} value={k}>{v}</option>)
-                        }
-                    </select>
+                    <div style={{ position: 'relative' }}>
+                        <select
+                            style={{
+                                width: 160,
+                                height: 40,
+                                padding: '0 12px',
+                                borderRadius: 10,
+                                fontSize: '0.8125rem',
+                                fontWeight: 500,
+                                border: '1px solid var(--color-border)',
+                                background: 'var(--color-surface)',
+                                color: 'var(--color-text)',
+                                cursor: 'pointer',
+                            }}
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
+                        >
+                            <option value="">All Status</option>
+                            {Object.entries(STATUS_LABELS)
+                                .filter(([k]) => k !== 'completed')
+                                .map(([k, v]) => <option key={k} value={k}>{v}</option>)
+                            }
+                        </select>
+                    </div>
                 )}
             </div>
 
@@ -433,102 +482,171 @@ const AssignmentsPage: React.FC = () => {
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 8,
+                    gap: 12,
                     marginBottom: 20,
-                    padding: '10px 14px',
-                    borderRadius: 10,
+                    padding: '12px 16px',
+                    borderRadius: 12,
                     background: 'var(--color-surface)',
                     border: '1px solid var(--color-border)',
                     flexWrap: 'wrap',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                 }}>
-                    <Filter size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginRight: 4 }}>View:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Filter size={16} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filter</span>
+                    </div>
+
+                    <div style={{ width: 1, height: 20, background: 'var(--color-border)', flexShrink: 0 }} />
 
                     {/* Filter mode pills */}
-                    {[
-                        { key: 'all', label: 'All Projects', icon: <FolderKanban size={13} /> },
-                        { key: 'mine', label: 'My Projects', icon: <User size={13} /> },
-                        { key: 'team', label: 'By Team', icon: <Users size={13} /> },
-                        { key: 'person', label: 'By Person', icon: <User size={13} /> },
-                    ].map(opt => (
-                        <button
-                            key={opt.key}
-                            className={`btn btn-xs ${filterMode === opt.key ? 'btn-primary' : 'btn-ghost'}`}
-                            style={{
-                                borderRadius: 20,
-                                padding: '4px 12px',
-                                fontSize: '0.775rem',
-                                fontWeight: 600,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                transition: 'all 0.15s',
-                            }}
-                            onClick={() => {
-                                setFilterMode(opt.key as any);
-                                if (opt.key === 'all' || opt.key === 'mine') {
-                                    setFilterTeamId('');
-                                    setFilterUserId('');
-                                }
-                            }}
-                        >
-                            {opt.icon} {opt.label}
-                        </button>
-                    ))}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {[
+                            { key: 'All', label: 'All', icon: <FolderKanban size={12} /> },
+                            { key: 'My Projects', label: 'My Projects', icon: <User size={12} /> },
+                            { key: 'By Team', label: 'By Team', icon: <Users size={12} /> },
+                            { key: 'By Person', label: 'By Person', icon: <User size={12} /> },
+                            { key: 'By Company', label: 'By Company', icon: <Building2 size={12} /> },
+                        ].map(opt => (
+                            <button
+                                key={opt.key}
+                                onClick={() => {
+                                    setFilterMode(opt.key as any);
+                                    if (opt.key === 'All' || opt.key === 'My Projects') {
+                                        setFilterTeamId('');
+                                        setFilterUserId('');
+                                    }
+                                    if (opt.key !== 'company') {
+                                        setCompanyFilter('');
+                                    }
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    padding: '6px 12px',
+                                    borderRadius: 20,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    background: filterMode === opt.key
+                                        ? 'var(--color-primary)'
+                                        : 'var(--color-surface-hover)',
+                                    color: filterMode === opt.key
+                                        ? 'white'
+                                        : 'var(--color-text-secondary)',
+                                }}
+                            >
+                                {opt.icon} {opt.label}
+                            </button>
+                        ))}
+                    </div>
 
                     {/* Team dropdown */}
-                    {filterMode === 'team' && (
-                        <select
-                            className="select"
-                            style={{
-                                width: 200,
-                                fontSize: '0.8125rem',
-                                height: 32,
-                                borderRadius: 8,
-                            }}
-                            value={filterTeamId}
-                            onChange={e => setFilterTeamId(e.target.value)}
-                        >
-                            <option value="">Select a team...</option>
-                            {filterTeams.map(t => (
-                                <option key={t._id} value={t._id}>{t.name}</option>
-                            ))}
-                        </select>
+                    {filterMode === 'By Team' && (
+                        <div style={{ position: 'relative' }}>
+                            <select
+                                style={{
+                                    width: 180,
+                                    fontSize: '0.75rem',
+                                    height: 32,
+                                    borderRadius: 8,
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-bg)',
+                                    color: 'var(--color-text)',
+                                    padding: '0 10px',
+                                    cursor: 'pointer',
+                                }}
+                                value={filterTeamId}
+                                onChange={e => setFilterTeamId(e.target.value)}
+                            >
+                                <option value="">Select team...</option>
+                                {filterTeams.map(t => (
+                                    <option key={t._id} value={t._id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
                     )}
 
                     {/* Person dropdown */}
-                    {filterMode === 'person' && (
-                        <select
-                            className="select"
-                            style={{
-                                width: 200,
-                                fontSize: '0.8125rem',
-                                height: 32,
-                                borderRadius: 8,
-                            }}
-                            value={filterUserId}
-                            onChange={e => setFilterUserId(e.target.value)}
-                        >
-                            <option value="">Select a person...</option>
-                            {filterUsers.map(u => (
-                                <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
-                            ))}
-                        </select>
+                    {filterMode === 'By Person' && (
+                        <div style={{ position: 'relative' }}>
+                            <select
+                                style={{
+                                    width: 180,
+                                    fontSize: '0.75rem',
+                                    height: 32,
+                                    borderRadius: 8,
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-bg)',
+                                    color: 'var(--color-text)',
+                                    padding: '0 10px',
+                                    cursor: 'pointer',
+                                }}
+                                value={filterUserId}
+                                onChange={e => setFilterUserId(e.target.value)}
+                            >
+                                <option value="">Select person...</option>
+                                {filterUsers.map(u => (
+                                    <option key={u._id} value={u._id}>{u.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Company dropdown */}
+                    {filterMode === 'By Company' && (
+                        <div style={{ position: 'relative' }}>
+                            <select
+                                style={{
+                                    width: 180,
+                                    fontSize: '0.75rem',
+                                    height: 32,
+                                    borderRadius: 8,
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-bg)',
+                                    color: 'var(--color-text)',
+                                    padding: '0 10px',
+                                    cursor: 'pointer',
+                                }}
+                                value={companyFilter}
+                                onChange={e => setCompanyFilter(e.target.value)}
+                            >
+                                <option value="">Select company...</option>
+                                {filterCompanies.map(c => (
+                                    <option key={c._id} value={c._id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
                     )}
 
                     {/* Clear filter button */}
-                    {filterMode !== 'all' && (
+                    {(filterMode !== 'All' || companyFilter) && (
                         <button
-                            className="btn btn-ghost btn-xs"
-                            style={{ borderRadius: 20, padding: '4px 8px', marginLeft: 'auto' }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '6px 10px',
+                                borderRadius: 20,
+                                fontSize: '0.7rem',
+                                fontWeight: 500,
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                color: '#ef4444',
+                                marginLeft: 'auto',
+                                transition: 'all 0.15s ease',
+                            }}
                             onClick={() => {
-                                setFilterMode('all');
+                                setFilterMode('All');
                                 setFilterTeamId('');
                                 setFilterUserId('');
+                                setCompanyFilter('');
                             }}
-                            title="Clear filter"
                         >
-                            <X size={13} /> Clear
+                            <X size={12} /> Clear
                         </button>
                     )}
                 </div>
@@ -543,10 +661,10 @@ const AssignmentsPage: React.FC = () => {
                 <div className="card" style={{ padding: 48, textAlign: 'center' }}>
                     <FolderKanban size={48} style={{ margin: '0 auto 12px', color: 'var(--color-text-tertiary)', opacity: 0.3 }} />
                     <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                        {filterMode !== 'all' ? 'No projects match this filter' : 'No Projects found'}
+                        {filterMode !== 'All' || companyFilter ? 'No projects match this filter' : 'No Projects found'}
                     </div>
                     <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        {filterMode !== 'all' 
+                        {filterMode !== 'All' || companyFilter
                             ? 'Try a different filter or clear to see all projects.'
                             : (isAdmin ? 'Create your first Project to get started.' : 'No Projects have been assigned to you yet.')
                         }
@@ -575,11 +693,16 @@ const AssignmentsPage: React.FC = () => {
                                         {activeTab !== 'blueprints' && <span className={`badge badge-${a.status}`}>{STATUS_LABELS[a.status]}</span>}
                                     </div>
                                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-                                        {a.clientName && <span>Client: {a.clientName} · </span>}
+                                        {a.clientName && <span>Client: {a.clientName}</span>}
                                         {activeTab === 'blueprints' ? (
                                             <span style={{ textTransform: 'capitalize' }}>Pattern: {a.recurringPattern}</span>
                                         ) : (
-                                            <span>{a.dueDate && new Date(a.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
+                                            <span>
+                                                {a.status === 'completed' ? null : (
+                                                    <span> · {a.dueDate && new Date(a.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
+                                                )}
+                                            </span>
+
                                         )}
                                     </div>
                                     {/* Teams badges */}
@@ -686,7 +809,7 @@ const AssignmentsPage: React.FC = () => {
                                                     className="hover-bg"
                                                     onClick={() => handleQuickAddCompany(companySearch)}
                                                 >
-                                                    <Plus size={14} color="var(--color-primary)" />
+                                                    <Plus size={16} color="var(--color-primary)" />
                                                     <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
                                                         Add <strong>"{companySearch}"</strong> as new company
                                                     </div>
@@ -820,10 +943,10 @@ const AssignmentsPage: React.FC = () => {
 
                                         const team = allTeams.find(t => t._id === teamId);
                                         if (!team) return null;
-                                        
+
                                         const manager = team.manager;
                                         const members = team.members || [];
-                                        
+
                                         const memberIds = [
                                             ...(team.members?.map((m: any) => m._id) || []),
                                             team.manager?._id

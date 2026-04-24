@@ -144,7 +144,7 @@ const TeamsPage: React.FC = () => {
                                         {isMember && (
                                             <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-primary)' }}
                                                 onClick={() => { setSelectedTeam(team); setShowMembers(true); }}>
-                                                <UserPlus size={14} /> Manage
+                                                <UserPlus size={16} /> Manage
                                             </button>
                                         )}
                                         {!isMember && !hasJoinRequest && (
@@ -160,7 +160,7 @@ const TeamsPage: React.FC = () => {
                                         )}
                                         <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }}
                                             onClick={() => handleDelete(team._id)}>
-                                            <Trash2 size={14} />
+                                            <Trash2 size={16} />
                                         </button>
                                     </div>
                                 </div>
