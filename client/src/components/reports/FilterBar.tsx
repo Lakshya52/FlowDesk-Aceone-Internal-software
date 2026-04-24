@@ -1,9 +1,9 @@
 import * as React from 'react';
 import {
     RotateCcw, Calendar, Users,
-     Target,
-     User,
-     Activity 
+    Target,
+    User,
+    Activity
 } from 'lucide-react';
 
 interface FilterBarProps {
@@ -39,8 +39,8 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
         let projects = filterOptions.assignments;
 
         if (filters.teamId) {
-            projects = projects.filter((p: any) => 
-                (Array.isArray(p.teams) && p.teams.some((tid: any) => String(tid?._id || tid) === String(filters.teamId))) || 
+            projects = projects.filter((p: any) =>
+                (Array.isArray(p.teams) && p.teams.some((tid: any) => String(tid?._id || tid) === String(filters.teamId))) ||
                 (Array.isArray(p.team) && p.team.some((tid: any) => String(tid?._id || tid) === String(filters.teamId))) ||
                 String(p.team) === String(filters.teamId)
             );
@@ -62,7 +62,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 {/* Date Range Group */}
                 <div className="flex flex-col gap-2 min-w-[280px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                        <Calendar size={14} className="text-primary" />
+                        <Calendar size={16} className="text-primary" />
                         Time Period
                     </label>
                     <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 {isAdminOrManager && (
                     <div className="flex flex-col gap-2 min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                            <Users size={14} className="text-primary" />
+                            <Users size={16} className="text-primary" />
                             Team
                         </label>
                         <select
@@ -106,7 +106,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 {isAdminOrManager && (
                     <div className="flex flex-col gap-2 min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                            <User size={14} className="text-primary" />
+                            <User size={16} className="text-primary" />
                             Member
                         </label>
                         <select
@@ -125,7 +125,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 {/* Project Filter */}
                 <div className="flex flex-col gap-2 min-w-[200px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                        <Target size={14} className="text-primary" />
+                        <Target size={16} className="text-primary" />
                         Project
                     </label>
                     <select
@@ -143,7 +143,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 {/* Status Filter */}
                 <div className="flex flex-col gap-2 min-w-[150px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                        <Activity size={14} className="text-primary" />
+                        <Activity size={16} className="text-primary" />
                         Status
                     </label>
                     <select
@@ -165,7 +165,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                         onClick={onReset}
                         className="flex items-center gap-2 px-4 h-full text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger-light rounded-lg border border-transparent hover:border-danger/10 transition-all active:scale-95 group/reset"
                     >
-                        <RotateCcw size={14} className="group-hover/reset:rotate-180 transition-transform duration-500" />
+                        <RotateCcw size={16} className="group-hover/reset:rotate-180 transition-transform duration-500" />
                         Reset Filters
                     </button>
                 </div>

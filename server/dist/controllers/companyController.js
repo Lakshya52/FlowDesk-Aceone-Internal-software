@@ -692,6 +692,7 @@ const downloadSampleExcel = async (req, res) => {
             { header: 'Description', key: 'description', width: 30 },
             { header: 'Website', key: 'website', width: 25 },
             { header: 'Company Email', key: 'email', width: 25 },
+            { header: 'Country Code', key: 'phoneCountryCode', width: 10 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Street', key: 'street', width: 20 },
             { header: 'City', key: 'city', width: 15 },
@@ -722,6 +723,7 @@ const downloadSampleExcel = async (req, res) => {
             description: 'A sample technology company',
             website: 'https://example.com',
             email: 'contact@samplecorp.com',
+            phoneCountryCode: '+91',
             phone: '1234567890',
             street: '123 Tech Park',
             city: 'Bangalore',
@@ -754,6 +756,7 @@ const downloadSampleExcel = async (req, res) => {
         res.end();
     }
     catch (error) {
+        alert("Something went wrong, downloading the sample file, please contact developer of the application ")
         res.status(500).json({ success: false, message: error.message });
     }
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
-import { Plus, Building2, Users, FolderKanban, ChevronRight, ChevronDown, Edit2, Trash2, X, Phone, Mail, Globe, Upload, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Plus, Building2, Building, Users, FolderKanban, ChevronRight, ChevronDown, Edit2, Trash2, X, Phone, Mail, Globe, Upload, Download, FileSpreadsheet, FileText } from "lucide-react";
 
 interface Company {
     _id: string;
@@ -11,6 +11,7 @@ interface Company {
     description?: string;
     website?: string;
     phone?: string;
+    phoneCountryCode?: string;
     address?: { street?: string; city?: string; state?: string; country?: string; postalCode?: string };
     status: "active" | "inactive";
     contacts?: Contact[];
@@ -24,6 +25,7 @@ interface Contact {
     name: string;
     email?: string;
     phone?: string;
+    phoneCountryCode?: string;
     position?: string;
     department?: string;
     isPrimary: boolean;
@@ -52,17 +54,21 @@ const ClientsPage: React.FC = () => {
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
     const [isSelectDataMode, setIsSelectDataMode] = useState(false);
 
+
+
     // for debugging
     // console.log(selected);
 
     const [companyForm, setCompanyForm] = useState({
         name: "",
+        companyType: "parent" as "parent" | "child",
         parentCompanyId: "",
         industry: "",
         description: "",
         website: "",
         email: "",
         phone: "",
+        phoneCountryCode: "+91",
         address: { street: "", city: "", state: "", country: "India", postalCode: "" },
     });
 
@@ -70,6 +76,7 @@ const ClientsPage: React.FC = () => {
         name: "",
         email: "",
         phone: "",
+        phoneCountryCode: "+91",
         position: "",
         department: "",
         isPrimary: false,
@@ -103,9 +110,23 @@ const ClientsPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        let isMounted = true;
         if (selected?._id) {
-            fetchCompanyDetails(selected._id);
+            const fetchDetails = async () => {
+                try {
+                    const { data } = await api.get(`/companies/${selected._id}`);
+                    if (isMounted) {
+                        setSelected(data.company);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+            fetchDetails();
         }
+        return () => {
+            isMounted = false;
+        };
     }, [selected?._id]);
 
     const fetchCompanyDetails = async (companyId: string) => {
@@ -119,22 +140,31 @@ const ClientsPage: React.FC = () => {
         }
     };
 
-    const fetchCompanyAssignments = async (companyId: string) => {
-        setLoadingAssignments(true);
-        try {
-            const { data } = await api.get('/assignments', { params: { companyId } });
-            setCompanyAssignments(data.assignments || []);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoadingAssignments(false);
-        }
-    };
+
 
     useEffect(() => {
+        let isMounted = true;
         if (selected?._id && activeTab === 'projects') {
-            fetchCompanyAssignments(selected._id);
+            const fetchAssignments = async () => {
+                setLoadingAssignments(true);
+                try {
+                    const { data } = await api.get('/assignments', { params: { companyId: selected._id } });
+                    if (isMounted) {
+                        setCompanyAssignments(data.assignments || []);
+                    }
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    if (isMounted) {
+                        setLoadingAssignments(false);
+                    }
+                }
+            };
+            fetchAssignments();
         }
+        return () => {
+            isMounted = false;
+        };
     }, [selected?._id, activeTab]);
 
     const handleCreateCompany = async (e: React.FormEvent) => {
@@ -158,12 +188,14 @@ const ClientsPage: React.FC = () => {
         setEditingCompany(company);
         setCompanyForm({
             name: company.name,
+            companyType: company.parentCompanyId ? "child" : "parent",
             parentCompanyId: company.parentCompanyId || "",
             industry: company.industry || "",
             description: company.description || "",
             website: company.website || "",
             email: company.email || "",
             phone: company.phone || "",
+            phoneCountryCode: (company as any).phoneCountryCode || "+91",
             address: {
                 street: company.address?.street || "",
                 city: company.address?.city || "",
@@ -189,12 +221,14 @@ const ClientsPage: React.FC = () => {
     const resetCompanyForm = () => {
         setCompanyForm({
             name: "",
+            companyType: "parent",
             parentCompanyId: "",
             industry: "",
             description: "",
             website: "",
             email: "",
             phone: "",
+            phoneCountryCode: "+91",
             address: { street: "", city: "", state: "", country: "India", postalCode: "" }
         });
         setEditingCompany(null);
@@ -412,11 +446,11 @@ const ClientsPage: React.FC = () => {
                         `"${c.industry || ""}"`,
                         `"${c.website || ""}"`,
                         `"${c.email || ""}"`,
-                        `"${c.phone || ""}"`,
+                        `"${(c.phoneCountryCode || "") + (c.phone ? " " + c.phone : "")}"`,
                         `"${c.status}"`,
                         `"${contact.name}"`,
                         `"${contact.email || ""}"`,
-                        `"${contact.phone || ""}"`,
+                        `"${(contact.phoneCountryCode || "") + (contact.phone ? " " + contact.phone : "")}"`,
                         `"${contact.position || ""}"`,
                         `"${contact.department || ""}"`,
                         `"${contact.isPrimary ? "Yes" : "No"}"`
@@ -428,7 +462,7 @@ const ClientsPage: React.FC = () => {
                     `"${c.industry || ""}"`,
                     `"${c.website || ""}"`,
                     `"${c.email || ""}"`,
-                    `"${c.phone || ""}"`,
+                    `"${(c.phoneCountryCode || "") + (c.phone ? " " + c.phone : "")}"`,
                     `"${c.status}"`,
                     `""`, `""`, `""`, `""`, `""`, `""`
                 ]);
@@ -459,22 +493,22 @@ const ClientsPage: React.FC = () => {
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => setShowImport(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Upload size={14} />Import
+                        <Upload size={16} />Import
                     </button>
-                    
+
                     <div style={{ position: 'relative' }}>
                         <div style={{ display: "flex", gap: 10 }}>
-                            <button 
-                                className="btn btn-secondary btn-sm" 
-                                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)} 
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
                                 style={{ display: "flex", alignItems: "center", gap: 6 }}
                             >
-                                <Download size={14} />
+                                <Download size={16} />
                                 {isSelectDataMode ? `Export Selected (${selectedCompanyIds.size})` : 'Export'}
                             </button>
-                            
+
                             {isSelectDataMode && (
-                                <button 
+                                <button
                                     className="btn btn-ghost btn-sm"
                                     onClick={() => {
                                         setIsSelectDataMode(false);
@@ -483,47 +517,47 @@ const ClientsPage: React.FC = () => {
                                     style={{ color: 'var(--color-error)' }}
                                     title="Cancel Selection"
                                 >
-                                    <X size={14} /> Cancel
+                                    <X size={16} /> Cancel
                                 </button>
                             )}
                         </div>
-                        
+
                         {isExportDropdownOpen && (
                             <>
-                                <div 
-                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
-                                    onClick={() => setIsExportDropdownOpen(false)} 
+                                <div
+                                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}
+                                    onClick={() => setIsExportDropdownOpen(false)}
                                 />
-                                <div className="card shadow-xl" style={{ 
-                                    position: 'absolute', top: '100%', right: 0, zIndex: 101, 
+                                <div className="card shadow-xl" style={{
+                                    position: 'absolute', top: '100%', right: 0, zIndex: 101,
                                     marginTop: 8, width: 220, padding: 8,
-                                    background: 'var(--color-surface)', border: '1px solid var(--color-border)' 
+                                    background: 'var(--color-surface)', border: '1px solid var(--color-border)'
                                 }}>
                                     {isSelectDataMode ? (
                                         <>
                                             <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
                                                 Choose Format ({selectedCompanyIds.size} Selected)
                                             </div>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { exportToCSV(); setIsExportDropdownOpen(false); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
                                             >
-                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to CSV
+                                                <FileSpreadsheet size={16} style={{ marginRight: 10 }} /> Export to CSV
                                             </button>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { handleExportExcel(); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
                                             >
-                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to Excel
+                                                <FileSpreadsheet size={16} style={{ marginRight: 10 }} /> Export to Excel
                                             </button>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { handleExportPDF(); setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); }}
                                             >
-                                                <FileText size={14} style={{ marginRight: 10 }} /> Export to PDF
+                                                <FileText size={16} style={{ marginRight: 10 }} /> Export to PDF
                                             </button>
                                         </>
                                     ) : (
@@ -531,8 +565,8 @@ const ClientsPage: React.FC = () => {
                                             <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
                                                 Export Options
                                             </div>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { setIsSelectDataMode(true); setIsExportDropdownOpen(false); setSelectedCompanyIds(new Set()); }}
                                             >
@@ -544,26 +578,26 @@ const ClientsPage: React.FC = () => {
                                             <div style={{ padding: '8px 12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
                                                 Export All Formats
                                             </div>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); exportToCSV(); setIsExportDropdownOpen(false); }}
                                             >
-                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to CSV
+                                                <FileSpreadsheet size={16} style={{ marginRight: 10 }} /> Export to CSV
                                             </button>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); handleExportExcel(); }}
                                             >
-                                                <FileSpreadsheet size={14} style={{ marginRight: 10 }} /> Export to Excel (.xlsx)
+                                                <FileSpreadsheet size={16} style={{ marginRight: 10 }} /> Export to Excel (.xlsx)
                                             </button>
-                                            <button 
-                                                className="btn btn-ghost btn-sm w-full" 
+                                            <button
+                                                className="btn btn-ghost btn-sm w-full"
                                                 style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px' }}
                                                 onClick={() => { setIsSelectDataMode(false); setSelectedCompanyIds(new Set()); handleExportPDF(); }}
                                             >
-                                                <FileText size={14} style={{ marginRight: 10 }} /> Export to PDF (.pdf)
+                                                <FileText size={16} style={{ marginRight: 10 }} /> Export to PDF (.pdf)
                                             </button>
                                         </>
                                     )}
@@ -680,8 +714,34 @@ const ClientsPage: React.FC = () => {
                                 company={selected}
                                 activeTab={activeTab}
                                 setActiveTab={setActiveTab}
-                                onAddContact={() => { setEditingContact(null); setContactForm({ name: "", email: "", phone: "", position: "", department: "", isPrimary: false, notes: "" }); setShowContactForm(true); }}
-                                onEditContact={(contact: Contact) => { setEditingContact(contact); setContactForm({ name: contact.name, email: contact.email || "", phone: contact.phone || "", position: contact.position || "", department: contact.department || "", isPrimary: contact.isPrimary, notes: contact.notes || "" }); setShowContactForm(true); }}
+                                onAddContact={() => {
+                                    setEditingContact(null);
+                                    setContactForm({
+                                        name: "",
+                                        email: "",
+                                        phone: "",
+                                        phoneCountryCode: "+91",
+                                        position: "",
+                                        department: "",
+                                        isPrimary: false,
+                                        notes: ""
+                                    });
+                                    setShowContactForm(true);
+                                }}
+                                onEditContact={(contact: Contact) => {
+                                    setEditingContact(contact);
+                                    setContactForm({
+                                        name: contact.name,
+                                        email: contact.email || "",
+                                        phone: contact.phone || "",
+                                        phoneCountryCode: contact.phoneCountryCode || "+91",
+                                        position: contact.position || "",
+                                        department: contact.department || "",
+                                        isPrimary: contact.isPrimary,
+                                        notes: contact.notes || ""
+                                    });
+                                    setShowContactForm(true);
+                                }}
                                 onDeleteContact={handleDeleteContact}
                                 assignments={companyAssignments}
                                 loadingAssignments={loadingAssignments}
@@ -758,8 +818,12 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, selectedCom
                     position: 'relative'
                 }}
                 onClick={() => {
-                    onSelect(node);
-                    if (hasChildren) {
+                    if (selectedId !== node._id) {
+                        onSelect(node);
+                    }
+                    // Only auto-expand if it's currently collapsed. 
+                    // This prevents accidental collapsing when clicking a row to view details.
+                    if (hasChildren && !isExpanded) {
                         toggleExpand(node._id);
                     }
                 }}
@@ -799,7 +863,7 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, selectedCom
                             toggleExpand(node._id);
                         }}
                     >
-                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                 ) : (
                     <span style={{ width: 20, display: "inline-block" }} />
@@ -818,7 +882,7 @@ const CompanyNode = ({ node, onSelect, onEdit, onDelete, selectedId, selectedCom
                     />
                 )}
 
-                <Building2 size={14} style={{ marginRight: 8, opacity: 0.7 }} />
+                <Building2 size={16} style={{ marginRight: 8, opacity: 0.7 }} />
 
                 <span style={{
                     flex: 1,
@@ -915,7 +979,7 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                     )} */}
                     {company.website && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.8, fontSize: "0.9rem" }}>
-                            <Globe size={14} />
+                            <Globe size={16} />
                             <a href={company.website} target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>
                                 {company.website.replace(/^https?:\/\//, "")}
                             </a>
@@ -923,7 +987,7 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                     )}
                     {company.email && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.8, fontSize: "0.9rem" }}>
-                            <Mail size={14} />
+                            <Mail size={16} />
                             <a href={`mailto:${company.email}`} style={{ color: "inherit" }}>
                                 {company.email}
                             </a>
@@ -931,8 +995,8 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                     )}
                     {company.phone && (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.8, fontSize: "0.9rem" }}>
-                            <Phone size={14} />
-                            {company.phone}
+                            <Phone size={16} />
+                            {(company.phoneCountryCode || "") + " " + company.phone}
                         </div>
                     )}
                 </div>
@@ -945,14 +1009,14 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                 onClick={() => setActiveTab("details")}
                 style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
-                <Building2 size={14} />Info
+                <Building2 size={16} />Info
             </button>
             <button
                 className={`btn btn-sm ${activeTab === "contacts" ? "btn-primary" : "btn-secondary"}`}
                 onClick={() => setActiveTab("contacts")}
                 style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
-                <Users size={14} />Contacts
+                <Users size={16} />Contacts
                 {company.contacts?.length > 0 && (
                     <span style={{ background: "var(--color-border)", padding: "2px 8px", borderRadius: 10, fontSize: "0.75rem" }}>
                         {company.contacts.length}
@@ -964,7 +1028,7 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                 onClick={() => setActiveTab("projects")}
                 style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
-                <FolderKanban size={14} />Projects
+                <FolderKanban size={16} />Projects
             </button>
         </div>
 
@@ -979,19 +1043,19 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "12px 24px", marginBottom: "1.5rem", opacity: 0.8, fontSize: "0.85rem" }}>
                     {company.email && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Mail size={14} color="var(--color-primary)" />
+                            <Mail size={16} color="var(--color-primary)" />
                             <span style={{ fontWeight: 500 }}>Email:</span> {company.email}
                         </div>
                     )}
                     {company.phone && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Phone size={14} color="var(--color-primary)" />
-                            <span style={{ fontWeight: 500 }}>Phone:</span> {company.phone}
+                            <Phone size={16} color="var(--color-primary)" />
+                            <span style={{ fontWeight: 500 }}>Phone:</span> {(company.phoneCountryCode || "") + " " + company.phone}
                         </div>
                     )}
                     {company.website && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Building2 size={14} color="var(--color-primary)" />
+                            <Building2 size={16} color="var(--color-primary)" />
                             <span style={{ fontWeight: 500 }}>Website:</span> {company.website}
                         </div>
                     )}
@@ -1027,7 +1091,7 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                                             }} />
                                         )}
                                         <div className="card" style={{ padding: "10px 14px", fontSize: "0.9rem", marginLeft: "24px", flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-                                            <Building2 size={14} style={{ marginRight: 6, opacity: 0.7 }} />
+                                            <Building2 size={16} style={{ marginRight: 6, opacity: 0.7 }} />
                                             <span style={{ flex: 1 }}>{child.name}</span>
                                             {child.industry && <span style={{ fontSize: "0.8rem", opacity: 0.6 }}>{child.industry}</span>}
                                         </div>
@@ -1059,13 +1123,13 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                     <h4 style={{ fontSize: "0.95rem", fontWeight: 600 }}>Contact Persons</h4>
                     <button className="btn btn-primary btn-sm" onClick={onAddContact} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Plus size={14} />Add Contact
+                        <Plus size={16} />Add Contact
                     </button>
                 </div>
 
                 {company.contacts && company.contacts.length > 0 ? (
                     <div style={{ display: "grid", gap: 10 }}>
-                        {company.contacts.map((contact: Contact) => (
+                        {[...(company.contacts || [])].sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1)).map((contact: Contact) => (
                             <div key={contact._id} className="card" style={{
                                 padding: 14,
                                 display: "flex",
@@ -1095,7 +1159,7 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
                                         )}
                                         {contact.phone && (
                                             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                                <Phone size={12} />{contact.phone}
+                                                <Phone size={12} />{(contact.phoneCountryCode || "") + " " + contact.phone}
                                             </span>
                                         )}
                                     </div>
@@ -1173,153 +1237,445 @@ const CompanyDetailView = ({ company, activeTab, setActiveTab, onAddContact, onE
 );
 
 const CreateCompanyModal = ({
-    // showCreate, 
-    setShowCreate, companies, companyForm, setCompanyForm, handleCreate, resetForm, isEditing }: any) => (
-    <div
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-        onClick={() => { setShowCreate(false); resetForm(); }}
-    >
-        <div className="card" style={{ padding: 24, width: 500, maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h3 style={{ fontSize: "1.2rem", fontWeight: 600 }}>{isEditing ? 'Edit Company' : 'Create Company'}</h3>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setShowCreate(false); resetForm(); }}>
-                    <X size={16} />
-                </button>
-            </div>
+    setShowCreate, companies, companyForm, setCompanyForm, handleCreate, resetForm, isEditing }: any) => {
 
-            <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Company Name *</label>
-                    <input
-                        className="input"
-                        placeholder="Enter company name"
-                        required
-                        value={companyForm.name}
-                        onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
-                    />
-                </div>
+    // Filter to only show parent/root companies (those with no parentCompanyId)
+    const parentCompanies = companies.filter((c: Company) => !c.parentCompanyId);
 
-                <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Parent Company (Optional)</label>
-                    <select
-                        className="select"
-                        value={companyForm.parentCompanyId}
-                        onChange={(e) => setCompanyForm({ ...companyForm, parentCompanyId: e.target.value })}
+    const phoneRules: Record<string, { min: number; max: number }> = {
+        "+91": { min: 10, max: 10 }, // India
+        "+1": { min: 10, max: 10 },  // US
+        "+44": { min: 10, max: 10 }, // UK
+        "+61": { min: 9, max: 9 },   // Australia
+        "+971": { min: 9, max: 9 },  // UAE
+        "+65": { min: 8, max: 8 },   // Singapore
+        "+33": { min: 9, max: 9 },   // France
+        "+81": { min: 10, max: 10 }, // Japan
+        "+49": { min: 10, max: 12 }, // Germany (variable)
+    };
+
+    const rule =
+        phoneRules[companyForm.phoneCountryCode] || { min: 6, max: 15 };
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const digitsOnly = e.target.value
+            .replace(/\D/g, "")
+            .slice(0, rule.max);
+
+        setCompanyForm({
+            ...companyForm,
+            phone: digitsOnly,
+        });
+    };
+
+    const handleCompanyTypeChange = (type: "parent" | "child") => {
+        setCompanyForm({
+            ...companyForm,
+            companyType: type,
+            // Clear parentCompanyId when switching to parent type
+            parentCompanyId: type === "parent" ? "" : companyForm.parentCompanyId,
+        });
+    };
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 23, 42, 0.5)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: '20px'
+            }}
+            onClick={() => { setShowCreate(false); resetForm(); }}
+        >
+            <div
+                className="card animate-fade-in"
+                style={{
+                    padding: 0,
+                    width: '100%',
+                    maxWidth: "650px",
+                    maxHeight: "90vh",
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    borderRadius: '16px',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div style={{
+                    padding: '20px 24px',
+                    borderBottom: '1px solid var(--color-border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'var(--color-surface)'
+                }}>
+                    <div>
+                        <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: 'var(--color-text)' }}>
+                            {isEditing ? 'Edit Company' : 'Create New Company'}
+                        </h3>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                            {isEditing ? 'Update your company details' : 'Add a new company to your network'}
+                        </p>
+                    </div>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => { setShowCreate(false); resetForm(); }}
+                        style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0 }}
                     >
-                        <option value="">No Parent (Root Company)</option>
-                        {companies.filter((c: Company) => c._id).map((c: Company) => (
-                            <option key={c._id} value={c._id}>{c.name}</option>
-                        ))}
-                    </select>
+                        <X size={18} />
+                    </button>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                        <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Industry</label>
-                        <input
-                            className="input"
-                            placeholder="e.g., Technology"
-                            value={companyForm.industry}
-                            onChange={(e) => setCompanyForm({ ...companyForm, industry: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Phone</label>
-                        <input
-                            className="input"
-                            placeholder="Phone number"
-                            value={companyForm.phone}
-                            onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
-                        />
-                    </div>
-                </div>
+                {/* Body */}
+                <form
+                    onSubmit={handleCreate}
+                    style={{
+                        flex: 1,
+                        overflowY: "auto",
+                        padding: '24px',
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: '24px'
+                    }}
+                >
+                    {/* Section: Company Type */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <label style={{ fontSize: "0.875rem", fontWeight: 600, color: 'var(--color-text)' }}>
+                            Select Company Type
+                        </label>
+                        <div style={{ display: "grid", gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <button
+                                type="button"
+                                onClick={() => handleCompanyTypeChange("parent")}
+                                style={{
+                                    padding: "16px",
+                                    borderRadius: '12px',
+                                    border: companyForm.companyType === "parent"
+                                        ? "2px solid var(--color-primary)"
+                                        : "1px solid var(--color-border)",
+                                    background: companyForm.companyType === "parent"
+                                        ? "var(--color-primary-light)"
+                                        : "var(--color-surface)",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    transition: "all 0.2s ease",
+                                    textAlign: 'center'
+                                }}
+                            >
+                                <Building2 size={24} style={{ color: companyForm.companyType === "parent" ? "var(--color-primary)" : "var(--color-text-tertiary)" }} />
+                                <div>
+                                    <span style={{ fontSize: "0.9375rem", fontWeight: 600, display: 'block' }}>Parent Company</span>
+                                    <span style={{ fontSize: "0.75rem", color: "var(--color-text-tertiary)" }}>Top-level organization</span>
+                                </div>
+                            </button>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                        <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Website</label>
-                        <input
-                            className="input"
-                            placeholder="https://example.com"
-                            value={companyForm.website}
-                            onChange={(e) => setCompanyForm({ ...companyForm, website: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Company Email</label>
-                        <input
-                            className="input"
-                            type="email"
-                            placeholder="company@example.com"
-                            value={companyForm.email}
-                            onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Description</label>
-                    <textarea
-                        className="input"
-                        placeholder="Company description"
-                        value={companyForm.description}
-                        onChange={(e) => setCompanyForm({ ...companyForm, description: e.target.value })}
-                    />
-                </div>
-
-                <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12, marginTop: 8 }}>
-                    <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: 12 }}>Address</h4>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <div style={{ gridColumn: "span 2" }}>
-                            <input
-                                className="input"
-                                placeholder="Street"
-                                value={companyForm.address.street}
-                                onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, street: e.target.value } })}
-                            />
+                            <button
+                                type="button"
+                                onClick={() => handleCompanyTypeChange("child")}
+                                style={{
+                                    padding: "16px",
+                                    borderRadius: '12px',
+                                    border: companyForm.companyType === "child"
+                                        ? "2px solid var(--color-primary)"
+                                        : "1px solid var(--color-border)",
+                                    background: companyForm.companyType === "child"
+                                        ? "var(--color-primary-light)"
+                                        : "var(--color-surface)",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    transition: "all 0.2s ease",
+                                    textAlign: 'center'
+                                }}
+                            >
+                                <Building size={24} style={{ color: companyForm.companyType === "child" ? "var(--color-primary)" : "var(--color-text-tertiary)" }} />
+                                <div>
+                                    <span style={{ fontSize: "0.9375rem", fontWeight: 600, display: 'block' }}>Child Company</span>
+                                    <span style={{ fontSize: "0.75rem", color: "var(--color-text-tertiary)" }}>Subsidiary of another</span>
+                                </div>
+                            </button>
                         </div>
+                    </div>
+
+                    {/* Section: Basic Info */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '24px', height: '2px', background: 'var(--color-primary)' }}></div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.05em' }}>General Information</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                            <div>
+                                <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Company Name *</label>
+                                <input
+                                    className="input"
+                                    placeholder="Enter company name"
+                                    required
+                                    value={companyForm.name}
+                                    onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                                />
+                            </div>
+
+                            {companyForm.companyType === "child" && (
+                                <div className="animate-fade-in">
+                                    <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>
+                                        Select Parent Company *
+                                    </label>
+                                    <select
+                                        className="select"
+                                        value={companyForm.parentCompanyId}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, parentCompanyId: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Choose a parent company</option>
+                                        {parentCompanies.map((c: Company) => (
+                                            <option key={c._id} value={c._id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                    {parentCompanies.length === 0 && (
+                                        <p style={{ fontSize: "0.75rem", color: "var(--color-danger)", marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <X size={12} /> No parent companies found.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            <div>
+                                <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Industry</label>
+                                <input
+                                    className="input"
+                                    placeholder="e.g., Technology, Healthcare"
+                                    value={companyForm.industry}
+                                    onChange={(e) => setCompanyForm({ ...companyForm, industry: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
                         <div>
-                            <input
+                            <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Description</label>
+                            <textarea
                                 className="input"
-                                placeholder="City"
-                                value={companyForm.address.city}
-                                onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, city: e.target.value } })}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                className="input"
-                                placeholder="State"
-                                value={companyForm.address.state}
-                                onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, state: e.target.value } })}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                className="input"
-                                placeholder="Postal Code"
-                                value={companyForm.address.postalCode}
-                                onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, postalCode: e.target.value } })}
-                            />
-                        </div>
-                        <div>
-                            <input
-                                className="input"
-                                placeholder="Country"
-                                value={companyForm.address.country}
-                                onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, country: e.target.value } })}
+                                placeholder="Tell us about the company..."
+                                value={companyForm.description}
+                                onChange={(e) => setCompanyForm({ ...companyForm, description: e.target.value })}
+                                style={{ minHeight: '80px', resize: 'vertical' }}
                             />
                         </div>
                     </div>
-                </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-                    <button type="button" className="btn btn-secondary" onClick={() => { setShowCreate(false); resetForm(); }}>Cancel</button>
-                    <button type="submit" className="btn btn-primary">{isEditing ? 'Update Company' : 'Create Company'}</button>
+                    {/* Section: Contact Details */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '24px', height: '2px', background: 'var(--color-primary)' }}></div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.05em' }}>Contact Details</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div>
+                                <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Company Email</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
+                                    <input
+                                        className="input"
+                                        type="email"
+                                        placeholder="email@example.com"
+                                        value={companyForm.email}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
+                                        style={{ paddingLeft: '40px' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label
+                                    style={{
+                                        fontSize: "0.8125rem",
+                                        fontWeight: 500,
+                                        marginBottom: "6px",
+                                        display: "block",
+                                        color: "var(--color-text-secondary)",
+                                    }}
+                                >
+                                    Phone Number
+                                </label>
+
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                    <select
+                                        className="select"
+                                        value={companyForm.phoneCountryCode || "+91"}
+                                        onChange={(e) =>
+                                            setCompanyForm({
+                                                ...companyForm,
+                                                phoneCountryCode: e.target.value,
+                                                phone: "", // reset phone when country changes
+                                            })
+                                        }
+                                        style={{
+                                            width: "100px",
+                                            flexShrink: 0,
+                                            paddingLeft: "8px",
+                                            paddingRight: "24px",
+                                        }}
+                                    >
+                                        <option value="+91">🇮🇳 +91</option>
+                                        <option value="+1">🇺🇸 +1</option>
+                                        <option value="+44">🇬🇧 +44</option>
+                                        <option value="+61">🇦🇺 +61</option>
+                                        <option value="+971">🇦🇪 +971</option>
+                                        <option value="+65">🇸🇬 +65</option>
+                                        <option value="+33">🇫🇷 +33</option>
+                                        <option value="+81">🇯🇵 +81</option>
+                                        <option value="+49">🇩🇪 +49</option>
+                                    </select>
+
+                                    <input
+                                        className="input"
+                                        placeholder="Phone"
+                                        value={companyForm.phone || ""}
+                                        maxLength={rule.max}
+                                        onChange={handlePhoneChange}
+                                        style={{ flex: 1 }}
+                                    />
+                                </div>
+
+                                {/* Validation Message */}
+                                {companyForm.phone && companyForm.phone.length < rule.max && (
+                                    <p
+                                        style={{
+                                            fontSize: "0.75rem",
+                                            color: "var(--color-danger)",
+                                            marginTop: "4px",
+                                        }}
+                                    >
+                                        {rule.max - companyForm.phone.length} digits remaining
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Website</label>
+                            <div style={{ position: 'relative' }}>
+                                <Globe size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)' }} />
+                                <input
+                                    className="input"
+                                    placeholder="https://www.example.com"
+                                    value={companyForm.website}
+                                    onChange={(e) => setCompanyForm({ ...companyForm, website: e.target.value })}
+                                    style={{ paddingLeft: '40px' }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Address */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '24px', height: '2px', background: 'var(--color-primary)' }}></div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.05em' }}>Address Info</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                            <div>
+                                <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Street Address</label>
+                                <input
+                                    className="input"
+                                    placeholder="Street, Building, etc."
+                                    value={companyForm.address.street}
+                                    onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, street: e.target.value } })}
+                                />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+                                <div>
+                                    <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>City</label>
+                                    <input
+                                        className="input"
+                                        placeholder="City"
+                                        value={companyForm.address.city}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, city: e.target.value } })}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>State / Province</label>
+                                    <input
+                                        className="input"
+                                        placeholder="State"
+                                        value={companyForm.address.state}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, state: e.target.value } })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+                                <div>
+                                    <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Postal Code</label>
+                                    <input
+                                        className="input"
+                                        placeholder="ZIP / Postal Code"
+                                        value={companyForm.address.postalCode}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, postalCode: e.target.value } })}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: "0.8125rem", fontWeight: 500, marginBottom: '6px', display: "block", color: 'var(--color-text-secondary)' }}>Country</label>
+                                    <input
+                                        className="input"
+                                        placeholder="Country"
+                                        value={companyForm.address.country}
+                                        onChange={(e) => setCompanyForm({ ...companyForm, address: { ...companyForm.address, country: e.target.value } })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+                {/* Footer */}
+                <div style={{
+                    padding: '16px 24px',
+                    borderTop: '1px solid var(--color-border)',
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: '12px',
+                    background: 'var(--color-surface)'
+                }}>
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => { setShowCreate(false); resetForm(); }}
+                        style={{ padding: '10px 20px' }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        className="btn btn-primary"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            handleCreate(e as any);
+                        }}
+                        style={{ padding: '10px 24px', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)' }}
+                    >
+                        {isEditing ? 'Update Company' : 'Create Company'}
+                    </button>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const ContactModal = ({
     // showContactForm,
@@ -1328,7 +1684,7 @@ const ContactModal = ({
         style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
         onClick={() => setShowContactForm(false)}
     >
-        <div className="card" style={{ padding: 24, width: 450 }} onClick={(e) => e.stopPropagation()}>
+        <div className="card" style={{ padding: 24, width: 550 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <h3 style={{ fontSize: "1.2rem", fontWeight: 600 }}>{editingContact ? "Edit Contact" : "Add Contact"}</h3>
                 <button className="btn btn-secondary btn-xs" onClick={() => setShowContactForm(false)}>
@@ -1361,12 +1717,31 @@ const ContactModal = ({
                     </div>
                     <div>
                         <label style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 4, display: "block" }}>Phone</label>
-                        <input
-                            className="input"
-                            placeholder="Phone number"
-                            value={contactForm.phone}
-                            onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                        />
+                        <div style={{ display: "flex", gap: "8px" }}>
+                            <select
+                                className="select"
+                                value={contactForm.phoneCountryCode || "+91"}
+                                onChange={(e) => setContactForm({ ...contactForm, phoneCountryCode: e.target.value })}
+                                style={{ width: "80px", flexShrink: 0, padding: "4px 8px", fontSize: "0.85rem" }}
+                            >
+                                <option value="+91">+91</option>
+                                <option value="+1">+1</option>
+                                <option value="+44">+44</option>
+                                <option value="+61">+61</option>
+                                <option value="+971">+971</option>
+                                <option value="+65">+65</option>
+                                <option value="+33">+33</option>
+                                <option value="+81">+81</option>
+                                <option value="+49">+49</option>
+                            </select>
+                            <input
+                                className="input"
+                                placeholder="Phone number"
+                                value={contactForm.phone}
+                                onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value.replace(/\D/g, "") })}
+                                style={{ flex: 1 }}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -1459,7 +1834,7 @@ const ImportModal = ({
                                     handleDownloadSample();
                                 }}
                             >
-                                <Download size={14} style={{ marginRight: 4 }} /> Download Sample Format
+                                <Download size={16} style={{ marginRight: 4 }} /> Download Sample Format
                             </button>
                         </div>
 

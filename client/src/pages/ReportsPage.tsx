@@ -146,12 +146,12 @@ const ReportsPage = (): React.JSX.Element => {
       {/* Page Header */}
       <div className="bg-surface border-b border-border top-0 z-30 card rounded-2xl px-8 lg:px-16 py-10">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8" style={{
-            padding:"20px"
-          }}>
+          padding: "20px"
+        }}>
           <div>
             <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-4">
               <div className="">
-                {activeTabData?.icon 
+                {activeTabData?.icon
                   ? React.cloneElement(activeTabData.icon as React.ReactElement)
                   : <BarChart3 className="text-primary" size={28} />
                 }
@@ -172,7 +172,7 @@ const ReportsPage = (): React.JSX.Element => {
                 <Download size={18} />
                 <span>Export Report</span>
                 <ChevronDown
-                  size={14}
+                  size={16}
                   className={`transition-transform duration-300 ${isExportOpen ? "rotate-180" : ""}`}
                 />
               </button>
@@ -233,8 +233,8 @@ const ReportsPage = (): React.JSX.Element => {
 
         {/* Filters Section */}
         <div className="" style={{
-            marginBottom:"20px",
-        }} > 
+          marginBottom: "20px",
+        }} >
           <FilterBar
             filters={filters}
             setFilters={setFilters}

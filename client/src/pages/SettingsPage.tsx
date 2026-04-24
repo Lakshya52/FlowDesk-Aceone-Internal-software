@@ -314,7 +314,7 @@ const SettingsPage: React.FC = () => {
                             User Management
                         </h3>
                         <button className="btn btn-primary btn-sm" onClick={() => setShowCreateUser(!showCreateUser)}>
-                            <UserPlus size={14} /> Add User
+                            <UserPlus size={16} /> Add User
                         </button>
                     </div>
 
@@ -360,12 +360,12 @@ const SettingsPage: React.FC = () => {
                                         </span>
                                         {u.isActive && u._id !== user?._id && (
                                             <button className="btn btn-ghost btn-sm" onClick={() => deactivateUser(u._id)} style={{ color: 'var(--color-warning)' }} title="Deactivate">
-                                                <Shield size={14} />
+                                                <Shield size={16} />
                                             </button>
                                         )}
                                         {u._id !== user?._id && (
                                             <button className="btn btn-ghost btn-sm" onClick={() => permanentDeleteUser(u._id)} style={{ color: 'var(--color-error)' }} title="Delete Permanently">
-                                                <Trash2 size={14} />
+                                                <Trash2 size={16} />
                                             </button>
                                         )}
                                     </div>

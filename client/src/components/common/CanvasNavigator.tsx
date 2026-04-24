@@ -17,10 +17,11 @@ interface CanvasNavigatorProps {
     offset: { x: number; y: number };
     containerWidth: number;
     containerHeight: number;
+    onOffsetChange: (newOffset: { x: number; y: number }) => void;
 }
 
 const CanvasNavigator: React.FC<CanvasNavigatorProps> = ({
-    notes, scale, offset, containerWidth, containerHeight
+    notes, scale, offset, containerWidth, containerHeight, onOffsetChange
 }) => {
     // Navigator settings
     const navWidth = 180;
@@ -55,6 +56,38 @@ const CanvasNavigator: React.FC<CanvasNavigatorProps> = ({
     const toNavX = (x: number) => (x - minX) * fitScale + dx;
     const toNavY = (y: number) => (y - minY) * fitScale + dy;
 
+    const handleNavigatorInteraction = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const navX = e.clientX - rect.left;
+        const navY = e.clientY - rect.top;
+
+        // Map navigator coordinates back to canvas space
+        const targetCanvasX = (navX - dx) / fitScale + minX;
+        const targetCanvasY = (navY - dy) / fitScale + minY;
+
+        // Center the viewport on the clicked point
+        const newOffsetX = - (targetCanvasX * scale) + containerWidth / 2;
+        const newOffsetY = - (targetCanvasY * scale) + containerHeight / 2;
+
+        onOffsetChange({ x: newOffsetX, y: newOffsetY });
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        handleNavigatorInteraction(e);
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            handleNavigatorInteraction(moveEvent as unknown as React.MouseEvent);
+        };
+
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
     return (
         <div
             className="absolute bottom-4 left-4 z-[1000] select-none"
@@ -65,7 +98,8 @@ const CanvasNavigator: React.FC<CanvasNavigatorProps> = ({
                 style={{ width: navWidth + 16, height: navHeight + 16 }}
             >
                 <div
-                    className="relative w-full h-full bg-slate-50"
+                    className="relative w-full h-full bg-slate-50 cursor-crosshair"
+                    onMouseDown={handleMouseDown}
                     style={{
                         backgroundImage: `radial-gradient(circle at 1px 1px, #cbd5e1 1px, transparent 0)`,
                         backgroundSize: '8px 8px'

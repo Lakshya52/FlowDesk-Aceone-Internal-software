@@ -550,6 +550,30 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 }
 
+/* ===== Note Content Styles (Unified) ===== */
+.note-content-area, .ProseMirror {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 8px 12px !important;
+  color: #1e293b !important;
+}
+
+.note-content-area p, .ProseMirror p {
+  margin: 0.5em 0 !important;
+}
+
+.note-content-area ul, .note-content-area ol, .ProseMirror ul, .ProseMirror ol {
+  padding-left: 1.25em !important;
+  margin: 0.5em 0 !important;
+}
+
+.note-content-area ul[data-type="taskList"] li, .ProseMirror ul[data-type="taskList"] li {
+  list-style: none !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 !important;
+}
+
 /* Hover Actions for Company List */
 .hover-actions {
     display: none;

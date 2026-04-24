@@ -47,16 +47,16 @@ interface ProjectCanvasProps {
 const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData, startFullScreen = false, onExitFullScreen }) => {
     const { user } = useAuthStore();
     const [notes, setNotes] = useState<Note[]>(initialData || []);
-    
+
     // Canvas Transformation State
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
-    
+
     // Interaction Flags
     const [isPanning, setIsPanning] = useState(false);
     const [isDraggingNode, setIsDraggingNode] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
-    
+
     // Active Element References
     const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
     const [resizingNoteId, setResizingNoteId] = useState<string | null>(null);
@@ -64,6 +64,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 });
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+    // const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
 
     const [isFullScreen, setIsFullScreen] = useState(startFullScreen);
     const [selectedTool, setSelectedTool] = useState<'select' | 'pan'>('select');
@@ -367,6 +368,8 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                             display: "flex",
                             flexDirection: "column"
                         }}
+                        // onMouseEnter={() => setHoveredNoteId(note.id)}
+                        // onMouseLeave={() => setHoveredNoteId(null)}
                         onMouseDown={(e) => {
                             // Always stop propagation in Select mode to prevent canvas-level actions
                             if (selectedTool === 'select') {
@@ -387,12 +390,12 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                         }}
                     >
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, opacity: 0.4 }}>
-                            <Move size={14} style={{ cursor: "grab" }} />
+                            <Move size={16} style={{ cursor: "grab" }} />
                             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                <NoteExportMenu noteContent={note.content} noteId={note.id} iconSize={14} />
+                                <NoteExportMenu noteContent={note.content} noteId={note.id} iconSize={16} />
                                 {activeEditId === note.id && (
                                     <X
-                                        size={14}
+                                        size={16}
                                         style={{ cursor: "pointer", }}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -402,7 +405,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                                     />
                                 )}
                                 <Trash2
-                                    size={14}
+                                    size={16}
                                     style={{ cursor: "pointer" }}
                                     onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
                                 />
@@ -434,13 +437,12 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                                 />
                             ) : (
                                 <div
+                                    className="note-content-area"
                                     onClick={() => setActiveEditId(note.id)}
                                     style={{
-                                        padding: 8,
                                         flex: 1,
-                                        fontSize: "0.9rem",
-                                        lineHeight: 1.5,
-                                        cursor: 'text'
+                                        cursor: 'text',
+                                        maxWidth: 'none'
                                     }}
                                     dangerouslySetInnerHTML={{ __html: note.content }}
                                 />
@@ -540,14 +542,14 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 <button className="btn btn-ghost btn-xs" onClick={() => {
                     const rect = containerRef.current?.getBoundingClientRect();
                     if (rect) zoomTowards(Math.min(scale + 0.2, 5), rect.width / 2, rect.height / 2);
-                }}><Plus size={14} /></button>
+                }}><Plus size={16} /></button>
                 <span style={{ fontSize: "0.75rem", fontWeight: 600, width: 35, textAlign: "center" }}>{Math.round(scale * 100)}%</span>
                 <button className="btn btn-ghost btn-xs" onClick={() => {
                     const rect = containerRef.current?.getBoundingClientRect();
                     if (rect) zoomTowards(Math.max(scale - 0.2, 0.1), rect.width / 2, rect.height / 2);
-                }}><Minus size={14} /></button>
+                }}><Minus size={16} /></button>
                 <div style={{ width: 1, height: 16, background: "var(--color-border)" }} />
-                <button className="btn btn-ghost btn-xs" onClick={resetView} title="Reset View"><Focus size={14} /></button>
+                <button className="btn btn-ghost btn-xs" onClick={resetView} title="Reset View"><Focus size={16} /></button>
                 <button
                     className={`btn ${isFullScreen ? 'btn-primary' : 'btn-ghost'} btn-xs`}
                     onClick={() => {
@@ -558,7 +560,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                     }}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
-                    {isFullScreen ? <Shrink size={14} /> : <Maximize size={14} />}
+                    {isFullScreen ? <Shrink size={16} /> : <Maximize size={16} />}
                 </button>
             </div>
 
@@ -638,6 +640,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                 offset={offset}
                 containerWidth={containerSize.width}
                 containerHeight={containerSize.height}
+                onOffsetChange={setOffset}
             />
         </div>
     );

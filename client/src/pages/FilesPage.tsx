@@ -23,10 +23,10 @@ const FilesPage: React.FC = () => {
     const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
+
         setIsUploading(true);
         setUploadingFileName(file.name);
-        
+
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -77,10 +77,10 @@ const FilesPage: React.FC = () => {
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>{files.length} files</p>
                 </div>
                 {isUploading ? (
-                    <div style={{ 
-                        display: 'flex', alignItems: 'center', gap: 12, 
-                        background: 'var(--color-primary-light)', padding: '8px 16px', 
-                        borderRadius: 12, color: 'var(--color-primary)', fontWeight: 500, fontSize: '0.875rem' 
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        background: 'var(--color-primary-light)', padding: '8px 16px',
+                        borderRadius: 12, color: 'var(--color-primary)', fontWeight: 500, fontSize: '0.875rem'
                     }}>
                         <div style={{ width: 16, height: 16, border: '2px solid var(--color-primary)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                         Uploading: {uploadingFileName}
@@ -118,10 +118,10 @@ const FilesPage: React.FC = () => {
                             </div>
                             <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="btn btn-ghost btn-sm" onClick={() => downloadFile(f._id, f.originalName)} title="Download">
-                                    <Download size={14} />
+                                    <Download size={16} />
                                 </button>
                                 <button className="btn btn-ghost btn-sm" onClick={() => deleteFile(f._id)} title="Delete" style={{ color: 'var(--color-danger)' }}>
-                                    <Trash2 size={14} />
+                                    <Trash2 size={16} />
                                 </button>
                             </div>
                         </div>

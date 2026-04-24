@@ -44,7 +44,7 @@ const subtaskSchema = new Schema<ISubtask>({
 const taskSchema = new Schema<ITask>(
     {
         title: { type: String, required: true, trim: true },
-        description: { type: String, default: '' },
+        description: { type: String, required: true, trim: true },
         assignment: { type: Schema.Types.ObjectId, ref: 'Assignment', required: true },
         assignedTo: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
