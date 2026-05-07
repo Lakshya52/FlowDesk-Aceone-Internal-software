@@ -1,4 +1,4 @@
-import { BrevoClient } from '@getbrevo/brevo';
+import { BrevoClient, Brevo } from '@getbrevo/brevo';
 
 const getBrevoClient = () => {
     if (!process.env.BREVO_API_KEY) {
@@ -45,7 +45,7 @@ export const sendOtpEmail = async (to: string, otp: string) => {
     }
 };
 
-export const sendGenericEmail = async (to: string[], subject: string, message: string) => {
+export const sendGenericEmail = async (to: string[], subject: string, message: string): Promise<Brevo.SendTransacEmailResponse> => {
     try {
         console.log(`[EMAIL] Sending bulk email to ${to.length} recipients`);
 
