@@ -14,7 +14,14 @@ const getTransporter = async () => {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,
             },
-        });
+            pool: {
+                maxConnections: 5,
+                maxMessages: 100,
+            },
+            tls: {
+                rejectUnauthorized: false,
+            },
+        } as any);
     } else {
         console.log("------------------------------------------");
         console.log("No SMTP Config found. Generating dynamic Ethereal test account...");
@@ -27,7 +34,7 @@ const getTransporter = async () => {
                 user: testAccount.user,
                 pass: testAccount.pass,
             },
-        });
+        } as any);
     }
 
     return _transporter;
@@ -36,11 +43,6 @@ const getTransporter = async () => {
 export const sendOtpEmail = async (to: string, otp: string) => {
     try {
         const transporter = await getTransporter();
-
-        // Log for easier development testing
-        // console.log(`\n==========================================`);
-        // console.log(`[DEV MODE] Password Reset OTP for ${to}: ${otp}`);
-        // console.log(`==========================================\n`);
 
         const mailOptions = {
             from: process.env.EMAIL_FROM || '"FlowDesk Support Team" <noreply@flowdesk.app>',
@@ -62,10 +64,15 @@ export const sendOtpEmail = async (to: string, otp: string) => {
             `,
         };
 
-        const info = await transporter.sendMail(mailOptions);
+        // Set a 15-second timeout for email sending
+        const sendPromise = transporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Email sending timeout')), 15000)
+        );
+
+        const info = await Promise.race([sendPromise, timeoutPromise]);
         console.log(`Password reset email sent successfully to ${to}`);
 
-        // Log preview URL if not using a real configured SMTP host
         if (!process.env.SMTP_HOST) {
             console.log(`\n==========================================`);
             console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);

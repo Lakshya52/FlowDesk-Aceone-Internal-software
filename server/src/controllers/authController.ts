@@ -261,7 +261,10 @@ export const forgotPassword = async (req: AuthRequest, res: Response): Promise<v
         // Since we are not updating password, save hook might skip, but it is safe.
         await user.save();
 
-        await sendOtpEmail(user.email, otp);
+        // Send email asynchronously without blocking the response
+        sendOtpEmail(user.email, otp).catch((error) => {
+            console.error(`Failed to send OTP email to ${user.email}:`, error);
+        });
 
         res.status(200).json({ message: 'If that email exists in our system, we have sent a password reset OTP to it.' });
     } catch (error: any) {
