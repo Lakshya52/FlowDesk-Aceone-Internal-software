@@ -1,48 +1,53 @@
 import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 
-let _transporter: nodemailer.Transporter | null = null;
+const OAuth2 = google.auth.OAuth2;
 
-const getTransporter = async () => {
-    if (_transporter) return _transporter;
+const createTransporter = async () => {
+    const oauth2Client = new OAuth2(
+        process.env.GMAIL_CLIENT_ID,
+        process.env.GMAIL_CLIENT_SECRET,
+        'https://developers.google.com/oauthplayground'
+    );
 
-    if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-        // ✅ Fixed config
-        _transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT || '587'),
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-            tls: { rejectUnauthorized: false },
+    oauth2Client.setCredentials({
+        refresh_token: process.env.GMAIL_REFRESH_TOKEN,
+    });
+
+    const accessToken = await new Promise<string>((resolve, reject) => {
+        oauth2Client.getAccessToken((err, token) => {
+            if (err || !token) {
+                console.error('[EMAIL] Failed to get access token:', err);
+                reject(err || new Error('Failed to get access token'));
+            } else {
+                resolve(token);
+            }
         });
-    } else {
-        console.log("------------------------------------------");
-        console.log("No SMTP Config found. Generating dynamic Ethereal test account...");
-        const testAccount = await nodemailer.createTestAccount();
-        _transporter = nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass,
-            },
-        } as any);
-    }
+    });
 
-    return _transporter;
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            type: 'OAuth2',
+            user: process.env.GMAIL_USER,
+            clientId: process.env.GMAIL_CLIENT_ID,
+            clientSecret: process.env.GMAIL_CLIENT_SECRET,
+            refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+            accessToken,
+        },
+    } as any);
+
+    return transporter;
 };
 
 export const sendOtpEmail = async (to: string, otp: string) => {
     try {
         console.log(`[EMAIL] Starting to send OTP email to: ${to}`);
-        const transporter = await getTransporter();
+        const transporter = await createTransporter();
         console.log(`[EMAIL] Transporter initialized`);
 
         const mailOptions = {
-            from: process.env.EMAIL_FROM || '"FlowDesk Support Team" <noreply@flowdesk.app>',
+            from: `"FlowDesk Support Team" <${process.env.GMAIL_USER}>`,
             to,
             subject: 'Password Reset Verification Code - FlowDesk',
             html: `
@@ -54,24 +59,16 @@ export const sendOtpEmail = async (to: string, otp: string) => {
                         <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #1f2937;">${otp}</span>
                     </div>
                     <p>Please enter this code on the application to proceed with your password reset. This code will expire in 15 minutes.</p>
-                    <p>If you did not request a password reset, you can safely ignore this email securely.</p>
+                    <p>If you did not request a password reset, you can safely ignore this email.</p>
                     <br />
                     <p>Best regards,<br/>The FlowDesk Team</p>
                 </div>
             `,
         };
 
-        // Send email without timeout - it's async so won't block API response
         const info = await transporter.sendMail(mailOptions);
-        console.log(`[EMAIL] ✅ Password reset email sent successfully to ${to}`);
-        console.log(`[EMAIL] Response ID: ${info.response}`);
-
-        if (!process.env.SMTP_HOST) {
-            console.log(`\n==========================================`);
-            console.log(`[EMAIL] Using Ethereal Test Email Service`);
-            console.log(`[EMAIL] Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
-            console.log(`==========================================\n`);
-        }
+        console.log(`[EMAIL] ✅ OTP email sent successfully to ${to}`);
+        console.log(`[EMAIL] Response: ${info.response}`);
     } catch (error) {
         console.error(`[EMAIL] ❌ Failed to send OTP to ${to}:`, error);
         throw error;
@@ -80,14 +77,14 @@ export const sendOtpEmail = async (to: string, otp: string) => {
 
 export const sendGenericEmail = async (to: string[], subject: string, message: string) => {
     try {
-        const transporter = await getTransporter();
+        const transporter = await createTransporter();
 
         const mailOptions = {
-            from: process.env.EMAIL_FROM || '"FlowDesk Team" <noreply@flowdesk.app>',
-            bcc: to, // Use BCC for bulk emails to protect privacy
-            subject: subject,
+            from: `"FlowDesk Team" <${process.env.GMAIL_USER}>`,
+            bcc: to,
+            subject,
             html: `
-                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
                     <div style="background-color: #6366f1; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
                         <h1 style="color: white; margin: 0; font-size: 24px;">FlowDesk Notification</h1>
                     </div>
@@ -104,15 +101,10 @@ export const sendGenericEmail = async (to: string[], subject: string, message: s
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log(`Bulk email sent successfully to ${to.length} recipients`);
-
-        if (!process.env.SMTP_HOST) {
-            console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
-        }
-
+        console.log(`[EMAIL] Bulk email sent to ${to.length} recipients`);
         return info;
     } catch (error) {
-        console.error('Error sending generic email:', error);
+        console.error('[EMAIL] Failed to send bulk email:', error);
         throw new Error('Failed to send bulk email');
     }
 };
