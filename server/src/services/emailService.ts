@@ -42,7 +42,9 @@ const getTransporter = async () => {
 
 export const sendOtpEmail = async (to: string, otp: string) => {
     try {
+        console.log(`[EMAIL] Starting to send OTP email to: ${to}`);
         const transporter = await getTransporter();
+        console.log(`[EMAIL] Transporter initialized`);
 
         const mailOptions = {
             from: process.env.EMAIL_FROM || '"FlowDesk Support Team" <noreply@flowdesk.app>',
@@ -67,20 +69,22 @@ export const sendOtpEmail = async (to: string, otp: string) => {
         // Set a 15-second timeout for email sending
         const sendPromise = transporter.sendMail(mailOptions);
         const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Email sending timeout')), 15000)
+            setTimeout(() => reject(new Error('Email sending timeout after 15 seconds')), 15000)
         );
 
         const info = await Promise.race([sendPromise, timeoutPromise]);
-        console.log(`Password reset email sent successfully to ${to}`);
+        console.log(`[EMAIL] ✅ Password reset email sent successfully to ${to}`);
+        console.log(`[EMAIL] Response ID: ${info.response}`);
 
         if (!process.env.SMTP_HOST) {
             console.log(`\n==========================================`);
-            console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
+            console.log(`[EMAIL] Using Ethereal Test Email Service`);
+            console.log(`[EMAIL] Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
             console.log(`==========================================\n`);
         }
     } catch (error) {
-        console.error('Error sending password reset email:', error);
-        throw new Error('Failed to send password reset email');
+        console.error(`[EMAIL] ❌ Failed to send OTP to ${to}:`, error);
+        throw error;
     }
 };
 
