@@ -1,52 +1,13 @@
-import nodemailer from 'nodemailer';
-import { google } from 'googleapis';
+import { Resend } from 'resend';
 
-const OAuth2 = google.auth.OAuth2;
-
-const createTransporter = async () => {
-    const oauth2Client = new OAuth2(
-        process.env.GMAIL_CLIENT_ID,
-        process.env.GMAIL_CLIENT_SECRET,
-        'https://developers.google.com/oauthplayground'
-    );
-
-    oauth2Client.setCredentials({
-        refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-    });
-
-    const { token: accessToken } = await oauth2Client.getAccessToken();
-    
-    if (!accessToken) {
-        throw new Error('Failed to get access token');
-    }
-    
-    console.log('[EMAIL] ✅ Access token obtained');
-
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,          // ← change to 465
-        secure: true,       // ← true for 465
-        auth: {
-            type: 'OAuth2',
-            user: process.env.GMAIL_USER,
-            clientId: process.env.GMAIL_CLIENT_ID,
-            clientSecret: process.env.GMAIL_CLIENT_SECRET,
-            refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-            accessToken,
-        },
-    } as any);
-
-    return transporter;
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendOtpEmail = async (to: string, otp: string) => {
     try {
-        console.log(`[EMAIL] Starting to send OTP email to: ${to}`);
-        const transporter = await createTransporter();
-        console.log(`[EMAIL] Transporter initialized`);
+        console.log(`[EMAIL] Sending OTP to: ${to}`);
 
-        const mailOptions = {
-            from: `"FlowDesk Support Team" <${process.env.GMAIL_USER}>`,
+        const { data, error } = await resend.emails.send({
+            from: 'FlowDesk <onboarding@resend.dev>',
             to,
             subject: 'Password Reset Verification Code - FlowDesk',
             html: `
@@ -57,17 +18,20 @@ export const sendOtpEmail = async (to: string, otp: string) => {
                     <div style="background-color: #f3f4f6; padding: 20px; text-align: center; border-radius: 8px; margin: 24px 0;">
                         <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #1f2937;">${otp}</span>
                     </div>
-                    <p>Please enter this code on the application to proceed with your password reset. This code will expire in 15 minutes.</p>
-                    <p>If you did not request a password reset, you can safely ignore this email.</p>
+                    <p>This code expires in 15 minutes.</p>
+                    <p>If you did not request this, you can safely ignore this email.</p>
                     <br />
                     <p>Best regards,<br/>The FlowDesk Team</p>
                 </div>
             `,
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`[EMAIL] ✅ OTP email sent successfully to ${to}`);
-        console.log(`[EMAIL] Response: ${info.response}`);
+        if (error) {
+            console.error(`[EMAIL] ❌ Resend error:`, error);
+            throw new Error(error.message);
+        }
+
+        console.log(`[EMAIL] ✅ OTP sent successfully. ID: ${data?.id}`);
     } catch (error) {
         console.error(`[EMAIL] ❌ Failed to send OTP to ${to}:`, error);
         throw error;
@@ -76,11 +40,11 @@ export const sendOtpEmail = async (to: string, otp: string) => {
 
 export const sendGenericEmail = async (to: string[], subject: string, message: string) => {
     try {
-        const transporter = await createTransporter();
+        console.log(`[EMAIL] Sending bulk email to ${to.length} recipients`);
 
-        const mailOptions = {
-            from: `"FlowDesk Team" <${process.env.GMAIL_USER}>`,
-            bcc: to,
+        const { data, error } = await resend.emails.send({
+            from: 'FlowDesk <onboarding@resend.dev>',
+            to,
             subject,
             html: `
                 <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
@@ -97,13 +61,17 @@ export const sendGenericEmail = async (to: string[], subject: string, message: s
                     </div>
                 </div>
             `,
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`[EMAIL] Bulk email sent to ${to.length} recipients`);
-        return info;
+        if (error) {
+            console.error(`[EMAIL] ❌ Resend error:`, error);
+            throw new Error(error.message);
+        }
+
+        console.log(`[EMAIL] ✅ Bulk email sent. ID: ${data?.id}`);
+        return data;
     } catch (error) {
-        console.error('[EMAIL] Failed to send bulk email:', error);
+        console.error('[EMAIL] ❌ Failed to send bulk email:', error);
         throw new Error('Failed to send bulk email');
     }
 };
