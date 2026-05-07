@@ -3,9 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+
+// Load environment variables early
+dotenv.config();
+
 import { Server } from 'socket.io';
 import http from 'http';
 import dns from 'node:dns';
+
 import buddyRoute from "./routes/buddy";
 
 // Force DNS to resolve IPv4 first to avoid Atlas connection issues on Windows
@@ -25,8 +30,6 @@ import companyRoutes from './routes/companies';
 import canvasRoutes from './routes/canvas';
 import { startRecurringJob } from './services/recurringTaskService';
 import { errorHandler, notFound } from './middlewares/errorHandler';
-
-dotenv.config();
 
 const app = express();
 const server = http.createServer(app);

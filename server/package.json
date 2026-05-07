@@ -10,6 +10,7 @@
     "seed": "ts-node-dev src/seed.ts"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^5.0.4",
     "@types/pdfkit": "^0.17.5",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
