@@ -22,22 +22,19 @@ router.post('/verify-forgot-password-otp', verifyForgotPasswordOtp);
 router.get('/debug-email', async (req, res) => {
     const net = require('net');
     
-    const socket = new net.Socket();
-    socket.setTimeout(5000);
-    
-    socket.connect(587, 'smtp.gmail.com', () => {
-        socket.destroy();
-        res.json({ status: '✅ Port 587 is OPEN - SMTP should work' });
+    const checkPort = (port: number) => new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(5000);
+        socket.connect(port, 'smtp.gmail.com', () => {
+            socket.destroy();
+            resolve(`✅ Port ${port} OPEN`);
+        });
+        socket.on('timeout', () => { socket.destroy(); resolve(`❌ Port ${port} TIMED OUT`); });
+        socket.on('error', (err: any) => { resolve(`❌ Port ${port} BLOCKED - ${err.message}`); });
     });
-    
-    socket.on('timeout', () => {
-        socket.destroy();
-        res.json({ status: '❌ Port 587 TIMED OUT - Render is blocking SMTP' });
-    });
-    
-    socket.on('error', (err: any) => {
-        res.json({ status: `❌ Port 587 BLOCKED - ${err.message}` });
-    });
+
+    const [p587, p465] = await Promise.all([checkPort(587), checkPort(465)]);
+    res.json({ port587: p587, port465: p465 });
 });
 
 
