@@ -6,6 +6,7 @@ const getTransporter = async () => {
     if (_transporter) return _transporter;
 
     if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+        // ✅ Fixed config
         _transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
             port: parseInt(process.env.SMTP_PORT || '587'),
@@ -14,18 +15,8 @@ const getTransporter = async () => {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,
             },
-            pool: {
-                maxConnections: 5,
-                maxMessages: 100,
-            },
-            tls: {
-                rejectUnauthorized: false,
-            },
-            maxConnections: 1,
-            maxMessages: 100,
-            rateDelta: 1000,
-            rateLimit: 5,
-        } as any);
+            tls: { rejectUnauthorized: false },
+        });
     } else {
         console.log("------------------------------------------");
         console.log("No SMTP Config found. Generating dynamic Ethereal test account...");
@@ -118,7 +109,7 @@ export const sendGenericEmail = async (to: string[], subject: string, message: s
         if (!process.env.SMTP_HOST) {
             console.log(`[Email Envelope URL]: ${nodemailer.getTestMessageUrl(info)}`);
         }
-        
+
         return info;
     } catch (error) {
         console.error('Error sending generic email:', error);
