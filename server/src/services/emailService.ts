@@ -21,6 +21,10 @@ const getTransporter = async () => {
             tls: {
                 rejectUnauthorized: false,
             },
+            maxConnections: 1,
+            maxMessages: 100,
+            rateDelta: 1000,
+            rateLimit: 5,
         } as any);
     } else {
         console.log("------------------------------------------");
@@ -66,13 +70,8 @@ export const sendOtpEmail = async (to: string, otp: string) => {
             `,
         };
 
-        // Set a 15-second timeout for email sending
-        const sendPromise = transporter.sendMail(mailOptions);
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Email sending timeout after 15 seconds')), 15000)
-        );
-
-        const info = await Promise.race([sendPromise, timeoutPromise]);
+        // Send email without timeout - it's async so won't block API response
+        const info = await transporter.sendMail(mailOptions);
         console.log(`[EMAIL] ✅ Password reset email sent successfully to ${to}`);
         console.log(`[EMAIL] Response ID: ${info.response}`);
 
