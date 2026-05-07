@@ -37,7 +37,7 @@ const LoginPage: React.FC = () => {
         return err.response?.data?.message || err.message || 'An unexpected error occurred';
     };
 
-    const handleForgotEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleForgotEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setSuccessMsg('');
@@ -56,9 +56,7 @@ const LoginPage: React.FC = () => {
             setError(getErrorMessage(err));
         }
     };
-    // ------------------------------------------------------------------------
 
-    
     const handleForgotOtpSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
