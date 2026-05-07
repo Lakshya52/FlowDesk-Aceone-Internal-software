@@ -30,17 +30,45 @@ const LoginPage: React.FC = () => {
         }
     };
 
-    const handleForgotEmailSubmit = async (e: React.FormEvent) => {
+    // const handleForgotEmailSubmit = async (e: React.FormEvent) => {
+    //     e.preventDefault();
+    //     setError('');
+    //     try {
+    //         await forgotPassword(email);
+    //         setView('forgot-otp');
+    //         setSuccessMsg('If an account exists, an OTP has been sent to your email.');
+    //     } catch (err: any) {
+    //         setError(err.message);
+    //     }
+    // };
+        // ------------------------------------------------------------------------
+
+    const getErrorMessage = (err: any) => {
+        if (!err) return 'An unexpected error occurred';
+        if (typeof err === 'string') return err;
+        return err.response?.data?.message || err.message || 'An unexpected error occurred';
+    };
+
+    const handleForgotEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setError('');
+        setSuccessMsg('');
+
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail) {
+            setError('Please enter your email address.');
+            return;
+        }
+
         try {
-            await forgotPassword(email);
+            await forgotPassword(trimmedEmail);
             setView('forgot-otp');
             setSuccessMsg('If an account exists, an OTP has been sent to your email.');
         } catch (err: any) {
-            setError(err.message);
+            setError(getErrorMessage(err));
         }
     };
+    // ------------------------------------------------------------------------
 
     const handleForgotOtpSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
