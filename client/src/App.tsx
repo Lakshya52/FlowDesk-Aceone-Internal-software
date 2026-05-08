@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import axios from 'axios';
+// import axios from 'axios';
 import api from './lib/api';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
