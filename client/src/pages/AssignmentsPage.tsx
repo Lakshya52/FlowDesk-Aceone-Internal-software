@@ -43,13 +43,13 @@ const AssignmentsPage: React.FC = () => {
         recurringPattern: 'monthly' as any,
         recurringStartDate: ''
     });
-    // const [selectedTeamForMembers, setSelectedTeamForMembers] = useState<string | null>(null);
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [allTeams, setAllTeams] = useState<any[]>([]);
     const [allCompanies, setAllCompanies] = useState<any[]>([]);
     const [saving, setSaving] = useState(false);
     const [companySearch, setCompanySearch] = useState('');
     const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+    const [confirmState, setConfirmState] = useState<'none' | 'create_company' | 'navigate_clients'>('none');
 
     const isAdmin = user?.role === 'admin';
     const canCreate = true; // Everyone can create projects
@@ -63,30 +63,23 @@ const AssignmentsPage: React.FC = () => {
                 params.isBlueprint = 'true';
             } else if (activeTab === 'ongoing') {
                 params.isBlueprint = 'false';
-                // Only add status if there's a specific filter
                 if (statusFilter) {
                     params.status = statusFilter;
                 }
             } else if (activeTab === 'completed') {
                 params.status = 'completed';
-                // Specifically don't set isBlueprint to show ALL completed items
             }
 
             if (search) params.search = search;
             if (companyFilter) params.companyId = companyFilter;
 
-            console.log('📡 Fetching assignments with params:', params);
             const { data } = await api.get('/assignments', { params });
-            console.log('✅ Assignments fetched:', data);
-
             let result = data.assignments || [];
 
-            // Filter ongoing to exclude completed if no specific status filter is set
             if (activeTab === 'ongoing' && !statusFilter) {
                 result = result.filter((a: any) => a.status !== 'completed');
             }
 
-            console.log('📊 Final result after filtering:', result);
             setAssignments(result);
         } catch (e) {
             console.error('❌ Error fetching assignments:', e);
@@ -96,7 +89,6 @@ const AssignmentsPage: React.FC = () => {
 
     useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab, companyFilter]);
 
-    // Fetch teams and users for admin filter dropdowns
     useEffect(() => {
         if (isAdmin) {
             Promise.all([
@@ -106,7 +98,6 @@ const AssignmentsPage: React.FC = () => {
             ]).then(([tRes, uRes, cRes]) => {
                 setFilterTeams(tRes.data.teams || []);
                 setFilterUsers(uRes.data.users || []);
-                // Flatten companies for filter dropdown
                 const flatCompanies: any[] = [];
                 const flatten = (items: any[]) => {
                     items.forEach(item => {
@@ -121,7 +112,6 @@ const AssignmentsPage: React.FC = () => {
         }
     }, [isAdmin]);
 
-    // Apply admin filters client-side
     const filteredAssignments = React.useMemo(() => {
         if (!isAdmin || filterMode === 'All') return assignments;
 
@@ -162,12 +152,9 @@ const AssignmentsPage: React.FC = () => {
                 api.get('/teams?all=true'),
                 api.get('/companies'),
             ]).then(([uRes, tRes, cRes]) => {
-                // console.log("All Users Data : " + JSON.stringify(uRes.data.users));
                 setAllUsers(uRes.data.users || []);
-                // console.log("All Teams Data : " + JSON.stringify(tRes.data.teams));
                 setAllTeams(tRes.data.teams || []);
 
-                // Flatten companies so children are selectable
                 const flatCompanies: any[] = [];
                 const flatten = (items: any[]) => {
                     items.forEach(item => {
@@ -180,7 +167,6 @@ const AssignmentsPage: React.FC = () => {
                 setAllCompanies(flatCompanies);
             });
 
-            // Auto-add project creator
             if (user?._id) {
                 setForm(prev => ({
                     ...prev,
@@ -194,18 +180,59 @@ const AssignmentsPage: React.FC = () => {
         c.name.toLowerCase().includes(companySearch.toLowerCase())
     );
 
-    const handleCreate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreate = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
+        if (!form.companyId && form.clientName) {
+            const existingCompany = allCompanies.find(c => c.name.toLowerCase() === form.clientName.toLowerCase());
+            if (existingCompany) {
+                const updatedForm = { ...form, companyId: existingCompany._id, clientName: existingCompany.name };
+                setForm(updatedForm);
+                await saveProject(updatedForm);
+                return;
+            } else {
+                setConfirmState('create_company');
+                return;
+            }
+        }
+
+        await saveProject(form);
+    };
+
+    const handleQuickAddCompany = async (name: string, shouldCreateProject: boolean = false) => {
+        if (!name.trim()) return;
         setSaving(true);
         try {
-            const creatorTeam = user?._id ? Array.from(new Set([...form.team, user._id])) : form.team;
+            const { data } = await api.post('/companies', { name });
+            const newCompany = data.company;
+            setAllCompanies(prev => [...prev, newCompany]);
+
+            const updatedForm = { ...form, clientName: newCompany.name, companyId: newCompany._id };
+            setForm(updatedForm);
+            setCompanySearch(newCompany.name);
+            setShowCompanyDropdown(false);
+            setConfirmState('none');
+
+            if (shouldCreateProject) {
+                await saveProject(updatedForm);
+            }
+        } catch (e: any) {
+            alert(e.response?.data?.message || 'Failed to add company');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const saveProject = async (projectData: typeof form) => {
+        setSaving(true);
+        try {
+            const creatorTeam = user?._id ? Array.from(new Set([...projectData.team, user._id])) : projectData.team;
             const { data } = await api.post('/assignments', {
-                ...form,
+                ...projectData,
                 team: creatorTeam,
-                // Ensure dates are sent correctly if provided
-                dueDate: form.noDueDate ? null : form.dueDate,
-                recurringStartDate: form.isRecurring ? form.recurringStartDate : undefined,
-                recurringPattern: form.isRecurring ? form.recurringPattern : undefined
+                dueDate: projectData.noDueDate ? null : projectData.dueDate,
+                recurringStartDate: projectData.isRecurring ? projectData.recurringStartDate : undefined,
+                recurringPattern: projectData.isRecurring ? projectData.recurringPattern : undefined
             });
             setShowCreate(false);
             setForm({
@@ -216,28 +243,13 @@ const AssignmentsPage: React.FC = () => {
                 isRecurring: false, recurringPattern: 'monthly', recurringStartDate: ''
             });
             setCompanySearch('');
-            // Redirect to the newly created project
             if (data.assignment?._id) {
                 navigate(`/assignments/${data.assignment._id}`);
             } else {
                 fetchAssignments();
             }
-        } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
-        finally { setSaving(false); }
-    };
-
-    const handleQuickAddCompany = async (name: string) => {
-        if (!name.trim()) return;
-        setSaving(true);
-        try {
-            const { data } = await api.post('/companies', { name });
-            const newCompany = data.company;
-            setAllCompanies(prev => [...prev, newCompany]);
-            setForm(prev => ({ ...prev, clientName: newCompany.name, companyId: newCompany._id }));
-            setCompanySearch(newCompany.name);
-            setShowCompanyDropdown(false);
         } catch (e: any) {
-            alert(e.response?.data?.message || 'Failed to add company');
+            alert(e.response?.data?.message || 'Failed to create project');
         } finally {
             setSaving(false);
         }
@@ -258,12 +270,6 @@ const AssignmentsPage: React.FC = () => {
             const managerId = team?.manager?._id;
             const nextTeamMembers = new Set(prev.team);
 
-            // Auto-add manager when team is selected
-            // if (!teamSelected && managerId) {
-            //     nextTeamMembers.add(managerId);
-            // }
-
-            // If unselecting team, keep the manager if they're still relevant from other teams
             if (teamSelected && managerId) {
                 const stillRelevantManager = nextTeams.some(tid => {
                     const selectedTeam = allTeams.find(t => t._id === tid);
@@ -274,7 +280,6 @@ const AssignmentsPage: React.FC = () => {
                 }
             }
 
-            // Auto-add project creator
             if (user?._id) {
                 nextTeamMembers.add(user._id);
             }
@@ -287,20 +292,6 @@ const AssignmentsPage: React.FC = () => {
         });
     };
 
-    // const getTeamMembers = (teamId: string) => {
-    //     const team = allTeams.find(t => t._id === teamId);
-    //     if (!team) return [];
-    //     return team.members || [];
-    // };
-
-    // const selectAllTeamMembers = (teamId: string) => {
-    //     const members = getTeamMembers(teamId);
-    //     const memberIds = members.map((m: any) => m._id);
-    //     setForm(prev => ({
-    //         ...prev,
-    //         team: [...new Set([...prev.team, ...memberIds])],
-    //     }));
-    // };
     const selectAllTeamMembers = (teamId: string) => {
         const team = allTeams.find(t => t._id === teamId);
         if (!team) return;
@@ -316,20 +307,12 @@ const AssignmentsPage: React.FC = () => {
                 new Set([
                     ...prev.team,
                     ...memberIds,
-                    user?._id // ✅ always keep creator
+                    user?._id
                 ])
             )
         }));
     };
 
-    // const deselectAllTeamMembers = (teamId: string) => {
-    //     const members = getTeamMembers(teamId);
-    //     const memberIds = members.map((m: any) => m._id);
-    //     setForm(prev => ({
-    //         ...prev,
-    //         team: prev.team.filter(id => !memberIds.includes(id)),
-    //     }));
-    // };
     const deselectAllTeamMembers = (teamId: string) => {
         const team = allTeams.find(t => t._id === teamId);
         if (!team) return;
@@ -342,12 +325,11 @@ const AssignmentsPage: React.FC = () => {
         setForm(prev => ({
             ...prev,
             team: prev.team.filter(id =>
-                !memberIds.includes(id) || id === user?._id // ✅ keep creator
+                !memberIds.includes(id) || id === user?._id
             )
         }));
     };
 
-    // 1. Collect all users who are in ANY team
     const usersInAnyTeam = new Set(
         allTeams.flatMap(team => [
             ...(team.members?.map((m: any) => m._id.toString()) || []),
@@ -355,19 +337,11 @@ const AssignmentsPage: React.FC = () => {
         ].filter(Boolean))
     );
 
-    // 2. Filter users NOT in any team
     const usersNotInAnyTeam = allUsers.filter(
         u =>
-            !usersInAnyTeam.has(u._id.toString()) && // not in any team
-            u._id !== user?._id                     // not the creator
+            !usersInAnyTeam.has(u._id.toString()) &&
+            u._id !== user?._id
     );
-    // const usersNotInAnyTeam = allUsers.filter(
-    //     user => !usersInAnyTeam.has(user._id.toString())
-    // );
-
-    // const allMembersSelected =
-    //     usersNotInAnyTeam.length > 0 &&
-    //     usersNotInAnyTeam.every(u => form.team.includes(u._id));
 
     return (
         <div style={{ maxWidth: 1200 }}>
@@ -397,7 +371,6 @@ const AssignmentsPage: React.FC = () => {
                         fontWeight: 600,
                         color: activeTab === 'ongoing' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                         borderBottom: `2px solid ${activeTab === 'ongoing' ? 'var(--color-primary)' : 'transparent'}`,
-                        transition: 'all 0s.2s'
                     }}
                 >
                     Ongoing
@@ -410,7 +383,6 @@ const AssignmentsPage: React.FC = () => {
                         fontWeight: 600,
                         color: activeTab === 'completed' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                         borderBottom: `2px solid ${activeTab === 'completed' ? 'var(--color-primary)' : 'transparent'}`,
-                        transition: 'all 0.2s'
                     }}
                 >
                     Completed
@@ -423,7 +395,6 @@ const AssignmentsPage: React.FC = () => {
                         fontWeight: 600,
                         color: activeTab === 'blueprints' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                         borderBottom: `2px solid ${activeTab === 'blueprints' ? 'var(--color-primary)' : 'transparent'}`,
-                        transition: 'all 0.2s'
                     }}
                 >
                     Recurring Blueprints
@@ -498,7 +469,6 @@ const AssignmentsPage: React.FC = () => {
 
                     <div style={{ width: 1, height: 20, background: 'var(--color-border)', flexShrink: 0 }} />
 
-                    {/* Filter mode pills */}
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {[
                             { key: 'All', label: 'All', icon: <FolderKanban size={12} /> },
@@ -515,7 +485,7 @@ const AssignmentsPage: React.FC = () => {
                                         setFilterTeamId('');
                                         setFilterUserId('');
                                     }
-                                    if (opt.key !== 'company') {
+                                    if (opt.key !== 'By Company') {
                                         setCompanyFilter('');
                                     }
                                 }}
@@ -529,13 +499,8 @@ const AssignmentsPage: React.FC = () => {
                                     fontWeight: 500,
                                     border: 'none',
                                     cursor: 'pointer',
-                                    transition: 'all 0.15s ease',
-                                    background: filterMode === opt.key
-                                        ? 'var(--color-primary)'
-                                        : 'var(--color-surface-hover)',
-                                    color: filterMode === opt.key
-                                        ? 'white'
-                                        : 'var(--color-text-secondary)',
+                                    background: filterMode === opt.key ? 'var(--color-primary)' : 'var(--color-surface-hover)',
+                                    color: filterMode === opt.key ? 'white' : 'var(--color-text-secondary)',
                                 }}
                             >
                                 {opt.icon} {opt.label}
@@ -543,108 +508,43 @@ const AssignmentsPage: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Team dropdown */}
                     {filterMode === 'By Team' && (
-                        <div style={{ position: 'relative' }}>
-                            <select
-                                style={{
-                                    width: 180,
-                                    fontSize: '0.75rem',
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: '1px solid var(--color-border)',
-                                    background: 'var(--color-bg)',
-                                    color: 'var(--color-text)',
-                                    padding: '0 10px',
-                                    cursor: 'pointer',
-                                }}
-                                value={filterTeamId}
-                                onChange={e => setFilterTeamId(e.target.value)}
-                            >
-                                <option value="">Select team...</option>
-                                {filterTeams.map(t => (
-                                    <option key={t._id} value={t._id}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <select
+                            style={{ width: 180, fontSize: '0.75rem', height: 32, borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg)', padding: '0 10px' }}
+                            value={filterTeamId}
+                            onChange={e => setFilterTeamId(e.target.value)}
+                        >
+                            <option value="">Select team...</option>
+                            {filterTeams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                        </select>
                     )}
 
-                    {/* Person dropdown */}
                     {filterMode === 'By Person' && (
-                        <div style={{ position: 'relative' }}>
-                            <select
-                                style={{
-                                    width: 180,
-                                    fontSize: '0.75rem',
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: '1px solid var(--color-border)',
-                                    background: 'var(--color-bg)',
-                                    color: 'var(--color-text)',
-                                    padding: '0 10px',
-                                    cursor: 'pointer',
-                                }}
-                                value={filterUserId}
-                                onChange={e => setFilterUserId(e.target.value)}
-                            >
-                                <option value="">Select person...</option>
-                                {filterUsers.map(u => (
-                                    <option key={u._id} value={u._id}>{u.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <select
+                            style={{ width: 180, fontSize: '0.75rem', height: 32, borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg)', padding: '0 10px' }}
+                            value={filterUserId}
+                            onChange={e => setFilterUserId(e.target.value)}
+                        >
+                            <option value="">Select person...</option>
+                            {filterUsers.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                        </select>
                     )}
 
-                    {/* Company dropdown */}
                     {filterMode === 'By Company' && (
-                        <div style={{ position: 'relative' }}>
-                            <select
-                                style={{
-                                    width: 180,
-                                    fontSize: '0.75rem',
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: '1px solid var(--color-border)',
-                                    background: 'var(--color-bg)',
-                                    color: 'var(--color-text)',
-                                    padding: '0 10px',
-                                    cursor: 'pointer',
-                                }}
-                                value={companyFilter}
-                                onChange={e => setCompanyFilter(e.target.value)}
-                            >
-                                <option value="">Select company...</option>
-                                {filterCompanies.map(c => (
-                                    <option key={c._id} value={c._id}>{c.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <select
+                            style={{ width: 180, fontSize: '0.75rem', height: 32, borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg)', padding: '0 10px' }}
+                            value={companyFilter}
+                            onChange={e => setCompanyFilter(e.target.value)}
+                        >
+                            <option value="">Select company...</option>
+                            {filterCompanies.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                        </select>
                     )}
 
-                    {/* Clear filter button */}
                     {(filterMode !== 'All' || companyFilter) && (
                         <button
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '6px 10px',
-                                borderRadius: 20,
-                                fontSize: '0.7rem',
-                                fontWeight: 500,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                color: '#ef4444',
-                                marginLeft: 'auto',
-                                transition: 'all 0.15s ease',
-                            }}
-                            onClick={() => {
-                                setFilterMode('All');
-                                setFilterTeamId('');
-                                setFilterUserId('');
-                                setCompanyFilter('');
-                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 500, border: 'none', cursor: 'pointer', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', marginLeft: 'auto' }}
+                            onClick={() => { setFilterMode('All'); setFilterTeamId(''); setFilterUserId(''); setCompanyFilter(''); }}
                         >
                             <X size={12} /> Clear
                         </button>
@@ -660,84 +560,44 @@ const AssignmentsPage: React.FC = () => {
             ) : filteredAssignments.length === 0 ? (
                 <div className="card" style={{ padding: 48, textAlign: 'center' }}>
                     <FolderKanban size={48} style={{ margin: '0 auto 12px', color: 'var(--color-text-tertiary)', opacity: 0.3 }} />
-                    <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                        {filterMode !== 'All' || companyFilter ? 'No projects match this filter' : 'No Projects found'}
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
-                        {filterMode !== 'All' || companyFilter
-                            ? 'Try a different filter or clear to see all projects.'
-                            : (isAdmin ? 'Create your first Project to get started.' : 'No Projects have been assigned to you yet.')
-                        }
-                    </div>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>No projects found</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>Try a different filter or create your first project.</div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {filteredAssignments.map(a => (
-                        <div
-                            key={a._id}
-                            className="card"
-                            style={{ padding: '16px 20px', cursor: 'pointer' }}
-                            onClick={() => navigate(`/assignments/${a._id}`)}
-                        >
+                        <div key={a._id} className="card" style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => navigate(`/assignments/${a._id}`)}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                                         <span style={{ fontSize: '0.9375rem', fontWeight: 600 }}>{a.title}</span>
-                                        {a.isRecurring && !a.parentAssignmentId && (
-                                            <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Blueprint</span>
-                                        )}
-                                        {a.parentAssignmentId && (
-                                            <span className="badge" style={{ background: '#f0fdf4', color: '#16a34a' }}>Recurring Instance</span>
-                                        )}
+                                        {a.isRecurring && !a.parentAssignmentId && <span className="badge" style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}>Blueprint</span>}
                                         <span className={`badge badge-${a.priority}`}>{PRIORITY_LABELS[a.priority]}</span>
                                         {activeTab !== 'blueprints' && <span className={`badge badge-${a.status}`}>{STATUS_LABELS[a.status]}</span>}
                                     </div>
                                     <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                                         {a.clientName && <span>Client: {a.clientName}</span>}
                                         {activeTab === 'blueprints' ? (
-                                            <span style={{ textTransform: 'capitalize' }}>Pattern: {a.recurringPattern}</span>
+                                            <span style={{ textTransform: 'capitalize' }}> · Pattern: {a.recurringPattern}</span>
                                         ) : (
-                                            <span>
-                                                {a.status === 'completed' ? null : (
-                                                    <span> · {a.dueDate && new Date(a.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
-                                                )}
-                                            </span>
-
+                                            <span> · {a.dueDate && new Date(a.dueDate).getFullYear() > 1970 ? `Due ${format(new Date(a.dueDate), 'MMM d, yyyy')}` : 'No Due Date'}</span>
                                         )}
                                     </div>
-                                    {/* Teams badges */}
                                     {a.teams?.length > 0 && (
                                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                             {a.teams.map((t: any) => (
-                                                <span key={t._id} style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px',
-                                                    borderRadius: 4, background: 'var(--color-primary-light)', fontSize: '0.6875rem', fontWeight: 500,
-                                                    color: 'var(--color-primary)',
-                                                }}>
+                                                <span key={t._id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 4, background: 'var(--color-primary-light)', fontSize: '0.6875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
                                                     <Users size={10} /> {t.name}
                                                 </span>
                                             ))}
                                         </div>
                                     )}
-                                </div>                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                                     {a.team?.slice(0, 3).map((member: any, i: number) => (
-                                        <Avatar
-                                            key={member._id}
-                                            src={member.avatar}
-                                            name={member.name}
-                                            size={28}
-                                            style={{
-                                                border: '2px solid var(--color-surface)',
-                                                marginLeft: i > 0 ? -8 : 0,
-                                                zIndex: 10 - i
-                                            }}
-                                        />
+                                        <Avatar key={member._id} src={member.avatar} name={member.name} size={28} style={{ border: '2px solid var(--color-surface)', marginLeft: i > 0 ? -8 : 0, zIndex: 10 - i }} />
                                     ))}
-                                    {a.team?.length > 3 && (
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
-                                            +{a.team.length - 3}
-                                        </span>
-                                    )}
+                                    {a.team?.length > 3 && <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginLeft: 4 }}>+{a.team.length - 3}</span>}
                                 </div>
                             </div>
                         </div>
@@ -747,10 +607,7 @@ const AssignmentsPage: React.FC = () => {
 
             {/* Create Modal */}
             {showCreate && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-                }} onClick={() => setShowCreate(false)}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowCreate(false)}>
                     <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: 28, maxHeight: '90vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
                         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 20 }}>Create Project</h2>
                         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -775,49 +632,20 @@ const AssignmentsPage: React.FC = () => {
                                         placeholder="Search or enter company name"
                                     />
                                     {showCompanyDropdown && (companySearch || allCompanies.length > 0) && (
-                                        <div
-                                            style={{
-                                                position: 'absolute', top: '100%', left: 0, right: 0,
-                                                background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                                                borderRadius: '0 0 8px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                                zIndex: 10, maxHeight: 200, overflowY: 'auto'
-                                            }}
-                                        >
+                                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '0 0 8px 8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: 200, overflowY: 'auto' }}>
                                             {filteredCompanies.length > 0 ? (
                                                 filteredCompanies.map(c => (
-                                                    <div
-                                                        key={c._id}
-                                                        style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }}
-                                                        className="hover-bg"
-                                                        onClick={() => {
-                                                            setForm(prev => ({ ...prev, clientName: c.name, companyId: c._id }));
-                                                            setCompanySearch(c.name);
-                                                            setShowCompanyDropdown(false);
-                                                        }}
-                                                    >
-                                                        {c.name}
-                                                        {c.parentCompanyId && (
-                                                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginLeft: 6 }}>
-                                                                (Subsidiary)
-                                                            </span>
-                                                        )}
+                                                    <div key={c._id} style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.875rem' }} className="hover-bg" onClick={() => { setForm(prev => ({ ...prev, clientName: c.name, companyId: c._id })); setCompanySearch(c.name); setShowCompanyDropdown(false); }}>
+                                                        {c.name} {c.parentCompanyId && <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginLeft: 6 }}>(Subsidiary)</span>}
                                                     </div>
                                                 ))
                                             ) : companySearch ? (
-                                                <div
-                                                    style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-primary-light)' }}
-                                                    className="hover-bg"
-                                                    onClick={() => handleQuickAddCompany(companySearch)}
-                                                >
+                                                <div style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-primary-light)' }} className="hover-bg" onClick={() => handleQuickAddCompany(companySearch)}>
                                                     <Plus size={16} color="var(--color-primary)" />
-                                                    <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>
-                                                        Add <strong>"{companySearch}"</strong> as new company
-                                                    </div>
+                                                    <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-primary)' }}>Add <strong>"{companySearch}"</strong> as new company</div>
                                                 </div>
                                             ) : (
-                                                <div style={{ padding: '8px 12px', fontSize: '0.875rem', color: 'var(--color-text-tertiary)' }}>
-                                                    Type to search or add a company
-                                                </div>
+                                                <div style={{ padding: '8px 12px', fontSize: '0.875rem', color: 'var(--color-text-tertiary)' }}>Type to search or add a company</div>
                                             )}
                                         </div>
                                     )}
@@ -829,11 +657,7 @@ const AssignmentsPage: React.FC = () => {
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Assignment Type</label>
                                     <select className="select" value={form.isRecurring ? 'true' : 'false'} onChange={e => {
                                         const isRec = e.target.value === 'true';
-                                        const updates: any = { isRecurring: isRec };
-                                        if (isRec && form.recurringPattern === 'daily') {
-                                            updates.recurringStartDate = new Date().toISOString().split('T')[0];
-                                        }
-                                        setForm({ ...form, ...updates });
+                                        setForm({ ...form, isRecurring: isRec, recurringStartDate: isRec ? new Date().toISOString().split('T')[0] : '' });
                                     }}>
                                         <option value="false">Transactional Project</option>
                                         <option value="true">Recurring Project</option>
@@ -842,14 +666,7 @@ const AssignmentsPage: React.FC = () => {
                                 {form.isRecurring && (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Pattern</label>
-                                        <select className="select" value={form.recurringPattern} onChange={e => {
-                                            const pattern = e.target.value;
-                                            const updates: any = { recurringPattern: pattern };
-                                            if (pattern === 'daily') {
-                                                updates.recurringStartDate = new Date().toISOString().split('T')[0];
-                                            }
-                                            setForm({ ...form, ...updates });
-                                        }}>
+                                        <select className="select" value={form.recurringPattern} onChange={e => setForm({ ...form, recurringPattern: e.target.value as any })}>
                                             <option value="daily">Daily</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
@@ -862,17 +679,15 @@ const AssignmentsPage: React.FC = () => {
                             {form.isRecurring && form.recurringPattern !== 'daily' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Recurring Start Date *</label>
-                                    <input className="input" type="date" required={form.isRecurring && form.recurringPattern !== 'daily'} value={form.recurringStartDate} onChange={e => setForm({ ...form, recurringStartDate: e.target.value })} />
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>The first instance will be created on this date.</p>
+                                    <input className="input" type="date" required value={form.recurringStartDate} onChange={e => setForm({ ...form, recurringStartDate: e.target.value })} />
                                 </div>
                             )}
-
-
 
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Description</label>
                                 <textarea className="input" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description..." style={{ resize: 'vertical' }} />
                             </div>
+
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Priority</label>
@@ -888,150 +703,53 @@ const AssignmentsPage: React.FC = () => {
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 4, color: 'var(--color-text-secondary)' }}>Due Date *</label>
                                     <input className="input" type="date" required={!form.noDueDate} disabled={form.noDueDate} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
                                     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <input
-                                            type="checkbox"
-                                            id="noDueDate"
-                                            checked={form.noDueDate}
-                                            onChange={e => setForm({ ...form, noDueDate: e.target.checked })}
-                                        />
+                                        <input type="checkbox" id="noDueDate" checked={form.noDueDate} onChange={e => setForm({ ...form, noDueDate: e.target.checked })} />
                                         <label htmlFor="noDueDate" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>No due date</label>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Step 1: Select Team */}
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Assign Teams</label>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
-                                    Manager is automatically added when you select a team.
-                                </p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {allTeams.map(t => (
-                                        <button
-                                            key={t._id}
-                                            type="button"
-                                            className={`btn btn-sm ${form.teams.includes(t._id) ? 'btn-primary' : 'btn-secondary'}`}
-                                            // onClick={() => {
-                                            //     toggleTeam(t._id);
-                                            //     setSelectedTeamForMembers(t._id);
-                                            // }}
-                                            onClick={() => toggleTeam(t._id)}
-                                        >
+                                        <button key={t._id} type="button" className={`btn btn-sm ${form.teams.includes(t._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeam(t._id)}>
                                             <Users size={12} /> {t.name}
                                         </button>
                                     ))}
-                                    {allTeams.length === 0 && <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>No teams created yet</span>}
                                 </div>
                             </div>
 
-
                             {form.teams.length > 0 && (
                                 <div style={{ marginTop: 16 }}>
-                                    <label style={{
-                                        display: 'block',
-                                        fontSize: '0.8125rem',
-                                        fontWeight: 500,
-                                        marginBottom: 8,
-                                        color: 'var(--color-text-secondary)'
-                                    }}>
-                                        Team Members
-                                    </label>
-
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Team Members</label>
                                     {form.teams.map(teamId => {
-                                        // const team = allTeams.find(t => t._id === teamId);
-                                        // if (!team) return null;
-
                                         const team = allTeams.find(t => t._id === teamId);
                                         if (!team) return null;
-
                                         const manager = team.manager;
                                         const members = team.members || [];
-
-                                        const memberIds = [
-                                            ...(team.members?.map((m: any) => m._id) || []),
-                                            team.manager?._id
-                                        ].filter(Boolean);
-
-                                        const allMembersSelected =
-                                            memberIds.length > 0 &&
-                                            memberIds.every(id => form.team.includes(id));
+                                        const memberIds = [...members.map((m: any) => m._id), manager?._id].filter(Boolean);
+                                        const allMembersSelected = memberIds.length > 0 && memberIds.every(id => form.team.includes(id));
 
                                         return (
-                                            <div key={teamId} style={{
-                                                marginBottom: 12,
-                                                padding: 12,
-                                                border: '1px solid var(--color-border)',
-                                                borderRadius: 8
-                                            }}>
-                                                <div style={{
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    marginBottom: 8
-                                                }}>
+                                            <div key={teamId} style={{ marginBottom: 12, padding: 12, border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                                                     <strong>{team.name}</strong>
-
-                                                    {/* <button
-                                                        type="button"
-                                                        className="btn btn-sm btn-primary"
-                                                        onClick={() => selectAllTeamMembers(teamId)}
-                                                    >
-                                                        Select All
-                                                    </button> */}
-                                                    {allMembersSelected ? (
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm btn-secondary"
-                                                            onClick={() => deselectAllTeamMembers(teamId)}
-                                                        >
-                                                            Deselect All
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm btn-primary"
-                                                            onClick={() => selectAllTeamMembers(teamId)}
-                                                        >
-                                                            Select All
-                                                        </button>
-                                                    )}
+                                                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => allMembersSelected ? deselectAllTeamMembers(teamId) : selectAllTeamMembers(teamId)}>
+                                                        {allMembersSelected ? 'Deselect All' : 'Select All'}
+                                                    </button>
                                                 </div>
-
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-
-                                                    {/* Manager */}
                                                     {manager && (
-                                                        <button
-                                                            type="button"
-                                                            className={`btn btn-sm ${form.team.includes(manager._id)
-                                                                ? 'btn-primary'
-                                                                : 'btn-secondary'
-                                                                }`}
-                                                            onClick={() => toggleTeamMember(manager._id)}
-                                                        >
+                                                        <button type="button" className={`btn btn-sm ${form.team.includes(manager._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeamMember(manager._id)}>
                                                             {manager.name} (Manager)
                                                         </button>
                                                     )}
-
-                                                    {/* Members */}
                                                     {members.map((m: any) => (
-                                                        <button
-                                                            key={m._id}
-                                                            type="button"
-                                                            className={`btn btn-sm ${form.team.includes(m._id)
-                                                                ? 'btn-primary'
-                                                                : 'btn-secondary'
-                                                                }`}
-                                                            onClick={() => toggleTeamMember(m._id)}
-                                                        >
+                                                        <button key={m._id} type="button" className={`btn btn-sm ${form.team.includes(m._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeamMember(m._id)}>
                                                             {m.name}
                                                         </button>
                                                     ))}
-
-                                                    {members.length === 0 && !manager && (
-                                                        <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>
-                                                            No members in this team
-                                                        </span>
-                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -1039,181 +757,63 @@ const AssignmentsPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Step 2: Select Members from Selected Team */}
-                            {/* {form.teams.length > 0 && (
+                            {usersNotInAnyTeam.length > 0 && (
                                 <div style={{ marginTop: 16 }}>
-                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>2. Select Members</label>
-
-                                    {/* Team selector for viewing members
-                                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                                        {form.teams.map(teamId => {
-                                            const team = allTeams.find(t => t._id === teamId);
-                                            if (!team) return null;
-                                            return (
-                                                <button
-                                                    key={teamId}
-                                                    type="button"
-                                                    className={`btn btn-sm ${selectedTeamForMembers === teamId ? 'btn-primary' : 'btn-secondary'}`}
-                                                    onClick={() => setSelectedTeamForMembers(teamId)}
-                                                >
-                                                    {team.name}
-                                                    {team.manager?.name && (
-                                                        <span style={{ marginLeft: 6, fontSize: '0.7rem', opacity: 0.8 }}>
-                                                            ({team.manager.name})
-                                                        </span>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Members of the selected team 
-                                    {selectedTeamForMembers && form.teams.includes(selectedTeamForMembers) && (() => {
-                                        const team = allTeams.find(t => t._id === selectedTeamForMembers);
-                                        if (!team) return null;
-                                        const manager = team.manager;
-                                        const members = team.members || [];
-                                        const allMembersSelected = members.length > 0 && members.every((m: any) => form.team.includes(m._id));
-
-                                        return (
-                                            <div style={{ padding: 12, border: '1px solid var(--color-border)', borderRadius: 8, background: 'var(--color-surface)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{team.name} Members</span>
-                                                    <div style={{ display: 'flex', gap: 6 }}>
-                                                        {!allMembersSelected ? (
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-sm btn-primary"
-                                                                onClick={() => selectAllTeamMembers(selectedTeamForMembers)}
-                                                            >
-                                                                Select All
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-sm btn-secondary"
-                                                                onClick={() => deselectAllTeamMembers(selectedTeamForMembers)}
-                                                            >
-                                                                Deselect All
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* All members including manager 
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                                    {manager && (
-                                                        <button
-                                                            key={manager._id}
-                                                            type="button"
-                                                            className={`btn btn-sm ${form.team.includes(manager._id) ? 'btn-primary' : 'btn-secondary'}`}
-                                                            onClick={() => toggleTeamMember(manager._id)}
-                                                        >
-                                                            {manager.name} {manager._id === user?._id ? '(You)' : ''}
-                                                        </button>
-                                                    )}
-                                                    {members.map((member: any) => (
-                                                        <button
-                                                            key={member._id}
-                                                            type="button"
-                                                            className={`btn btn-sm ${form.team.includes(member._id) ? 'btn-primary' : 'btn-secondary'}`}
-                                                            onClick={() => toggleTeamMember(member._id)}
-                                                        >
-                                                            {member.name}{member._id === user?._id ? ' (You)' : ''}
-                                                        </button>
-                                                    ))}
-                                                    {!manager && members.length === 0 && (
-                                                        <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>No members in this team</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            )} */}
-
-                            {/* Other Individual Members (not in any selected team) */}
-                            {allUsers.length > 0 && (
-                                // previous logic
-                                // <div style={{ marginTop: 16 }}>
-                                //     <label style={{ 
-                                //         display: 'block', 
-                                //         fontSize: '0.8125rem', 
-                                //         fontWeight: 500, 
-                                //         marginBottom: 8, 
-                                //         color: 'var(--color-text-secondary)' 
-                                //     }}>
-                                //         Add Other Members (not in any teams)
-                                //     </label>
-                                //     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                //         {allUsers
-                                //             .filter(u => {
-                                //                 const isInSelectedTeam = form.teams.some(teamId => {
-                                //                     const team = allTeams.find(t => t._id === teamId);
-                                //                     return team?.members?.some((m: any) => m._id === u._id);
-                                //                 });
-                                //                 return !isInSelectedTeam;
-                                //             })
-                                //             .map(u => (
-                                //                 <button
-                                //                     key={u._id}
-                                //                     type="button"
-                                //                     className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`}
-                                //                     onClick={() => toggleTeamMember(u._id)}
-                                //                 >
-                                //                     {u.name}
-                                //                 </button>
-                                //             ))}
-                                //         {allUsers.every(u => form.teams.some(teamId => {
-                                //             const team = allTeams.find(t => t._id === teamId);
-                                //             return team?.members?.some((m: any) => m._id === u._id);
-                                //         })) && (
-                                //                 <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-tertiary)' }}>All members are in selected teams</span>
-                                //             )}
-                                //     </div>
-                                // </div>
-                                <div style={{ marginTop: 16 }}>
-                                    <label style={{
-                                        display: 'block',
-                                        fontSize: '0.8125rem',
-                                        fontWeight: 500,
-                                        marginBottom: 8,
-                                        color: 'var(--color-text-secondary)'
-                                    }}>
-                                        Add Other Users (not in any team)
-                                    </label>
-
+                                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Other Individual Members</label>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                         {usersNotInAnyTeam.map(u => (
-                                            <button
-                                                key={u._id}
-                                                type="button"
-                                                className={`btn btn-sm ${form.team.includes(u._id)
-                                                    ? 'btn-primary'
-                                                    : 'btn-secondary'
-                                                    }`}
-                                                onClick={() => toggleTeamMember(u._id)}
-                                            >
-                                                {u.name} ({u.role})
+                                            <button key={u._id} type="button" className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeamMember(u._id)}>
+                                                {u.name}
                                             </button>
                                         ))}
-
-                                        {usersNotInAnyTeam.length === 0 && (
-                                            <span style={{
-                                                fontSize: '0.8125rem',
-                                                color: 'var(--color-text-tertiary)'
-                                            }}>
-                                                All users are already assigned to teams
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
                             )}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                                <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Creating...' : 'Create Project'}</button>
+
+                            <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+                                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowCreate(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving}>
+                                    {saving ? 'Creating...' : 'Create Project'}
+                                </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modals */}
+            {confirmState !== 'none' && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
+                    <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 400, padding: 24, textAlign: 'center' }}>
+                        {confirmState === 'create_company' ? (
+                            <>
+                                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+                                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Building2 size={24} color="var(--color-primary)" />
+                                    </div>
+                                </div>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Company Not Found</h3>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 24 }}>The company <strong>"{form.clientName}"</strong> does not exist. Do you want to create it now?</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    <button className="btn btn-primary" onClick={() => handleQuickAddCompany(form.clientName, true)} disabled={saving}>Yes, create and continue</button>
+                                    <button className="btn btn-secondary" onClick={() => setConfirmState('navigate_clients')}>No, I will do it myself</button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+                                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Users size={24} color="#3b82f6" />
+                                    </div>
+                                </div>
+                                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Navigate to Companies?</h3>
+                                <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 24 }}>Please create the company in the "companies / clients" tab. Navigate now?</p>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmState('none')}>No</button>
+                                    <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate('/clients')}>Yes, navigate now</button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

@@ -21,7 +21,7 @@ router.post('/verify-forgot-password-otp', verifyForgotPasswordOtp);
 // Temporary debug route to check SMTP connectivity
 router.get('/debug-email', async (req, res) => {
     const net = require('net');
-    
+
     const checkPort = (port: number) => new Promise((resolve) => {
         const socket = new net.Socket();
         socket.setTimeout(5000);
