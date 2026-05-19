@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -44,6 +45,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [stagedFiles, setStagedFiles] = useState<any[]>([]);
     const [isUploadingFile, setIsUploadingFile] = useState(false);
     const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatFileRef = useRef<HTMLInputElement>(null);
     const whiteboardRef = useRef<HTMLDivElement>(null);
@@ -462,18 +464,34 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error(`"${file.name}" exceeds the 50 MB size limit`);
+            if (e.target) e.target.value = '';
+            return;
+        }
+
         setUploadingFileName(file.name);
         setIsUploadingFile(true);
+        setUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
         formData.append('assignmentId', id!);
         try {
-            const { data } = await api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const { data } = await api.post('/files', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setUploadProgress(percentCompleted);
+                }
+            });
             setFiles(prev => [data.attachment, ...prev]);
         } catch { }
         finally {
             setIsUploadingFile(false);
             setUploadingFileName(null);
+            setUploadProgress(0);
             if (e.target) e.target.value = '';
         }
     };
@@ -504,11 +522,26 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
             // Upload files only on send
             if (stagedFiles.length > 0) {
-                const uploadPromises = stagedFiles.map(fileObject => {
+                setUploadProgress(0);
+                const loadedMap: Record<number, number> = {};
+                const totalMap: Record<number, number> = {};
+
+                const uploadPromises = stagedFiles.map((fileObject, index) => {
                     const formData = new FormData();
                     formData.append('file', fileObject.file);
                     formData.append('assignmentId', id!);
-                    return api.post('/files', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    return api.post('/files', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                        onUploadProgress: (progressEvent) => {
+                            loadedMap[index] = progressEvent.loaded;
+                            totalMap[index] = progressEvent.total || fileObject.file.size;
+
+                            const totalLoaded = Object.values(loadedMap).reduce((a, b) => a + b, 0);
+                            const totalBytes = Object.values(totalMap).reduce((a, b) => a + b, 0);
+                            const percentCompleted = Math.round((totalLoaded * 100) / (totalBytes || 1));
+                            setUploadProgress(percentCompleted);
+                        }
+                    });
                 });
 
                 const uploadResults = await Promise.all(uploadPromises);
@@ -533,30 +566,11 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             alert(error.response?.data?.message || 'Failed to send message');
         } finally {
             setIsUploadingFile(false);
+            setUploadProgress(0);
         }
     };
 
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-    const ALLOWED_EXTENSIONS = new Set([
-        // Images
-        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif',
-        // Documents
-        '.pdf', '.doc', '.docx', '.odt', '.rtf', '.txt', '.md',
-        // Spreadsheets & Financial
-        '.xls', '.xlsx', '.xlsm', '.xlsb', '.csv', '.tsv', '.ods',
-        '.xbrl', '.ixbrl', '.ofx', '.qfx', '.qif', '.qbo', '.iif',
-        // Presentations
-        '.ppt', '.pptx', '.odp',
-        // Archives
-        '.zip', '.rar', '.7z', '.tar', '.gz',
-        // Web / Code
-        '.html', '.htm', '.css', '.js', '.ts', '.tsx', '.jsx', '.json', '.xml', '.yaml', '.yml',
-        '.php', '.py', '.java', '.c', '.cpp', '.cs', '.rb', '.go', '.rs', '.sql', '.sh', '.bat',
-        // Design
-        '.fig', '.sketch', '.psd', '.ai', '.eps', '.indd',
-        // Misc
-        '.ics', '.vcf', '.eml', '.msg',
-    ]);
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
     const sendChatFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = e.target.files;
@@ -567,14 +581,9 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
         for (let i = 0; i < selectedFiles.length; i++) {
             const file = selectedFiles[i];
-            const ext = '.' + file.name.split('.').pop()?.toLowerCase();
 
             if (file.size > MAX_FILE_SIZE) {
-                rejected.push(`"${file.name}" exceeds the 10 MB size limit`);
-                continue;
-            }
-            if (!ALLOWED_EXTENSIONS.has(ext)) {
-                rejected.push(`"${file.name}" is not an allowed file type (${ext})`);
+                rejected.push(`"${file.name}" exceeds the 50 MB size limit`);
                 continue;
             }
 
@@ -588,7 +597,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
         }
 
         if (rejected.length > 0) {
-            alert('The following files were not added:\n\n' + rejected.join('\n'));
+            toast.error('The following files were not added:\n\n' + rejected.join('\n'));
         }
 
         setStagedFiles(newStagedFiles);
@@ -1260,17 +1269,17 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                     )}
                                                     {canEdit && (
                                                         <>
-                                                              <button className="btn btn-ghost btn-xs" onClick={() => {
-                                                                  setEditingTask(t._id);
-                                                                  setEditTaskForm({
-                                                                      title: t.title,
-                                                                      description: t.description || '',
-                                                                      assignedTo: t.assignedTo?._id,
-                                                                      dueDate: t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? t.dueDate.split('T')[0] : '',
-                                                                      noDueDate: t.noDueDate || (!t.dueDate || new Date(t.dueDate).getFullYear() <= 1970),
-                                                                      priority: t.priority,
-                                                                  });
-                                                              }}>
+                                                            <button className="btn btn-ghost btn-xs" onClick={() => {
+                                                                setEditingTask(t._id);
+                                                                setEditTaskForm({
+                                                                    title: t.title,
+                                                                    description: t.description || '',
+                                                                    assignedTo: t.assignedTo?._id,
+                                                                    dueDate: t.dueDate && new Date(t.dueDate).getFullYear() > 1970 ? t.dueDate.split('T')[0] : '',
+                                                                    noDueDate: t.noDueDate || (!t.dueDate || new Date(t.dueDate).getFullYear() <= 1970),
+                                                                    priority: t.priority,
+                                                                });
+                                                            }}>
                                                                 <Edit3 size={13} />
                                                             </button>
                                                             <button className="btn btn-ghost btn-xs" style={{ color: 'var(--color-error)' }} onClick={() => deleteTask(t._id)}>
@@ -1422,8 +1431,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                             )}
                                             {/* Attachments in message */}
                                             {msg.attachments?.map((att: any) => {
-                                                const isImage = att.fileType?.startsWith('image/');
-                                                const fileUrl = `${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'}/uploads/${att.fileName}`;
+                                                const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+                                                const fileUrl = att.filePath ? `${socketUrl}${att.filePath}` : `${socketUrl}/uploads/${att.fileName || att.filename}`;
+                                                const ext = (att.fileName || att.filename || att.originalName || '').split('.').pop()?.toLowerCase() || '';
+                                                const isImage = att.fileType?.startsWith('image/') || att.contentType?.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
 
                                                 return (
                                                     <div
@@ -1547,9 +1558,21 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                             <Paperclip size={16} />
                         </button>
                         {isUploadingFile ? (
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
-                                <Loader2 className="animate-spin" size={18} />
-                                Sending {stagedFiles.length > 0 ? stagedFiles[0].originalName + (stagedFiles.length > 1 ? ` (+${stagedFiles.length - 1} more)` : '') : 'message'}...
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    <span>
+                                        Uploading {stagedFiles.length > 0 ? stagedFiles[0].originalName + (stagedFiles.length > 1 ? ` (+${stagedFiles.length - 1} more)` : '') : (uploadingFileName || 'attachment')}... ({uploadProgress}%)
+                                    </span>
+                                </div>
+                                <div style={{ height: 4, borderRadius: 2, background: 'var(--color-surface-hover)', overflow: 'hidden', width: '100%', maxWidth: 280 }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${uploadProgress}%`,
+                                        background: 'var(--color-primary)',
+                                        transition: 'width 0.1s ease',
+                                    }} />
+                                </div>
                             </div>
                         ) : (
                             <>

@@ -76,6 +76,7 @@ const sendMessage = async (req, res) => {
                         originalName: att.originalName,
                         fileType: att.fileType,
                         fileSize: att.fileSize,
+                        filePath: `/uploads/${filename}`,
                         uploadedBy: req.user._id,
                     });
                     attachmentIds.push(attachment._id.toString());

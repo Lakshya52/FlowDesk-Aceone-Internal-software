@@ -10,33 +10,14 @@ dotenv_1.default.config();
 // Use memory storage - files are held in buffer, then manually written to GridFS in controllers
 const storage = multer_1.default.memoryStorage();
 const fileFilter = (_req, file, cb) => {
-    const allowedMimes = [
-        'image/jpeg',
-        'image/png',
-        'image/gif',
-        'image/webp',
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'text/plain',
-        'text/csv',
-        'application/zip',
-        'application/x-rar-compressed',
-    ];
-    if (allowedMimes.includes(file.mimetype)) {
-        cb(null, true);
-    }
-    else {
-        cb(new Error(`File type ${file.mimetype} is not allowed`));
-    }
+    // Allow all file types
+    cb(null, true);
 };
 exports.upload = (0, multer_1.default)({
     storage,
     fileFilter,
     limits: {
-        fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10), // 10MB default
+        fileSize: 52428800, // 50MB in bytes
     },
 });
 //# sourceMappingURL=upload.js.map

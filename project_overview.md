@@ -56,3 +56,70 @@ FlowDesk implements a strict Role-Based Access Control (RBAC) system:
 - **Intelligent Spawning**: The recurring engine ensures no duplicates are created and "catches up" if the system was offline during a scheduled cycle.
 - **"No Due Date" Handling**: Specialized logic to handle projects and tasks without finite deadlines, preventing the common "Unix Epoch (1970)" bug.
 - **Glassmorphism UI**: A premium, semi-transparent design language that reduces eye strain and provides a modern look-and-feel.
+
+
+
+<!-- question -->
+what is happening under the hood, how the system is able to detect online and offline status of the user in realtime
+
+<!-- answer starts -->
+Here is exactly what is happening under the hood. It is a brilliant question, and understanding this flow makes it clear why this is the perfect solution.
+
+### The Variables in Play (From your screenshot)
+When this line of code executes:
+```typescript
+useChatStore.getState().handleUserStatusChange(userId, status, user?._id);
+```
+Here is exactly where each value comes from and what it represents:
+
+1. **`userId`** *(from the Socket.io event)*:
+   * **What it is**: The ID of the user whose status just changed (e.g. they focused their tab, went idle, or closed their app).
+   * **Who it belongs to**: This could be **any user** in the system—including your colleague "Jane", or **you** ("Deepak").
+
+2. **`status`** *(from the Socket.io event)*:
+   * **What it is**: The value `"online"` or `"offline"`.
+
+3. **`user?._id`** *(from `useAuthStore`)*:
+   * **What it is**: **Your own logged-in user ID** (e.g., `ObjectId("69fdedf8...")` for Deepak Rai).
+   * **Where it comes from**: This comes from **Zustand's Auth Store** (`useAuthStore()`) which manages your active session.
+
+---
+
+### Why is this happening? (The core problem)
+In a direct messaging app like WhatsApp, every conversation on your sidebar is a **Direct Chat** between two participants:
+1. **You** (the logged-in user)
+2. **Your colleague** (the person you are talking to)
+
+When you are active, your app sends a message to the server: *"Deepak is online!"*. The server then broadcasts this globally to everyone connected. 
+
+**Because you are a client, your app also receives that broadcast.** 
+
+Previously, without your own ID as a reference, the store logic was:
+> *"Let's look at all conversations on my sidebar. If any of the participants in a chat has the ID that just went online, make that chat green."*
+
+Since **you** are a participant in **every single chat** on your sidebar, the moment the app received the broadcast that *you* went online, it matched your ID in every chat, and **turned every single conversation green**, even though your colleagues were completely offline!
+
+---
+
+### How the fix works (Step-by-Step)
+By passing **your own ID** (`user?._id`) to the Zustand chat store as the third parameter (`currentUserId`), we tell the store:
+> *"Only update the green dot of a conversation if the status change belongs to the **other person** in the chat, not me."*
+
+Inside [chatStore.ts](file:///c:\Users\ACEONE\Desktop\flowdesk\FlowDesk-Password-reset=problem-fixed\FlowDesk-Aceone-Internal-software\client\src\store\chatStore.ts#L172-L184), the filtering is now performed as:
+```typescript
+// Find if the status update is for the OTHER participant in this direct chat
+const otherParticipant = c.participants.find(p => p._id === userId && p._id !== currentUserId);
+```
+
+#### Scenario A: Your colleague "Jane" goes online
+1. `userId` is **Jane's ID**.
+2. `currentUserId` is **your ID** (Deepak).
+3. The filter checks: *Is Jane's ID equal to `userId`?* **Yes.** *Is Jane's ID different from your ID?* **Yes.**
+4. `otherParticipant` is found! The green dot next to **Jane's chat** lights up. 
+
+#### Scenario B: You ("Deepak") go online
+1. `userId` is **your ID** (Deepak).
+2. `currentUserId` is **your ID** (Deepak).
+3. The filter checks: *Is your ID equal to `userId`?* **Yes.** *Is your ID different from your ID?* **No (they are the same).**
+4. `otherParticipant` is **not found** because the status update belongs to you. No chats turn green incorrectly!
+<!-- answer ends -->

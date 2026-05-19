@@ -28,6 +28,7 @@ import chatRoutes from './routes/chat';
 import reportRoutes from './routes/reports';
 import companyRoutes from './routes/companies';
 import canvasRoutes from './routes/canvas';
+import conversationRoutes from './routes/conversations';
 import { startRecurringJob } from './services/recurringTaskService';
 import { errorHandler, notFound } from './middlewares/errorHandler';
 
@@ -41,7 +42,13 @@ const clientUrls = [
 
 const io = new Server(server, {
     cors: {
-        origin: clientUrls,
+        origin: (origin, callback) => {
+            if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('file://') || clientUrls.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(null, false);
+            }
+        },
         credentials: true,
     },
 });
@@ -50,6 +57,9 @@ const PORT = process.env.PORT || 5000;
 
 // Export io for use in controllers
 export { io };
+
+// Global set to track online user IDs
+export const activeUsers = new Set<string>();
 
 // Security middleware
 app.use(helmet({
@@ -129,6 +139,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/canvas', canvasRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Socket.io connection logic
 io.on('connection', (socket) => {
@@ -137,9 +148,31 @@ io.on('connection', (socket) => {
         console.log(`User joined assignment room: assignment_${assignmentId}`);
     });
 
+    socket.on('join_conversation', (conversationId) => {
+        socket.join(`conversation_${conversationId}`);
+        console.log(`User joined conversation room: conversation_${conversationId}`);
+    });
+
     socket.on('join_user', (userId) => {
+        if (!userId) return;
         socket.join(`user_${userId}`);
-        console.log(`User joined personal room: user_${userId}`);
+        socket.data.userId = userId;
+        activeUsers.add(userId.toString());
+        io.emit('user_status_change', { userId, status: 'online' });
+        console.log(`User joined personal room: user_${userId}. Active users count: ${activeUsers.size}`);
+    });
+
+    socket.on('user_active_status', ({ userId, status }) => {
+        if (!userId) return;
+        if (status === 'online') {
+            activeUsers.add(userId.toString());
+            io.emit('user_status_change', { userId, status: 'online' });
+            console.log(`📡 User ${userId} status set to online. Active count: ${activeUsers.size}`);
+        } else {
+            activeUsers.delete(userId.toString());
+            io.emit('user_status_change', { userId, status: 'offline' });
+            console.log(`📡 User ${userId} status set to offline. Active count: ${activeUsers.size}`);
+        }
     });
 
     socket.on('typing', ({ assignmentId, userName }) => {
@@ -150,8 +183,26 @@ io.on('connection', (socket) => {
         socket.to(`assignment_${assignmentId}`).emit('user_stop_typing', { userId: socket.id });
     });
 
+    socket.on('chat_typing', ({ conversationId, userName }) => {
+        socket.to(`conversation_${conversationId}`).emit('user_chat_typing', { conversationId, userName, userId: socket.data.userId });
+    });
+
+    socket.on('chat_stop_typing', ({ conversationId }) => {
+        socket.to(`conversation_${conversationId}`).emit('user_chat_stop_typing', { conversationId, userId: socket.data.userId });
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected');
+        const userId = socket.data.userId;
+        if (userId) {
+            // Check if there are other sockets still connected for this user
+            const userRoom = io.sockets.adapter.rooms.get(`user_${userId}`);
+            if (!userRoom || userRoom.size === 0) {
+                activeUsers.delete(userId.toString());
+                io.emit('user_status_change', { userId, status: 'offline' });
+                console.log(`User ${userId} went offline.`);
+            }
+        }
     });
 });
 

@@ -6,6 +6,7 @@ import { Bell, Sun, Moon, LogOut, Search, ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import Avatar from '../common/Avatar';
 import { io } from 'socket.io-client';
+import { useChatStore } from '../../store/chatStore';
 
 const Header: React.FC = () => {
     const { user, logout } = useAuthStore();
@@ -34,6 +35,10 @@ const Header: React.FC = () => {
         };
         fetchNotifications();
 
+        if (user?._id) {
+            useChatStore.getState().fetchConversations();
+        }
+
         // Native notifications handled by Electron via IPC (no browser permission needed)
 
         // Socket connection for notifications
@@ -41,12 +46,20 @@ const Header: React.FC = () => {
         const socket = io(socketUrl);
         socketRef.current = socket;
 
-        socket.on('connect', () => {
-            console.log('📡 Notification socket connected');
+        const joinUserRoom = () => {
             if (user?._id) {
                 console.log(`📡 Joining notification room: user_${user._id}`);
                 socket.emit('join_user', user._id);
             }
+        };
+
+        if (socket.connected) {
+            joinUserRoom();
+        }
+
+        socket.on('connect', () => {
+            console.log('📡 Notification socket connected');
+            joinUserRoom();
         });
 
         socket.on('new_notification', (notification: any) => {
@@ -66,6 +79,47 @@ const Header: React.FC = () => {
             // In browser: no notifications shown (Electron-only feature)
         });
 
+        socket.on('new_chat_message', (message: any) => {
+            console.log('💬 New chat message received globally:', message);
+            const state = useChatStore.getState();
+            if (user?._id) {
+                state.handleNewMessage(message, user._id);
+            }
+
+            const isDifferentChat = message.conversation !== state.activeConversationId;
+            const isFromOthers = message.sender._id !== user?._id;
+            if (isFromOthers && isDifferentChat) {
+                // Play notification chime!
+                try {
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-120.wav');
+                    audio.volume = 0.5;
+                    audio.play().catch(() => { });
+                } catch { }
+            }
+        });
+
+        socket.on('user_status_change', ({ userId, status }: { userId: string, status: 'online' | 'offline' }) => {
+            console.log(`📡 User ${userId} status changed to ${status}`);
+            useChatStore.getState().handleUserStatusChange(userId, status, user?._id);
+        });
+
+        socket.on('message_reaction_updated', ({ messageId, conversationId, reactions }: any) => {
+            useChatStore.getState().handleReactionUpdate(messageId, conversationId, reactions);
+        });
+
+        socket.on('conversation_deleted', (deletedConversationId: string) => {
+            useChatStore.getState().handleConversationDeleted(deletedConversationId);
+        });
+
+        socket.on('message_deleted', (payload: any) => {
+            useChatStore.getState().handleMessageDeleted(payload);
+        });
+
+        socket.on('new_conversation', (conv: any) => {
+            console.log('💬 New conversation received globally:', conv);
+            useChatStore.getState().addConversation(conv);
+        });
+
         // Listen for navigation requests from the main process (e.g. from notification click)
         if (window.electronAPI) {
             window.electronAPI.onNavigate((link) => {
@@ -74,7 +128,58 @@ const Header: React.FC = () => {
             });
         }
 
+        // --- Active presence / idle tracking ---
+        let idleTimeout: any;
+        let isUserOnline = true;
+
+        const updateStatus = (status: 'online' | 'offline') => {
+            if (!user?._id) return;
+            if (status === 'online' && !isUserOnline) {
+                isUserOnline = true;
+                socket.emit('user_active_status', { userId: user._id, status: 'online' });
+            } else if (status === 'offline' && isUserOnline) {
+                isUserOnline = false;
+                socket.emit('user_active_status', { userId: user._id, status: 'offline' });
+            }
+        };
+
+        const resetIdleTimer = () => {
+            updateStatus('online');
+            clearTimeout(idleTimeout);
+            // Mark user offline after 3 minutes of inactivity
+            idleTimeout = setTimeout(() => {
+                updateStatus('offline');
+            }, 180000);
+        };
+
+        const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+        const handleActivity = () => {
+            resetIdleTimer();
+        };
+
+        const handleFocus = () => {
+            updateStatus('online');
+            resetIdleTimer();
+        };
+
+        const handleBlur = () => {
+            updateStatus('offline');
+        };
+
+        if (user?._id) {
+            activityEvents.forEach(evt => window.addEventListener(evt, handleActivity));
+            window.addEventListener('focus', handleFocus);
+            window.addEventListener('blur', handleBlur);
+            resetIdleTimer();
+        }
+
         return () => {
+            if (user?._id) {
+                activityEvents.forEach(evt => window.removeEventListener(evt, handleActivity));
+                window.removeEventListener('focus', handleFocus);
+                window.removeEventListener('blur', handleBlur);
+            }
+            clearTimeout(idleTimeout);
             socket.disconnect();
         };
     }, [user?._id]);

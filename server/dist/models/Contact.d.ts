@@ -4,6 +4,7 @@ export interface IContact extends Document {
     name: string;
     email?: string;
     phone?: string;
+    phoneCountryCode?: string;
     position?: string;
     department?: string;
     isPrimary: boolean;

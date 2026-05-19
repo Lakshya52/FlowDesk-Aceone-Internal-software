@@ -49,7 +49,7 @@ exports.upload = upload;
 // Create Company
 const createCompany = async (req, res) => {
     try {
-        const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
+        const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
         const companyData = {
             name,
             parentCompanyId: parentCompanyId || null,
@@ -58,6 +58,7 @@ const createCompany = async (req, res) => {
             website,
             email,
             phone,
+            phoneCountryCode: phoneCountryCode || '+91',
             address,
             status: status || 'active',
         };
@@ -125,7 +126,7 @@ exports.getCompany = getCompany;
 // Update Company
 const updateCompany = async (req, res) => {
     try {
-        const { name, parentCompanyId, industry, description, website, email, phone, address, status } = req.body;
+        const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
         const updateData = {
             name,
             parentCompanyId: parentCompanyId === '' ? null : (parentCompanyId || null),
@@ -134,6 +135,7 @@ const updateCompany = async (req, res) => {
             website,
             email,
             phone,
+            phoneCountryCode,
             address,
             status
         };
@@ -371,6 +373,7 @@ const importCompanies = async (req, res) => {
                     website: getCell('website') || undefined,
                     email: getCell('company email') || undefined,
                     phone: getCell('phone') || getCell('contact') || undefined,
+                    phoneCountryCode: getCell('phone country code') || getCell('country code') || '+91',
                     address: {
                         street: getCell('street') || undefined,
                         city: getCell('city') || undefined,
@@ -456,6 +459,7 @@ const exportCompaniesToExcel = async (req, res) => {
             { header: 'Description', key: 'description', width: 40 },
             { header: 'Website', key: 'website', width: 25 },
             { header: 'Email', key: 'email', width: 25 },
+            { header: 'Phone Country Code', key: 'phoneCountryCode', width: 10 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Street', key: 'street', width: 25 },
             { header: 'City', key: 'city', width: 15 },
@@ -499,6 +503,7 @@ const exportCompaniesToExcel = async (req, res) => {
                 description: company.description || '',
                 website: company.website || '',
                 email: company.email || '',
+                phoneCountryCode: company.phoneCountryCode || '+91',
                 phone: company.phone || '',
                 street: company.address?.street || '',
                 city: company.address?.city || '',
@@ -576,8 +581,10 @@ const exportCompaniesToPDF = async (req, res) => {
             doc.fontSize(10).font('Helvetica');
             if (company.industry)
                 doc.text(`Industry: ${company.industry}`);
-            if (company.phone)
-                doc.text(`Phone: ${company.phone}`);
+            if (company.phone) {
+                const phoneDisplay = company.phoneCountryCode ? `${company.phoneCountryCode} ${company.phone}` : company.phone;
+                doc.text(`Phone: ${phoneDisplay}`);
+            }
             if (company.website)
                 doc.text(`Website: ${company.website}`);
             if (company.description)
@@ -692,7 +699,7 @@ const downloadSampleExcel = async (req, res) => {
             { header: 'Description', key: 'description', width: 30 },
             { header: 'Website', key: 'website', width: 25 },
             { header: 'Company Email', key: 'email', width: 25 },
-            { header: 'Country Code', key: 'phoneCountryCode', width: 10 },
+            { header: 'Phone Country Code', key: 'phoneCountryCode', width: 10 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Street', key: 'street', width: 20 },
             { header: 'City', key: 'city', width: 15 },
@@ -756,7 +763,6 @@ const downloadSampleExcel = async (req, res) => {
         res.end();
     }
     catch (error) {
-        alert("Something went wrong, downloading the sample file, please contact developer of the application ")
         res.status(500).json({ success: false, message: error.message });
     }
 };
