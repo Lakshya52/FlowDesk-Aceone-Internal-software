@@ -9,4 +9,6 @@ export { default as Team } from './Team';
 export { default as ChatMessage } from './ChatMessage';
 export { default as Company } from './Company';
 export { default as Contact } from './Contact';
+export { default as Conversation } from './Conversation';
+export { default as Message } from './Message';
 //# sourceMappingURL=index.d.ts.map

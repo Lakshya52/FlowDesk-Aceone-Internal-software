@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
 // import axios from 'axios';
 import api from './lib/api';
 import AppLayout from './components/layout/AppLayout';
@@ -17,6 +18,7 @@ import TeamsPage from './pages/TeamsPage';
 import ClientsPage from './pages/ClientsPage';
 import CanvasPage from './pages/CanvasPage';
 import BulkEmailPage from './pages/BulkEmailPage';
+import ChatsPage from './pages/ChatsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,6 +93,7 @@ const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster position="top-right" />
       <HashRouter>
         <Buddy />
         <Routes>
@@ -110,6 +113,7 @@ const App: React.FC = () => {
             <Route path="/canvas" element={<CanvasPage />} />
             <Route path="/bulk-email" element={<BulkEmailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/chat" element={<ChatsPage />} />
           </Route>
           <Route path="*" element={<ProtectedNotFound />} />
         </Routes>

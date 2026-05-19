@@ -45,6 +45,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                         originalName: att.originalName,
                         fileType: att.fileType,
                         fileSize: att.fileSize,
+                        filePath: `/uploads/${filename}`,
                         uploadedBy: req.user!._id,
                     });
                     attachmentIds.push(attachment._id.toString());
@@ -81,7 +82,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             const mentionPromises = mentions.map((userId: string) => {
                 // Don't notify yourself
                 if (userId === req.user!._id.toString()) return Promise.resolve();
-                
+
                 return createNotification({
                     user: userId,
                     type: NotificationType.MENTION,

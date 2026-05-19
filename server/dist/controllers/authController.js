@@ -237,7 +237,10 @@ const forgotPassword = async (req, res) => {
         user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
         // Since we are not updating password, save hook might skip, but it is safe.
         await user.save();
-        await (0, emailService_1.sendOtpEmail)(user.email, otp);
+        // Send email asynchronously without blocking the response
+        (0, emailService_1.sendOtpEmail)(user.email, otp).catch((error) => {
+            console.error(`Failed to send OTP email to ${user.email}:`, error);
+        });
         res.status(200).json({ message: 'If that email exists in our system, we have sent a password reset OTP to it.' });
     }
     catch (error) {

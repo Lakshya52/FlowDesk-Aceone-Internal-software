@@ -42,6 +42,7 @@ const companySchema = new mongoose_1.Schema({
     website: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
     phone: { type: String, trim: true },
+    phoneCountryCode: { type: String, trim: true, default: '+91' },
     address: {
         street: { type: String, trim: true },
         city: { type: String, trim: true },

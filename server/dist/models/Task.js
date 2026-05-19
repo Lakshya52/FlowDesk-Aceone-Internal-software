@@ -55,7 +55,7 @@ const subtaskSchema = new mongoose_1.Schema({
 });
 const taskSchema = new mongoose_1.Schema({
     title: { type: String, required: true, trim: true },
-    description: { type: String, default: '' },
+    description: { type: String, required: true, trim: true },
     assignment: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Assignment', required: true },
     assignedTo: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     createdBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },

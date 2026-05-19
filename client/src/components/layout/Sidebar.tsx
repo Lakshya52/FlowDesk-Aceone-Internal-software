@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import packageJson from '../../../package.json';
+import { useChatStore } from '../../store/chatStore';
 import {
     LayoutDashboard,
     FolderKanban,
@@ -18,7 +19,8 @@ import {
     // ChevronRight
     Building2,
     Shapes,
-    Mail
+    Mail,
+    MessageSquare
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -40,11 +42,12 @@ const navItems = [
             // { to: '/reports/workload', label: 'Workload' },
             // { to: '/reports/activity', label: 'User Activity' }
         ]
-    },  
+    },
     { to: '/clients', icon: Building2, label: 'Companies & Clients', new: false },
     { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: false },
     { to: '/canvas', icon: Shapes, label: 'Canvas', new: false },
     { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
+    { to: '/chat', icon: MessageSquare, label: 'Chat' },
     {
         to: '/reports',
         icon: BarChart3,
@@ -59,16 +62,16 @@ const navItems = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
-
+    const { totalUnreadCount } = useChatStore();
     const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
-    
+
     const toggleExpand = (to: string) => {
         setExpandedItems(prev => ({
             ...prev,
             [to]: !prev[to]
         }));
     };
-    
+
     return (
         <aside
             style={{
@@ -150,7 +153,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                     {navItems.map((item) => {
                         const hasSubItems = !!item.subItems && item.subItems.length > 0;
                         const isExpanded = expandedItems[item.to] ?? false;
-                        
+
                         return (
                             <div key={item.to} style={{ display: 'flex', flexDirection: 'column' }}>
                                 {hasSubItems ? (
@@ -183,13 +186,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                         {isOpen && (
                                             <>
                                                 <span style={{ whiteSpace: 'nowrap', flex: 1 }}>{item.label}</span>
-                                                <ChevronDown 
-                                                    size={16} 
-                                                    style={{ 
+                                                <ChevronDown
+                                                    size={16}
+                                                    style={{
                                                         transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                                         transition: 'transform 0.2s ease',
-                                                        flexShrink: 0 
-                                                    }} 
+                                                        flexShrink: 0
+                                                    }}
                                                 />
                                             </>
                                         )}
@@ -225,15 +228,48 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                             }
                                         }}
                                     >
-                                        <item.icon size={20} style={{ flexShrink: 0 }} />
+                                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                            <item.icon size={20} style={{ flexShrink: 0 }} />
+                                            {item.to === '/chat' && totalUnreadCount > 0 && !isOpen && (
+                                                <span style={{
+                                                    position: 'absolute',
+                                                    top: '-4px',
+                                                    right: '-4px',
+                                                    width: '8px',
+                                                    height: '8px',
+                                                    borderRadius: '50%',
+                                                    background: 'var(--color-danger)',
+                                                    boxShadow: '0 0 0 2px var(--color-surface)'
+                                                }} />
+                                            )}
+                                        </div>
                                         {isOpen && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                                        {item.to === '/chat' && totalUnreadCount > 0 && isOpen && (
+                                            <span style={{
+                                                marginLeft: 'auto',
+                                                background: 'var(--color-danger)',
+                                                color: 'white',
+                                                fontSize: '0.7rem',
+                                                fontWeight: 700,
+                                                minWidth: '18px',
+                                                height: '18px',
+                                                borderRadius: '9px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '0 5px',
+                                                lineHeight: 1
+                                            }}>
+                                                {totalUnreadCount}
+                                            </span>
+                                        )}
                                         {item.new && isOpen && (
-                                            <span style={{ 
-                                                fontSize: '0.6rem', 
-                                                background: '#22c55e', 
-                                                color: 'white', 
-                                                padding: '2px 6px', 
-                                                borderRadius: 10, 
+                                            <span style={{
+                                                fontSize: '0.6rem',
+                                                background: '#22c55e',
+                                                color: 'white',
+                                                padding: '2px 6px',
+                                                borderRadius: 10,
                                                 fontWeight: 700,
                                                 textTransform: 'uppercase',
                                                 lineHeight: 1

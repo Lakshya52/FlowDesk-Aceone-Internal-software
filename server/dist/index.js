@@ -3,12 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.io = void 0;
+exports.activeUsers = exports.io = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
+// Load environment variables early
+dotenv_1.default.config();
 const socket_io_1 = require("socket.io");
 const http_1 = __importDefault(require("http"));
 const node_dns_1 = __importDefault(require("node:dns"));
@@ -27,9 +29,9 @@ const chat_1 = __importDefault(require("./routes/chat"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const companies_1 = __importDefault(require("./routes/companies"));
 const canvas_1 = __importDefault(require("./routes/canvas"));
+const conversations_1 = __importDefault(require("./routes/conversations"));
 const recurringTaskService_1 = require("./services/recurringTaskService");
 const errorHandler_1 = require("./middlewares/errorHandler");
-dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
 const clientUrls = [
@@ -39,12 +41,21 @@ const clientUrls = [
 ].filter(Boolean);
 const io = new socket_io_1.Server(server, {
     cors: {
-        origin: clientUrls,
+        origin: (origin, callback) => {
+            if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('file://') || clientUrls.includes(origin)) {
+                callback(null, true);
+            }
+            else {
+                callback(null, false);
+            }
+        },
         credentials: true,
     },
 });
 exports.io = io;
 const PORT = process.env.PORT || 5000;
+// Global set to track online user IDs
+exports.activeUsers = new Set();
 // Security middleware
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -117,15 +128,39 @@ app.use('/api/chat', chat_1.default);
 app.use('/api/reports', reports_1.default);
 app.use('/api/companies', companies_1.default);
 app.use('/api/canvas', canvas_1.default);
+app.use('/api/conversations', conversations_1.default);
 // Socket.io connection logic
 io.on('connection', (socket) => {
     socket.on('join_assignment', (assignmentId) => {
         socket.join(`assignment_${assignmentId}`);
         console.log(`User joined assignment room: assignment_${assignmentId}`);
     });
+    socket.on('join_conversation', (conversationId) => {
+        socket.join(`conversation_${conversationId}`);
+        console.log(`User joined conversation room: conversation_${conversationId}`);
+    });
     socket.on('join_user', (userId) => {
+        if (!userId)
+            return;
         socket.join(`user_${userId}`);
-        console.log(`User joined personal room: user_${userId}`);
+        socket.data.userId = userId;
+        exports.activeUsers.add(userId.toString());
+        io.emit('user_status_change', { userId, status: 'online' });
+        console.log(`User joined personal room: user_${userId}. Active users count: ${exports.activeUsers.size}`);
+    });
+    socket.on('user_active_status', ({ userId, status }) => {
+        if (!userId)
+            return;
+        if (status === 'online') {
+            exports.activeUsers.add(userId.toString());
+            io.emit('user_status_change', { userId, status: 'online' });
+            console.log(`📡 User ${userId} status set to online. Active count: ${exports.activeUsers.size}`);
+        }
+        else {
+            exports.activeUsers.delete(userId.toString());
+            io.emit('user_status_change', { userId, status: 'offline' });
+            console.log(`📡 User ${userId} status set to offline. Active count: ${exports.activeUsers.size}`);
+        }
     });
     socket.on('typing', ({ assignmentId, userName }) => {
         socket.to(`assignment_${assignmentId}`).emit('user_typing', { userName, userId: socket.id });
@@ -133,8 +168,24 @@ io.on('connection', (socket) => {
     socket.on('stop_typing', ({ assignmentId }) => {
         socket.to(`assignment_${assignmentId}`).emit('user_stop_typing', { userId: socket.id });
     });
+    socket.on('chat_typing', ({ conversationId, userName }) => {
+        socket.to(`conversation_${conversationId}`).emit('user_chat_typing', { conversationId, userName, userId: socket.data.userId });
+    });
+    socket.on('chat_stop_typing', ({ conversationId }) => {
+        socket.to(`conversation_${conversationId}`).emit('user_chat_stop_typing', { conversationId, userId: socket.data.userId });
+    });
     socket.on('disconnect', () => {
         console.log('User disconnected');
+        const userId = socket.data.userId;
+        if (userId) {
+            // Check if there are other sockets still connected for this user
+            const userRoom = io.sockets.adapter.rooms.get(`user_${userId}`);
+            if (!userRoom || userRoom.size === 0) {
+                exports.activeUsers.delete(userId.toString());
+                io.emit('user_status_change', { userId, status: 'offline' });
+                console.log(`User ${userId} went offline.`);
+            }
+        }
     });
 });
 // Health check
