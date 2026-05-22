@@ -1260,6 +1260,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                     }}
                                                                 >
                                                                     {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
+                                                                        if (isEmployee && k === 'review') return null;
                                                                         if (isEmployee && k === 'completed') return <option key={k} value="completed">Mark for Review</option>;
                                                                         return <option key={k} value={k}>{v}</option>;
                                                                     })}
