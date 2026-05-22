@@ -1249,10 +1249,10 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                 <select
                                                                     className="select"
                                                                     style={{ fontSize: '0.75rem', padding: '4px 24px 4px 8px', width: 120 }}
-                                                                    value={t.status}
+                                                                    value={isEmployee && t.status === 'review' ? 'review' : t.status}
                                                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                                                                         const val = e.target.value;
-                                                                        if (isEmployee && val === 'completed') {
+                                                                        if (isEmployee && val === 'review') {
                                                                             updateTaskStatus(t._id, 'review');
                                                                         } else {
                                                                             updateTaskStatus(t._id, val);
@@ -1261,7 +1261,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                 >
                                                                     {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => {
                                                                         if (isEmployee && k === 'review') return null;
-                                                                        if (isEmployee && k === 'completed') return <option key={k} value="completed">Mark for Review</option>;
+                                                                        if (isEmployee && k === 'completed') return <option key={k} value="review">Mark for Review</option>;
                                                                         return <option key={k} value={k}>{v}</option>;
                                                                     })}
                                                                 </select>
