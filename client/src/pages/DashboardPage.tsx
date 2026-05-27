@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -13,8 +14,6 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Line, LineChart } from 'recharts';
 import { format } from 'date-fns';
-
-
 
 const STATUS_COLORS: Record<string, string> = {
     todo: '#94a3b8',
@@ -30,32 +29,102 @@ const STATUS_LABELS: Record<string, string> = {
     completed: 'Completed',
 };
 
+const slideStyles = `
+  @keyframes slideInFromBottom {
+    from { transform: translateY(40px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  @keyframes slideInFromTop {
+    from { transform: translateY(-40px); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
+  }
+  .slide-next { animation: slideInFromBottom 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .slide-prev { animation: slideInFromTop    0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+`;
+
+const activityQueryFn = async (page: number) => {
+    const { data } = await api.get(`/dashboard/stats?page=${page}`);
+    return {
+        recentActivity: data.recentActivity ?? [],
+        currentPage: data.currentPage ?? page,
+        totalPages: data.totalPages ?? 1,
+    };
+};
+
 const DashboardPage: React.FC = () => {
     const { user } = useAuthStore();
     const navigate = useNavigate();
-    const [data, setData] = useState<any | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [myTeams, setMyTeams] = useState<any[]>([]);
-    const [page, setPage] = useState(1);
+    const queryClient = useQueryClient();
 
-    const fetchStats = async (p: number) => {
-        try {
-            const [dashRes, teamsRes] = await Promise.all([
-                api.get(`/dashboard/stats?page=${p}`),
-                api.get('/teams'),
-            ]);
-            setData(dashRes.data);
-            setMyTeams(teamsRes.data.teams || []);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
+    const [page, setPage] = useState(1);
+    const [direction, setDirection] = useState<'next' | 'prev'>('next');
+
+    // Inject slide animation styles once
+    useEffect(() => {
+        if (!document.getElementById('activity-slide-styles')) {
+            const tag = document.createElement('style');
+            tag.id = 'activity-slide-styles';
+            tag.textContent = slideStyles;
+            document.head.appendChild(tag);
         }
+    }, []);
+
+    // Static stats — no page dependency, never re-fetches on pagination
+    const { data: statsData, isLoading: statsLoading } = useQuery({
+        queryKey: ['dashboard-stats'],
+        queryFn: async () => {
+            const { data } = await api.get(`/dashboard/stats?page=1`);
+            const { recentActivity, currentPage, totalPages, ...rest } = data;
+            return rest;
+        },
+        staleTime: 1000 * 60 * 2,
+    });
+
+    // Paginated activity — only this changes on Prev/Next
+    const { data: activityData, isFetching: activityFetching } = useQuery({
+        queryKey: ['dashboard-activity', page],
+        queryFn: () => activityQueryFn(page),
+        staleTime: 1000 * 60 * 1,
+        keepPreviousData: true,
+    });
+
+    // Prefetch next page as soon as current page data arrives
+    useEffect(() => {
+        if (activityData && page < activityData.totalPages) {
+            queryClient.prefetchQuery({
+                queryKey: ['dashboard-activity', page + 1],
+                queryFn: () => activityQueryFn(page + 1),
+                staleTime: 1000 * 60 * 1,
+            });
+        }
+    }, [page, activityData, queryClient]);
+
+    const { data: teamsData } = useQuery({
+        queryKey: ['my-teams'],
+        queryFn: async () => {
+            const { data } = await api.get('/teams');
+            return data.teams || [];
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+
+    const data = statsData;
+    const myTeams = teamsData || [];
+    const loading = statsLoading && !statsData;
+
+    const recentActivity: any[] = activityData?.recentActivity ?? [];
+    const currentPage: number = activityData?.currentPage ?? page;
+    const totalPages: number = activityData?.totalPages ?? 1;
+
+    const goNext = () => {
+        setDirection('next');
+        setPage(p => p + 1);
     };
 
-    useEffect(() => {
-        fetchStats(page);
-    }, [page]);
+    const goPrev = () => {
+        setDirection('prev');
+        setPage(p => Math.max(1, p - 1));
+    };
 
     if (loading) {
         return (
@@ -137,7 +206,6 @@ const DashboardPage: React.FC = () => {
                     </p>
                 </div>
 
-                {/* Dashboard Tabs */}
                 <div style={{ display: 'flex', gap: 12 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => navigate('/tasks')}>
                         <CheckCircle2 size={16} /> Tasks
@@ -267,37 +335,50 @@ const DashboardPage: React.FC = () => {
                     )}
 
                     {/* Recent Activity */}
-                    <div className="card" style={{ padding: '20px' }}>
+                    <div className="card" style={{ padding: '20px', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>Recent Activity</h3>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                                Recent Activity
+                                {activityFetching && (
+                                    <span style={{ marginLeft: 8, fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', fontWeight: 400 }}>
+                                        Loading…
+                                    </span>
+                                )}
+                            </h3>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 <button
                                     className="btn btn-ghost btn-xs"
-                                    disabled={page === 1}
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1 || activityFetching}
+                                    onClick={goPrev}
                                 >
                                     Prev
                                 </button>
                                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
-                                    Page {data.currentPage} of {data.totalPages || 1}
+                                    Page {currentPage} of {totalPages || 1}
                                 </span>
                                 <button
                                     className="btn btn-ghost btn-xs"
-                                    disabled={page >= data.totalPages}
-                                    onClick={() => setPage(p => p + 1)}
+                                    disabled={page >= totalPages || activityFetching}
+                                    onClick={goNext}
                                 >
                                     Next
                                 </button>
                             </div>
                         </div>
-                        {data.recentActivity.length === 0 ? (
+
+                        {recentActivity.length === 0 ? (
                             <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>
                                 <TrendingUp size={32} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
                                 <div>No activity yet</div>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                {data.recentActivity.map((act: any) => (
+                            // key={page} forces remount on every page change, restarting the CSS animation
+                            <div
+                                key={page}
+                                className={direction === 'next' ? 'slide-next' : 'slide-prev'}
+                                style={{ display: 'flex', flexDirection: 'column' }}
+                            >
+                                {recentActivity.map((act: any) => (
                                     <div key={act._id} style={{
                                         padding: '12px 0',
                                         borderBottom: '1px solid var(--color-border)',
@@ -360,7 +441,7 @@ const DashboardPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* My Teams Section (Always visible but filtered) */}
+                    {/* My Teams */}
                     <div className="card" style={{ padding: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                             <Users size={18} color="var(--color-primary)" />
@@ -368,14 +449,14 @@ const DashboardPage: React.FC = () => {
                                 {user?.role === 'admin' ? 'All Teams' : 'My Teams'}
                             </h3>
                         </div>
-                        {myTeams.filter(t => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id)).length === 0 ? (
+                        {myTeams.filter((t: any) => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id)).length === 0 ? (
                             <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.75rem' }}>
                                 No teams joined yet
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 {myTeams
-                                    .filter(t => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id))
+                                    .filter((t: any) => user?.role === 'admin' || t.manager?._id === user?._id || t.manager === user?._id || t.members.some((m: any) => m._id === user?._id))
                                     .slice(0, 5)
                                     .map((team: any) => (
                                         <div key={team._id} style={{

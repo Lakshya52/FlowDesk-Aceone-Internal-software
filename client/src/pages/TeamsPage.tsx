@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -6,28 +7,32 @@ import { Plus, Users, Trash2, UserPlus, UserMinus } from 'lucide-react';
 
 const TeamsPage: React.FC = () => {
     const { user } = useAuthStore();
-    const [teams, setTeams] = useState<any[]>([]);
-    const [users, setUsers] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [showCreate, setShowCreate] = useState(false);
     const [form, setForm] = useState({ name: '', description: '' });
     const [saving, setSaving] = useState(false);
     const [selectedTeam, setSelectedTeam] = useState<any>(null);
     const [showMembers, setShowMembers] = useState(false);
 
-    const fetchTeams = async () => {
-        try {
-            const [tRes, uRes] = await Promise.all([
-                api.get('/teams?all=true'),
-                api.get('/auth/users?all=true'),
-            ]);
-            setTeams(tRes.data.teams || []);
-            setUsers(uRes.data.users || []);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-    };
+    const { data: teamsData, isLoading: loading } = useQuery({
+        queryKey: ['teams'],
+        queryFn: async () => {
+            const { data } = await api.get('/teams?all=true');
+            return data.teams || [];
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+    const teams = teamsData || [];
 
-    useEffect(() => { fetchTeams(); }, []);
+    const { data: usersData } = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+            const { data } = await api.get('/auth/users?all=true');
+            return data.users || [];
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+    const users = usersData || [];
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,7 +41,8 @@ const TeamsPage: React.FC = () => {
             await api.post('/teams', form);
             setShowCreate(false);
             setForm({ name: '', description: '' });
-            fetchTeams();
+            queryClient.invalidateQueries({ queryKey: ['teams'] });
+            queryClient.invalidateQueries({ queryKey: ['my-teams'] });
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
         finally { setSaving(false); }
     };
@@ -45,7 +51,8 @@ const TeamsPage: React.FC = () => {
         if (!window.confirm('Delete this team? This cannot be undone.')) return;
         try {
             await api.delete(`/teams/${teamId}`);
-            fetchTeams();
+            queryClient.invalidateQueries({ queryKey: ['teams'] });
+            queryClient.invalidateQueries({ queryKey: ['my-teams'] });
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };
 
@@ -55,15 +62,21 @@ const TeamsPage: React.FC = () => {
         const newMembers = isMember
             ? currentMembers.filter((id: string) => id !== userId)
             : [...currentMembers, userId];
-        // Optimistic update
-        setTeams(prev => prev.map(t => t._id === team._id ? { ...t, members: newMembers.map((id: string) => ({ _id: id })) } : t));
+        // Optimistic update in cache
+        queryClient.setQueryData(['teams'], (old: any[]) =>
+            old ? old.map(t => t._id === team._id ? { ...t, members: newMembers.map((id: string) => ({ _id: id })) } : t) : old
+        );
         try {
             const { data } = await api.put(`/teams/${team._id}/members`, { members: newMembers });
-            setTeams(prev => prev.map(t => t._id === team._id ? data.team : t));
+            queryClient.setQueryData(['teams'], (old: any[]) =>
+                old ? old.map(t => t._id === team._id ? data.team : t) : old
+            );
             setSelectedTeam(data.team);
         } catch (e: any) {
             // Rollback on failure
-            setTeams(prev => prev.map(t => t._id === team._id ? { ...t, members: currentMembers.map((id: string) => ({ _id: id })) } : t));
+            queryClient.setQueryData(['teams'], (old: any[]) =>
+                old ? old.map(t => t._id === team._id ? { ...t, members: currentMembers.map((id: string) => ({ _id: id })) } : t) : old
+            );
             alert(e.response?.data?.message || 'Failed');
         }
     };
@@ -71,7 +84,9 @@ const TeamsPage: React.FC = () => {
     const handleRequestJoin = async (teamId: string) => {
         try {
             const { data } = await api.post(`/teams/${teamId}/request-join`);
-            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            queryClient.setQueryData(['teams'], (old: any[]) =>
+                old ? old.map(t => t._id === teamId ? data.team : t) : old
+            );
             alert(data.message || 'Join request sent.');
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };
@@ -79,7 +94,9 @@ const TeamsPage: React.FC = () => {
     const handleApproveRequest = async (teamId: string, userId: string) => {
         try {
             const { data } = await api.post(`/teams/${teamId}/requests/${userId}/approve`);
-            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            queryClient.setQueryData(['teams'], (old: any[]) =>
+                old ? old.map(t => t._id === teamId ? data.team : t) : old
+            );
             if (selectedTeam?._id === teamId) setSelectedTeam(data.team);
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };
@@ -87,7 +104,9 @@ const TeamsPage: React.FC = () => {
     const handleRejectRequest = async (teamId: string, userId: string) => {
         try {
             const { data } = await api.post(`/teams/${teamId}/requests/${userId}/reject`);
-            setTeams(prev => prev.map(t => t._id === teamId ? data.team : t));
+            queryClient.setQueryData(['teams'], (old: any[]) =>
+                old ? old.map(t => t._id === teamId ? data.team : t) : old
+            );
             if (selectedTeam?._id === teamId) setSelectedTeam(data.team);
         } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     };

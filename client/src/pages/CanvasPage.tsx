@@ -8,7 +8,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     Plus, Minus, Maximize, Shrink, Focus, MousePointer2, Hand,
-    Trash2, Move, Loader2, X
+    Trash2, Move, Loader2, X, RefreshCcw,Expand
 } from "lucide-react";
 import api from "../lib/api";
 import CanvasNavigator from "../components/common/CanvasNavigator";
@@ -576,8 +576,8 @@ const CanvasPage: React.FC = () => {
                     <Minus size={16} />
                 </button>
                 <div style={{ width: 1, height: 20, background: "var(--color-border)" }} />
-                <button className="btn btn-secondary btn-xs" onClick={resetView} title="Reset View"><Maximize size={16} /></button>
-                <button
+                <button className="btn btn-secondary btn-xs" onClick={resetView} title="Reset View"><RefreshCcw  size={16} /></button>
+                {/* <button
                     className={`btn ${scale === 1 ? 'btn-primary' : 'btn-secondary'} btn-xs`}
                     onClick={() => {
                         const rect = containerRef.current?.getBoundingClientRect();
@@ -586,13 +586,13 @@ const CanvasPage: React.FC = () => {
                     title="Center View"
                 >
                     <Focus size={16} />
-                </button>
+                </button> */}
                 <button
                     className={`btn ${isFullScreen ? 'btn-primary' : 'btn-secondary'} btn-xs`}
                     onClick={() => setIsFullScreen(!isFullScreen)}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
-                    {isFullScreen ? <Shrink size={16} /> : <Maximize size={16} />}
+                    {isFullScreen ? <Shrink size={16} /> : <Expand  size={16} />}
                 </button>
             </div>
 
