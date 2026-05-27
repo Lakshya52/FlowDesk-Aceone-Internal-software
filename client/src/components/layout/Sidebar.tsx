@@ -102,14 +102,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                         width: 32,
                         height: 32,
                         borderRadius: 8,
-                        background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
+                        // background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
                     }}
                 >
-                    <Zap size={18} color="white" />
+                    <img src="/icon.ico" alt="FlowDesk logo" className='rounded-lg' />
+                    {/* <Zap size={18} color="white" /> */}
                 </div>
                 {isOpen && (
                     <span

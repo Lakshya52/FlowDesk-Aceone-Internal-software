@@ -121,13 +121,14 @@ const LoginPage: React.FC = () => {
                         width: 48,
                         height: 48,
                         borderRadius: 14,
-                        background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
+                        // background: 'linear-gradient(135deg, var(--color-primary), #a78bfa)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         marginBottom: 16,
-                    }}>
-                        <Zap size={24} color="white" />
+                    }} className='overflow-hidden' >
+                        <img src="/icon.ico" alt="FlowDesk logo" className='rounded-xl scale-125' />
+                        {/* <Zap size={24} color="white" /> */}
                     </div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>FlowDesk</h1>
                     <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', marginTop: 4 }}>

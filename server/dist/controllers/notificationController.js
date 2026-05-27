@@ -9,7 +9,7 @@ const getNotifications = async (req, res) => {
     try {
         const notifications = await Notification_1.default.find({ user: req.user._id })
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(10);
         const unreadCount = await Notification_1.default.countDocuments({ user: req.user._id, isRead: false });
         res.json({ notifications, unreadCount });
     }

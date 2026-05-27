@@ -87,19 +87,30 @@ const getCompanies = async (req, res) => {
             res.json({ success: true, companies: allCompanies });
             return;
         }
-        const companies = await Company_1.default.find({ parentCompanyId: null })
-            .populate('contacts')
-            .populate('childCompanies');
-        // Build full hierarchy recursively
-        const buildHierarchy = async (parentId) => {
-            const children = await Company_1.default.find({ parentCompanyId: parentId }).lean();
-            for (const child of children) {
-                const childDocs = await buildHierarchy(child._id.toString());
-                child.children = childDocs;
+        const allCompanies = await Company_1.default.find().populate('contacts').lean();
+        const companyMap = new Map();
+        const rootCompanies = [];
+        // Initialize children arrays and map
+        allCompanies.forEach(company => {
+            company.children = [];
+            companyMap.set(company._id.toString(), company);
+        });
+        // Link children to parents
+        allCompanies.forEach(company => {
+            if (company.parentCompanyId) {
+                const parentIdStr = company.parentCompanyId.toString();
+                const parent = companyMap.get(parentIdStr);
+                if (parent) {
+                    parent.children.push(company);
+                }
+                else {
+                    rootCompanies.push(company);
+                }
             }
-            return children;
-        };
-        const rootCompanies = await buildHierarchy(null);
+            else {
+                rootCompanies.push(company);
+            }
+        });
         res.json({ success: true, companies: rootCompanies });
     }
     catch (error) {
