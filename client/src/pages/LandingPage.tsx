@@ -108,19 +108,20 @@ const LandingPage: React.FC = () => {
                         width: 36,
                         height: 36,
                         borderRadius: 10,
-                        background: 'linear-gradient(135deg, #6366f1, #a78bfa)',
+                        // background: 'linear-gradient(135deg, #6366f1, #a78bfa)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
                     }}>
-                        <Zap size={20} color="white" />
+                        <img src="/icon.ico" alt="FlowDesk logo" className='rounded-xl scale-125' />
+                        {/* <Zap size={20} color="white" /> */}
                     </div>
                     <span style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.03em', background: 'linear-gradient(to right, #171717, #404040)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FlowDesk</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
-                    <a href="#features" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Features</a>
+                    {/* <a href="#features" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Features</a> */}
                     {/* <a href="#pricing" style={{ textDecoration: 'none', color: '#525252', fontSize: '0.9375rem', fontWeight: 500 }}>Pricing</a> */}
                     {/* <button
                         onClick={() => navigate('/login')}
