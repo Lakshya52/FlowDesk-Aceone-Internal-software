@@ -82,7 +82,7 @@ const ReportsPage = (): React.JSX.Element => {
 
   const user = JSON.parse(localStorage.getItem("flowdesk_user") || "{}");
 
-  const { isLoading: isLoadingFilters } = useQuery({
+  const { data: queryFilterOptions } = useQuery({
     queryKey: ['reportFilters'],
     queryFn: async () => {
       const [filterRes, assignmentsRes] = await Promise.allSettled([
@@ -106,13 +106,12 @@ const ReportsPage = (): React.JSX.Element => {
       return newOptions;
     },
     staleTime: 5 * 60 * 1000,
-    // onSuccess: setFilterOptions,
   });
   useEffect(() => {
-    if (filterOptions) {
-      setFilterOptions(filterOptions);
+    if (queryFilterOptions) {
+      setFilterOptions(queryFilterOptions);
     }
-  }, [filterOptions]);
+  }, [queryFilterOptions]);
 
   const handleExport = async (type: "csv" | "pdf" | "excel") => {
     try {

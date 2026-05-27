@@ -7,7 +7,11 @@
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-    Plus, Minus, Maximize, Shrink, Focus, MousePointer2, Hand,
+    Plus, Minus, 
+    // Maximize,
+    Shrink, 
+    // Focus,
+    MousePointer2, Hand,
     Trash2, Move, Loader2, X, RefreshCcw,Expand
 } from "lucide-react";
 import api from "../lib/api";

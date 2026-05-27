@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -85,7 +85,7 @@ const DashboardPage: React.FC = () => {
         queryKey: ['dashboard-activity', page],
         queryFn: () => activityQueryFn(page),
         staleTime: 1000 * 60 * 1,
-        keepPreviousData: true,
+        placeholderData: keepPreviousData,
     });
 
     // Prefetch next page as soon as current page data arrives

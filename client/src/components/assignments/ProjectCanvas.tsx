@@ -8,7 +8,15 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     RefreshCcw,
-    Expand, Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand, X
+    Expand,
+    Plus,
+    Minus,
+    // Maximize, 
+    Trash2, 
+    Move, 
+    Shrink, 
+    // Focus, 
+    MousePointer2, Hand, X
 } from "lucide-react";
 import api from "../../lib/api";
 import { useAuthStore } from "../../store/authStore";
