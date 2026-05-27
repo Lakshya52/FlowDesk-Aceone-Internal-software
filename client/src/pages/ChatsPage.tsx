@@ -1,25 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useChatStore, MessageSnippet, UserSnippet } from '../store/chatStore';
+import { useChatStore, MessageSnippet } from '../store/chatStore';
 import api from '../lib/api';
 import { io } from 'socket.io-client';
 import Avatar from '../components/common/Avatar';
-import toast from 'react-hot-toast';
+// import toast from 'react-hot-toast';
 import {
     Search,
     MessageSquare,
-    Paperclip,
-    Send,
-    Smile,
-    Check,
-    CheckCheck,
-    X,
-    FileText,
-    Download,
-    CornerUpRight,
-    Trash2,
-    Ban,
-    Edit3,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useDebounce from '../lib/useDebounce';
@@ -27,7 +15,7 @@ import useDebounce from '../lib/useDebounce';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 // Cache for instant image previews using local blob URLs
-const localPreviewCache = new Map<string, string>();
+// const localPreviewCache = new Map<string, string>();
 
 export default function ChatsPage() {
     const { user } = useAuthStore();
@@ -35,36 +23,36 @@ export default function ChatsPage() {
         conversations,
         activeConversationId,
         setActiveConversationId,
-        setActiveChatUserId,
+        // setActiveChatUserId,
         markAsRead,
-        deleteConversation,
+        // deleteConversation,
         handleConversationDeleted,
         handleMessageDeleted,
-        isLoading,
-        addConversation,
+        // isLoading,
+        // addConversation,
         setConversations,
     } = useChatStore();
 
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
-    const [users, setUsers] = useState<UserSnippet[]>([]);
+    // const [users, setUsers] = useState<UserSnippet[]>([]);
     const [messages, setMessages] = useState<MessageSnippet[]>([]);
-    const [loadingMessages, setLoadingMessages] = useState(false);
-    const [isUploadingFile, setIsUploadingFile] = useState(false);
-    const [uploadingQueue, setUploadingQueue] = useState<{ id: string; name: string; progress: number; status: 'uploading' | 'completed' | 'failed' }[]>([]);
+    // const [loadingMessages, setLoadingMessages] = useState(false);
+    // const [isUploadingFile, setIsUploadingFile] = useState(false);
+    // const [uploadingQueue, setUploadingQueue] = useState<{ id: string; name: string; progress: number; status: 'uploading' | 'completed' | 'failed' }[]>([]);
     const [typingUsers, setTypingUsers] = useState<{ id: string; name: string }[]>([]);
     const [messageInput, setMessageInput] = useState('');
     const [replyingTo, setReplyingTo] = useState<MessageSnippet | null>(null);
-    const [showComposerEmoji, setShowComposerEmoji] = useState(false);
-    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-    const [editMessageInput, setEditMessageInput] = useState('');
-    const [forwardingMessage, setForwardingMessage] = useState<MessageSnippet | null>(null);
-    const [forwardSearchQuery, setForwardSearchQuery] = useState('');
-    const [forwardSuccessConvIds, setForwardSuccessConvIds] = useState<string[]>([]);
+    // const [showComposerEmoji, setShowComposerEmoji] = useState(false);
+    // const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    // const [editMessageInput, setEditMessageInput] = useState('');
+    // const [forwardingMessage, setForwardingMessage] = useState<MessageSnippet | null>(null);
+    // const [forwardSearchQuery, setForwardSearchQuery] = useState('');
+    // const [forwardSuccessConvIds, setForwardSuccessConvIds] = useState<string[]>([]);
 
     const socketRef = useRef<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    // const fileInputRef = useRef<HTMLInputElement>(null);
     const typingTimeoutRef = useRef<any>(null);
 
     const queryClient = useQueryClient();
@@ -72,52 +60,58 @@ export default function ChatsPage() {
     // ---------- Queries ----------
     // Conversations list (searchable)
     const {
-    data: conversationsData,
-    isLoading: loadingConvos,
-    refetch: refetchConversations,
-} = useQuery({
-    queryKey: ['conversations', debouncedSearch],
-    queryFn: async () => {
-        const { data } = await api.get('/conversations', { params: { search: debouncedSearch } });
-        return data.conversations || [];
-    },
-    staleTime: 5 * 60 * 1000,
-    onSuccess: (data) => {
-        setConversations(data);
-    },
-});
+        data: conversationsData,
+        isLoading: loadingConvos,
+        refetch: refetchConversations,
+    } = useQuery({
+        queryKey: ['conversations', debouncedSearch],
+        queryFn: async () => {
+            const { data } = await api.get('/conversations', { params: { search: debouncedSearch } });
+            return data.conversations || [];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    useEffect(() => {
+        if (conversationsData) {
+            setConversations(conversationsData);
+        }
+    }, [conversationsData, setConversations]);
 
     // Users for new chat (debounced fetch)
-    const {
-    data: usersData,
-} = useQuery({
-    queryKey: ['users', debouncedSearch],
-    queryFn: async () => {
-        const { data } = await api.get('/auth/users', { params: { search: debouncedSearch } });
-        return data.users || [];
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: !!debouncedSearch,
-});
+    // const {
+    //     data: usersData,
+    // } = useQuery({
+    //     queryKey: ['users', debouncedSearch],
+    //     queryFn: async () => {
+    //         const { data } = await api.get('/auth/users', { params: { search: debouncedSearch } });
+    //         return data.users || [];
+    //     },
+    //     staleTime: 5 * 60 * 1000,
+    //     enabled: !!debouncedSearch,
+    // });
 
-// Messages for active conversation
-const {
-    data: messagesData,
-    isLoading: loadingMsgs,
-    refetch: refetchMessages,
-} = useQuery({
-    queryKey: ['messages', activeConversationId],
-    queryFn: async () => {
-        if (!activeConversationId) return [];
-        const { data } = await api.get(`/conversations/${activeConversationId}/messages`);
-        return data.messages || [];
-    },
-    enabled: !!activeConversationId,
-    staleTime: 30_000,
-    onSuccess: (data) => {
-        setMessages(data);
-    },
-});
+    // Messages for active conversation
+    const {
+        data: messagesData,
+        isLoading: loadingMsgs,
+        // refetch: refetchMessages,
+    } = useQuery({
+        queryKey: ['messages', activeConversationId],
+        queryFn: async () => {
+            if (!activeConversationId) return [];
+            const { data } = await api.get(`/conversations/${activeConversationId}/messages`);
+            return data.messages || [];
+        },
+        enabled: !!activeConversationId,
+        staleTime: 30_000,
+    });
+
+    useEffect(() => {
+        if (messagesData) {
+            setMessages(messagesData);
+        }
+    }, [messagesData]);
 
     // ---------- Effects ----------
     // Socket connection

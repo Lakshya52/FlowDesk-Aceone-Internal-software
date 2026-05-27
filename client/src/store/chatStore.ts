@@ -88,6 +88,7 @@ interface ChatState {
     handleConversationDeleted: (id: string) => void;
     handleMessageDeleted: (payload: { messageId: string; conversationId: string; content: string; attachments: any[]; isDeleted: boolean }) => void;
     addConversation: (conv: ConversationSnippet) => void;
+    setConversations: (conversations: ConversationSnippet[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -281,5 +282,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const totalUnreadCount = updated.reduce((acc, cur) => acc + cur.unreadCount, 0);
             set({ conversations: updated, totalUnreadCount });
         }
+    },
+    setConversations: (conversations) => {
+        const totalUnreadCount = conversations.reduce((acc, cur) => acc + cur.unreadCount, 0);
+        set({ conversations, totalUnreadCount });
     }
 }));

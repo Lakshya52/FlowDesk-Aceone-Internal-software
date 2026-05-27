@@ -141,7 +141,7 @@ const TeamsPage: React.FC = () => {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
-                    {teams.map(team => {
+                    {teams.map((team: any) => {
                         const isMember = team.members?.find((m: any) => m._id === user?._id);
                         const hasJoinRequest = team.joinRequests?.find((m: any) => m._id === user?._id);
 
@@ -250,7 +250,7 @@ const TeamsPage: React.FC = () => {
                         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 4 }}>Manage Members</h2>
                         <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', marginBottom: 20 }}>{selectedTeam.name}</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 400, overflow: 'auto', marginBottom: 20 }}>
-                            {users.map(u => {
+                            {users.map((u: any) => {
                                 const isMember = selectedTeam.members?.some((m: any) => m._id === u._id);
                                 return (
                                     <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, background: isMember ? 'var(--color-primary-light)' : 'var(--color-surface-hover)' }}>

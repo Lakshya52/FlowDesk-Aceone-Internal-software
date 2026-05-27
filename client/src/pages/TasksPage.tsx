@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
@@ -104,7 +104,7 @@ const TasksPage: React.FC = () => {
         e.preventDefault();
         const taskId = e.dataTransfer.getData('taskId');
         if (taskId) {
-            const task = tasks.find(t => t._id === taskId);
+            const task = tasks.find((t: any) => t._id === taskId);
             // Permissions check for drag and drop
             if (task && (canEdit || task.assignedTo?._id === user?._id)) {
                 updateStatus(taskId, status);
@@ -157,10 +157,10 @@ const TasksPage: React.FC = () => {
 
     // Group tasks by status for board view
     const grouped = {
-        todo: tasks.filter(t => t.status === 'todo'),
-        in_progress: tasks.filter(t => t.status === 'in_progress'),
-        review: tasks.filter(t => t.status === 'review'),
-        completed: tasks.filter(t => t.status === 'completed'),
+        todo: tasks.filter((t: any) => t.status === 'todo'),
+        in_progress: tasks.filter((t: any) => t.status === 'in_progress'),
+        review: tasks.filter((t: any) => t.status === 'review'),
+        completed: tasks.filter((t: any) => t.status === 'completed'),
     };
 
     const columns = [
@@ -236,7 +236,7 @@ const TasksPage: React.FC = () => {
                         }}
                     >
                         Under Review
-                        {tasks.filter(t => t.status === 'review').length > 0 && (
+                        {tasks.filter((t: any) => t.status === 'review').length > 0 && (
                             <span style={{
                                 backgroundColor: '#ef4444',
                                 color: 'white',
@@ -246,7 +246,7 @@ const TasksPage: React.FC = () => {
                                 minWidth: 18,
                                 textAlign: 'center'
                             }}>
-                                {tasks.filter(t => t.status === 'review').length}
+                                {tasks.filter((t: any) => t.status === 'review').length}
                             </span>
                         )}
                     </button>
@@ -267,7 +267,7 @@ const TasksPage: React.FC = () => {
                         style={{ width: '100%' }}
                     >
                         <option value="">All Companies</option>
-                        {companies.map(c => (
+                        {companies.map((c: any) => (
                             <option key={c._id} value={c._id}>{c.name}</option>
                         ))}
                     </select>
@@ -327,7 +327,7 @@ const TasksPage: React.FC = () => {
                                                             onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
                                                         <select className="select" style={{ fontSize: '0.75rem' }} value={editForm.assignedTo}
                                                             onChange={e => setEditForm({ ...editForm, assignedTo: e.target.value })}>
-                                                            {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                                                            {users.map((u: any) => <option key={u._id} value={u._id}>{u.name}</option>)}
                                                         </select>
                                                         <input className="input" type="date" style={{ fontSize: '0.75rem' }}
                                                             value={editForm.dueDate?.split('T')[0]}

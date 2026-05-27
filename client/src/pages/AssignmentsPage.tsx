@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -274,13 +274,13 @@ const AssignmentsPage: React.FC = () => {
         setForm(prev => {
             const teamSelected = prev.teams.includes(id);
             const nextTeams = teamSelected ? prev.teams.filter(t => t !== id) : [...prev.teams, id];
-            const team = allTeams.find(t => t._id === id);
+            const team = allTeams.find((t:any) => t._id === id);
             const managerId = team?.manager?._id;
             const nextTeamMembers = new Set(prev.team);
 
             if (teamSelected && managerId) {
-                const stillRelevantManager = nextTeams.some(tid => {
-                    const selectedTeam = allTeams.find(t => t._id === tid);
+                const stillRelevantManager = nextTeams.some((tid: any) => {
+                    const selectedTeam = allTeams.find((t:any) => t._id === tid);
                     return selectedTeam?.manager?._id === managerId;
                 });
                 if (!stillRelevantManager) {
@@ -301,7 +301,7 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const selectAllTeamMembers = (teamId: string) => {
-        const team = allTeams.find(t => t._id === teamId);
+        const team = allTeams.find((t:any) => t._id === teamId);
         if (!team) return;
 
         const memberIds = [
@@ -322,7 +322,7 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const deselectAllTeamMembers = (teamId: string) => {
-        const team = allTeams.find(t => t._id === teamId);
+        const team = allTeams.find((t:any) => t._id === teamId);
         if (!team) return;
 
         const memberIds = [
@@ -339,14 +339,14 @@ const AssignmentsPage: React.FC = () => {
     };
 
     const usersInAnyTeam = new Set(
-        allTeams.flatMap(team => [
+        allTeams.flatMap((team:any) => [
             ...(team.members?.map((m: any) => m._id.toString()) || []),
             team.manager?._id?.toString()
         ].filter(Boolean))
     );
 
     const usersNotInAnyTeam = allUsers.filter(
-        u =>
+        (u:any) =>
             !usersInAnyTeam.has(u._id.toString()) &&
             u._id !== user?._id
     );
@@ -523,7 +523,7 @@ const AssignmentsPage: React.FC = () => {
                             onChange={e => setFilterTeamId(e.target.value)}
                         >
                             <option value="">Select team...</option>
-                            {filterTeams.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                            {filterTeams.map((t:any) => <option key={t._id} value={t._id}>{t.name}</option>)}
                         </select>
                     )}
 
@@ -534,7 +534,7 @@ const AssignmentsPage: React.FC = () => {
                             onChange={e => setFilterUserId(e.target.value)}
                         >
                             <option value="">Select person...</option>
-                            {filterUsers.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                            {filterUsers.map((u:any) => <option key={u._id} value={u._id}>{u.name}</option>)}
                         </select>
                     )}
 
@@ -573,7 +573,7 @@ const AssignmentsPage: React.FC = () => {
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {filteredAssignments.map(a => (
+                    {filteredAssignments.map((a:any) => (
                         <div key={a._id} className="card" style={{ padding: '16px 20px', cursor: 'pointer' }} onClick={() => navigate(`/assignments/${a._id}`)}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div style={{ flex: 1 }}>
@@ -720,7 +720,7 @@ const AssignmentsPage: React.FC = () => {
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Assign Teams</label>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {allTeams.map(t => (
+                                    {allTeams.map((t:any) => (
                                         <button key={t._id} type="button" className={`btn btn-sm ${form.teams.includes(t._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeam(t._id)}>
                                             <Users size={12} /> {t.name}
                                         </button>
@@ -732,7 +732,7 @@ const AssignmentsPage: React.FC = () => {
                                 <div style={{ marginTop: 16 }}>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Team Members</label>
                                     {form.teams.map(teamId => {
-                                        const team = allTeams.find(t => t._id === teamId);
+                                        const team = allTeams.find((t:any) => t._id === teamId);
                                         if (!team) return null;
                                         const manager = team.manager;
                                         const members = team.members || [];
@@ -769,7 +769,7 @@ const AssignmentsPage: React.FC = () => {
                                 <div style={{ marginTop: 16 }}>
                                     <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, color: 'var(--color-text-secondary)' }}>Other Individual Members</label>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                        {usersNotInAnyTeam.map(u => (
+                                        {usersNotInAnyTeam.map((u:any) => (
                                             <button key={u._id} type="button" className={`btn btn-sm ${form.team.includes(u._id) ? 'btn-primary' : 'btn-secondary'}`} onClick={() => toggleTeamMember(u._id)}>
                                                 {u.name}
                                             </button>
