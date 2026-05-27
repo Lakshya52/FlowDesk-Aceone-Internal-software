@@ -11,7 +11,7 @@ import {
     BarChart3,
     // FileText,
     Settings,
-    Zap,
+    // Zap,
     Users,
     Menu,
     ChevronLeft,
