@@ -93,14 +93,14 @@ app.get('/uploads/:filename', async (req, res) => {
         const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
             bucketName: 'uploads'
         });
-        
+
         const filename = req.params.filename;
         const files = await bucket.find({ filename }).toArray();
-        
+
         if (!files || files.length === 0) {
             return res.status(404).json({ message: 'File not found' });
         }
-        
+
         const file = files[0];
         if (file.contentType) {
             res.set('Content-Type', file.contentType);
@@ -111,13 +111,13 @@ app.get('/uploads/:filename', async (req, res) => {
             else if (ext === 'jpg' || ext === 'jpeg') res.set('Content-Type', 'image/jpeg');
             else if (ext === 'pdf') res.set('Content-Type', 'application/pdf');
         }
-        
+
         const downloadStream = bucket.openDownloadStreamByName(filename);
-        
+
         downloadStream.on('error', () => {
             res.status(404).json({ message: 'Error downloading file' });
         });
-        
+
         downloadStream.pipe(res);
     } catch (error: any) {
         res.status(500).json({ message: error.message });

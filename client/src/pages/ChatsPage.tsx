@@ -72,41 +72,52 @@ export default function ChatsPage() {
     // ---------- Queries ----------
     // Conversations list (searchable)
     const {
-        data: conversationsData,
-        isLoading: loadingConvos,
-        refetch: refetchConversations,
-    } = useQuery(['conversations', debouncedSearch], async () => {
+    data: conversationsData,
+    isLoading: loadingConvos,
+    refetch: refetchConversations,
+} = useQuery({
+    queryKey: ['conversations', debouncedSearch],
+    queryFn: async () => {
         const { data } = await api.get('/conversations', { params: { search: debouncedSearch } });
         return data.conversations || [];
-    }, {
-        staleTime: 5 * 60 * 1000,
-        onSuccess: (data) => {
-            setConversations(data);
-        },
-    });
+    },
+    staleTime: 5 * 60 * 1000,
+    onSuccess: (data) => {
+        setConversations(data);
+    },
+});
 
     // Users for new chat (debounced fetch)
-    const { data: usersData } = useQuery(['users', debouncedSearch], async () => {
+    const {
+    data: usersData,
+} = useQuery({
+    queryKey: ['users', debouncedSearch],
+    queryFn: async () => {
         const { data } = await api.get('/auth/users', { params: { search: debouncedSearch } });
         return data.users || [];
-    }, { staleTime: 5 * 60 * 1000, enabled: !!debouncedSearch });
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !!debouncedSearch,
+});
 
-    // Messages for active conversation
-    const {
-        data: messagesData,
-        isLoading: loadingMsgs,
-        refetch: refetchMessages,
-    } = useQuery(['messages', activeConversationId], async () => {
+// Messages for active conversation
+const {
+    data: messagesData,
+    isLoading: loadingMsgs,
+    refetch: refetchMessages,
+} = useQuery({
+    queryKey: ['messages', activeConversationId],
+    queryFn: async () => {
         if (!activeConversationId) return [];
         const { data } = await api.get(`/conversations/${activeConversationId}/messages`);
         return data.messages || [];
-    }, {
-        enabled: !!activeConversationId,
-        staleTime: 30_000,
-        onSuccess: (data) => {
-            setMessages(data);
-        },
-    });
+    },
+    enabled: !!activeConversationId,
+    staleTime: 30_000,
+    onSuccess: (data) => {
+        setMessages(data);
+    },
+});
 
     // ---------- Effects ----------
     // Socket connection

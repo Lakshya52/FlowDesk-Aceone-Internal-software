@@ -1,11 +1,12 @@
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import api from "../lib/api";
 import FilterBar from "../components/reports/FilterBar";
 import EmployeeTrackingReport from "../components/reports/EmployeeTrackingReport";
 import WorkloadReport from "../components/reports/WorkloadReport";
 import ActivityReport from "../components/reports/ActivityReport";
+import { useQuery } from "@tanstack/react-query"
 
 import DrilldownModal from "../components/reports/DrilldownModal";
 import {
@@ -81,36 +82,37 @@ const ReportsPage = (): React.JSX.Element => {
 
   const user = JSON.parse(localStorage.getItem("flowdesk_user") || "{}");
 
-  useEffect(() => {
-    const fetchFilters = async () => {
-      try {
-        // Fetch report filters and assignments independently
-        const [filterRes, assignmentsRes] = await Promise.allSettled([
-          api.get("/dashboard/report-filters"),
-          api.get("/assignments")
-        ]);
-
-        const newOptions = { ...filterOptions };
-
-        if (filterRes.status === 'fulfilled') {
-          const filterData = filterRes.value.data;
-          newOptions.teams = filterData.teams || [];
-          newOptions.employees = filterData.employees || [];
-        }
-
-        if (assignmentsRes.status === 'fulfilled') {
-          const assignmentsData = assignmentsRes.value.data;
-          // Support both { assignments: [] } and { data: { assignments: [] } } structures
-          newOptions.assignments = assignmentsData.assignments || assignmentsData.data?.assignments || [];
-        }
-
-        setFilterOptions(newOptions);
-      } catch (err) {
-        console.error("Failed to fetch filter options", err);
+  const { isLoading: isLoadingFilters } = useQuery({
+    queryKey: ['reportFilters'],
+    queryFn: async () => {
+      const [filterRes, assignmentsRes] = await Promise.allSettled([
+        api.get('/dashboard/report-filters'),
+        api.get('/assignments'),
+      ]);
+      const newOptions = {
+        teams: [],
+        employees: [],
+        assignments: [],
+      } as typeof filterOptions;
+      if (filterRes.status === 'fulfilled') {
+        const filterData = filterRes.value.data;
+        newOptions.teams = filterData.teams || [];
+        newOptions.employees = filterData.employees || [];
       }
-    };
-    fetchFilters();
-  }, []);
+      if (assignmentsRes.status === 'fulfilled') {
+        const assignmentsData = assignmentsRes.value.data;
+        newOptions.assignments = assignmentsData.assignments || assignmentsData.data?.assignments || [];
+      }
+      return newOptions;
+    },
+    staleTime: 5 * 60 * 1000,
+    // onSuccess: setFilterOptions,
+  });
+  useEffect(() => {
+    if (filterOptions) {
+      setFilterOptions(filterOptions);
+    }
+  }, [filterOptions]);
 
   const handleExport = async (type: "csv" | "pdf" | "excel") => {
     try {

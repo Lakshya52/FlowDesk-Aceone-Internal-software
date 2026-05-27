@@ -189,7 +189,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                                 <ChevronDown
                                                     size={16}
                                                     style={{
-                                                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                        transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                                                         transition: 'transform 0.2s ease',
                                                         flexShrink: 0
                                                     }}

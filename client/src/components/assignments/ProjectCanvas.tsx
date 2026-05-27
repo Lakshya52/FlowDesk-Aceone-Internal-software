@@ -6,7 +6,10 @@
  * up to the server to persist collaboration. Tracks note authorship and edit history.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand, X } from "lucide-react";
+import {
+    RefreshCcw,
+    Expand, Plus, Minus, Maximize, Trash2, Move, Shrink, Focus, MousePointer2, Hand, X
+} from "lucide-react";
 import api from "../../lib/api";
 import { useAuthStore } from "../../store/authStore";
 import Avatar from "../common/Avatar";
@@ -255,10 +258,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
     const addNoteAt = (x: number, y: number) => {
         const newNote: Note = {
             id: Math.random().toString(36).substr(2, 9),
-            x: x - 100,
-            y: y - 60,
-            width: 200,
-            height: 200,
+            x: x - 200,
+            y: y - 100,
+            width: 450,
+            height: 350,
             content: "<p>New Note</p>",
             color: COLORS[Math.floor(Math.random() * COLORS.length)],
             createdBy: user ? { _id: user._id, name: user.name, avatar: user.avatar } : undefined,
@@ -548,8 +551,10 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                     const rect = containerRef.current?.getBoundingClientRect();
                     if (rect) zoomTowards(Math.max(scale - 0.2, 0.1), rect.width / 2, rect.height / 2);
                 }}><Minus size={16} /></button>
-                <div style={{ width: 1, height: 16, background: "var(--color-border)" }} />
-                <button className="btn btn-ghost btn-xs" onClick={resetView} title="Reset View"><Focus size={16} /></button>
+
+
+                <div style={{ width: 1, height: 20, background: "var(--color-border)" }} />
+                <button className="btn btn-secondary btn-xs" onClick={resetView} title="Reset View"><RefreshCcw size={16} /></button>
                 <button
                     className={`btn ${isFullScreen ? 'btn-primary' : 'btn-ghost'} btn-xs`}
                     onClick={() => {
@@ -560,7 +565,7 @@ const ProjectCanvas: React.FC<ProjectCanvasProps> = ({ assignmentId, initialData
                     }}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
                 >
-                    {isFullScreen ? <Shrink size={16} /> : <Maximize size={16} />}
+                    {isFullScreen ? <Shrink size={16} /> : <Expand size={16} />}
                 </button>
             </div>
 

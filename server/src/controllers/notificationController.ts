@@ -6,7 +6,7 @@ export const getNotifications = async (req: AuthRequest, res: Response): Promise
     try {
         const notifications = await Notification.find({ user: req.user!._id })
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(10);
 
         const unreadCount = await Notification.countDocuments({ user: req.user!._id, isRead: false });
 
