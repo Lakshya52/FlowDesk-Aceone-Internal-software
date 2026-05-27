@@ -6,6 +6,8 @@ import {
     Search, X, CheckCircle2, AlertCircle, Users
 } from "lucide-react";
 
+import { useQuery } from '@tanstack/react-query';
+
 interface Company {
     _id: string;
     name: string;
@@ -15,21 +17,10 @@ interface Company {
 }
 
 const BulkEmailPage: React.FC = () => {
-    const [companies, setCompanies] = useState<Company[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [subject, setSubject] = useState("");
-    const [message, setMessage] = useState("");
-    const [sending, setSending] = useState(false);
-    const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-
-    const fetchCompanies = async () => {
-        try {
+    const { data: companiesData, isLoading: loading } = useQuery({
+        queryKey: ['companies'],
+        queryFn: async () => {
             const { data } = await api.get("/companies");
-            // Flatten the companies if they come in a tree structure, 
-            // but usually we want to email any company that has an email.
-            // For bulk email, a flat list with search is often easier for the user.
             const allCompanies: Company[] = [];
             const flatten = (list: any[]) => {
                 list.forEach(c => {
@@ -40,17 +31,18 @@ const BulkEmailPage: React.FC = () => {
                 });
             };
             flatten(data.companies || []);
-            setCompanies(allCompanies);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
+            return allCompanies;
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes
+    });
 
-    useEffect(() => {
-        fetchCompanies();
-    }, []);
+    const companies = companiesData || [];
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [subject, setSubject] = useState("");
+    const [message, setMessage] = useState("");
+    const [sending, setSending] = useState(false);
+    const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
     const filteredCompanies = companies.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -170,7 +162,9 @@ const BulkEmailPage: React.FC = () => {
 
                     <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px" }}>
                         {loading ? (
-                            <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }}>Loading companies...</div>
+                            <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }} className="flex flex-col items-center justify-center gap-3" >
+                                <span className="border-t border-(--primary) h-5 w-5 rounded-full animate-spin" ></span>
+                                Loading companies...</div>
                         ) : filteredCompanies.length === 0 ? (
                             <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }}>No companies found</div>
                         ) : (

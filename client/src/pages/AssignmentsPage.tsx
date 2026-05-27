@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
 import { useAuthStore } from '../store/authStore';
@@ -12,12 +13,10 @@ const STATUS_LABELS: Record<string, string> = { not_started: 'Not Started', in_p
 const AssignmentsPage: React.FC = () => {
     const { user } = useAuthStore();
     const navigate = useNavigate();
-    const [assignments, setAssignments] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [companyFilter, setCompanyFilter] = useState('');
-    const [filterCompanies, setFilterCompanies] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'ongoing' | 'completed' | 'blueprints'>('ongoing');
     const [showCreate, setShowCreate] = useState(false);
 
@@ -25,8 +24,7 @@ const AssignmentsPage: React.FC = () => {
     const [filterMode, setFilterMode] = useState<'All' | 'My Projects' | 'By Team' | 'By Person' | 'By Company'>('All');
     const [filterTeamId, setFilterTeamId] = useState('');
     const [filterUserId, setFilterUserId] = useState('');
-    const [filterTeams, setFilterTeams] = useState<any[]>([]);
-    const [filterUsers, setFilterUsers] = useState<any[]>([]);
+    
     const [form, setForm] = useState({
         title: '',
         clientName: '',
@@ -43,9 +41,7 @@ const AssignmentsPage: React.FC = () => {
         recurringPattern: 'monthly' as any,
         recurringStartDate: ''
     });
-    const [allUsers, setAllUsers] = useState<any[]>([]);
-    const [allTeams, setAllTeams] = useState<any[]>([]);
-    const [allCompanies, setAllCompanies] = useState<any[]>([]);
+    
     const [saving, setSaving] = useState(false);
     const [companySearch, setCompanySearch] = useState('');
     const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
@@ -54,63 +50,61 @@ const AssignmentsPage: React.FC = () => {
     const isAdmin = user?.role === 'admin';
     const canCreate = true; // Everyone can create projects
 
-    const fetchAssignments = async () => {
-        setLoading(true);
-        try {
+    const { data: assignmentsData, isLoading: loading } = useQuery({
+        queryKey: ['assignments', search, statusFilter, activeTab, companyFilter],
+        queryFn: async () => {
             const params: any = {};
-
             if (activeTab === 'blueprints') {
                 params.isBlueprint = 'true';
             } else if (activeTab === 'ongoing') {
                 params.isBlueprint = 'false';
-                if (statusFilter) {
-                    params.status = statusFilter;
-                }
+                if (statusFilter) params.status = statusFilter;
             } else if (activeTab === 'completed') {
                 params.status = 'completed';
             }
-
             if (search) params.search = search;
             if (companyFilter) params.companyId = companyFilter;
 
             const { data } = await api.get('/assignments', { params });
             let result = data.assignments || [];
-
             if (activeTab === 'ongoing' && !statusFilter) {
                 result = result.filter((a: any) => a.status !== 'completed');
             }
+            return result;
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+    const assignments = assignmentsData || [];
 
-            setAssignments(result);
-        } catch (e) {
-            console.error('❌ Error fetching assignments:', e);
-        }
-        finally { setLoading(false); }
-    };
-
-    useEffect(() => { fetchAssignments(); }, [search, statusFilter, activeTab, companyFilter]);
-
-    useEffect(() => {
-        if (isAdmin) {
-            Promise.all([
+    const { data: adminData } = useQuery({
+        queryKey: ['admin_data'],
+        queryFn: async () => {
+            const [tRes, uRes, cRes] = await Promise.all([
                 api.get('/teams?all=true'),
                 api.get('/auth/users?all=true'),
                 api.get('/companies'),
-            ]).then(([tRes, uRes, cRes]) => {
-                setFilterTeams(tRes.data.teams || []);
-                setFilterUsers(uRes.data.users || []);
-                const flatCompanies: any[] = [];
-                const flatten = (items: any[]) => {
-                    items.forEach(item => {
-                        const { children, ...rest } = item;
-                        flatCompanies.push(rest);
-                        if (children) flatten(children);
-                    });
-                };
-                flatten(cRes.data.companies || []);
-                setFilterCompanies(flatCompanies);
-            }).catch(e => console.error('Failed to load filter data', e));
-        }
-    }, [isAdmin]);
+            ]);
+            const flatCompanies: any[] = [];
+            const flatten = (items: any[]) => {
+                items.forEach(item => {
+                    const { children, ...rest } = item;
+                    flatCompanies.push(rest);
+                    if (children) flatten(children);
+                });
+            };
+            flatten(cRes.data.companies || []);
+            return {
+                teams: tRes.data.teams || [],
+                users: uRes.data.users || [],
+                companies: flatCompanies
+            };
+        },
+        enabled: isAdmin,
+        staleTime: 1000 * 60 * 5,
+    });
+    const filterTeams = adminData?.teams || [];
+    const filterUsers = adminData?.users || [];
+    const filterCompanies = adminData?.companies || [];
 
     const filteredAssignments = React.useMemo(() => {
         if (!isAdmin || filterMode === 'All') return assignments;
@@ -145,34 +139,42 @@ const AssignmentsPage: React.FC = () => {
         });
     }, [assignments, filterMode, filterTeamId, filterUserId, companyFilter, isAdmin, user]);
 
-    useEffect(() => {
-        if (showCreate) {
-            Promise.all([
+    const { data: createData } = useQuery({
+        queryKey: ['create_data'],
+        queryFn: async () => {
+            const [uRes, tRes, cRes] = await Promise.all([
                 api.get('/auth/users?all=true'),
                 api.get('/teams?all=true'),
                 api.get('/companies'),
-            ]).then(([uRes, tRes, cRes]) => {
-                setAllUsers(uRes.data.users || []);
-                setAllTeams(tRes.data.teams || []);
+            ]);
+            const flatCompanies: any[] = [];
+            const flatten = (items: any[]) => {
+                items.forEach(item => {
+                    const { children, ...rest } = item;
+                    flatCompanies.push(rest);
+                    if (children) flatten(children);
+                });
+            };
+            flatten(cRes.data.companies || []);
+            return {
+                users: uRes.data.users || [],
+                teams: tRes.data.teams || [],
+                companies: flatCompanies
+            };
+        },
+        enabled: showCreate,
+        staleTime: 1000 * 60 * 5,
+    });
+    const allUsers = createData?.users || [];
+    const allTeams = createData?.teams || [];
+    const allCompanies = createData?.companies || [];
 
-                const flatCompanies: any[] = [];
-                const flatten = (items: any[]) => {
-                    items.forEach(item => {
-                        const { children, ...rest } = item;
-                        flatCompanies.push(rest);
-                        if (children) flatten(children);
-                    });
-                };
-                flatten(cRes.data.companies || []);
-                setAllCompanies(flatCompanies);
-            });
-
-            if (user?._id) {
-                setForm(prev => ({
-                    ...prev,
-                    team: Array.from(new Set([...prev.team, user._id]))
-                }));
-            }
+    useEffect(() => {
+        if (showCreate && user?._id) {
+            setForm(prev => ({
+                ...prev,
+                team: Array.from(new Set([...prev.team, user._id]))
+            }));
         }
     }, [showCreate, user]);
 
@@ -205,8 +207,14 @@ const AssignmentsPage: React.FC = () => {
         try {
             const { data } = await api.post('/companies', { name });
             const newCompany = data.company;
-            setAllCompanies(prev => [...prev, newCompany]);
-
+            
+            // Optimistically add to companies list
+            queryClient.setQueryData(['create_data'], (old: any) => {
+                if (!old) return old;
+                return { ...old, companies: [...old.companies, newCompany] };
+            });
+            queryClient.invalidateQueries({ queryKey: ['admin_data'] });
+            
             const updatedForm = { ...form, clientName: newCompany.name, companyId: newCompany._id };
             setForm(updatedForm);
             setCompanySearch(newCompany.name);
@@ -246,7 +254,7 @@ const AssignmentsPage: React.FC = () => {
             if (data.assignment?._id) {
                 navigate(`/assignments/${data.assignment._id}`);
             } else {
-                fetchAssignments();
+                queryClient.invalidateQueries({ queryKey: ['assignments'] });
             }
         } catch (e: any) {
             alert(e.response?.data?.message || 'Failed to create project');

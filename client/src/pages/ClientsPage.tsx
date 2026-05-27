@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from "../lib/api";
 import { Plus, Building2, Building, Users, FolderKanban, ChevronRight, ChevronDown, Edit2, Trash2, X, Phone, Mail, Globe, Upload, Download, FileSpreadsheet, FileText } from "lucide-react";
 
@@ -33,9 +34,29 @@ interface Contact {
 }
 
 const ClientsPage: React.FC = () => {
-    const [companies, setCompanies] = useState<Company[]>([]);
+    const queryClient = useQueryClient();
+
+    const { data: companiesData, isLoading: loading } = useQuery({
+        queryKey: ['companies'],
+        queryFn: async () => {
+            const { data } = await api.get("/companies");
+            // Flatten the hierarchy from server for easier frontend filtering and rebuilding
+            const flatList: Company[] = [];
+            const flatten = (list: any[]) => {
+                list.forEach(item => {
+                    const { children, ...rest } = item;
+                    flatList.push(rest);
+                    if (children) flatten(children);
+                });
+            };
+            flatten(data.companies || []);
+            return flatList;
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes
+    });
+
+    const companies = companiesData || [];
     const [selected, setSelected] = useState<Company | null>(null);
-    const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [showContactForm, setShowContactForm] = useState(false);
     const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -53,8 +74,6 @@ const ClientsPage: React.FC = () => {
     const [selectedCompanyIds, setSelectedCompanyIds] = useState<Set<string>>(new Set());
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
     const [isSelectDataMode, setIsSelectDataMode] = useState(false);
-
-
 
     // for debugging
     // console.log(selected);
@@ -82,32 +101,6 @@ const ClientsPage: React.FC = () => {
         isPrimary: false,
         notes: "",
     });
-
-    const fetchCompanies = async () => {
-        try {
-            const { data } = await api.get("/companies");
-
-            // Flatten the hierarchy from server for easier frontend filtering and rebuilding
-            const flatList: Company[] = [];
-            const flatten = (list: any[]) => {
-                list.forEach(item => {
-                    const { children, ...rest } = item;
-                    flatList.push(rest);
-                    if (children) flatten(children);
-                });
-            };
-            flatten(data.companies || []);
-            setCompanies(flatList);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchCompanies();
-    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -178,7 +171,7 @@ const ClientsPage: React.FC = () => {
             setShowCreate(false);
             setEditingCompany(null);
             resetCompanyForm();
-            fetchCompanies();
+            queryClient.invalidateQueries({ queryKey: ['companies'] });
         } catch (e: any) {
             alert(e.response?.data?.message || "Failed");
         }
@@ -212,7 +205,7 @@ const ClientsPage: React.FC = () => {
         try {
             await api.delete(`/companies/${id}`);
             if (selected?._id === id) setSelected(null);
-            fetchCompanies();
+            queryClient.invalidateQueries({ queryKey: ['companies'] });
         } catch (e: any) {
             alert(e.response?.data?.message || "Delete failed");
         }
@@ -377,7 +370,7 @@ const ClientsPage: React.FC = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             setImportResult(data.results);
-            fetchCompanies();
+            queryClient.invalidateQueries({ queryKey: ['companies'] });
         } catch (err: any) {
             alert(err.response?.data?.message || "Import failed");
         } finally {
@@ -648,7 +641,9 @@ const ClientsPage: React.FC = () => {
 
                     <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
                         {loading ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div className="spinner" /></div>
+                            <div style={{ padding: 40, textAlign: "center", opacity: 0.5 }} className="flex flex-col items-center justify-center gap-3" >
+                                <span className="border-t border-(--primary) h-5 w-5 rounded-full animate-spin" ></span>
+                                Loading companies...</div>
                         ) : (
                             (() => {
                                 const rootCompanies = buildTree();
