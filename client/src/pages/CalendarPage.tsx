@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import api from '../lib/api';
 import { ChevronLeft, ChevronRight, X, Calendar, Layers, Columns, Clock, ChevronDown } from 'lucide-react';
 import {
@@ -22,10 +23,22 @@ import {
     eachMonthOfInterval,
     startOfYear,
     endOfYear,
+    startOfDay,
+    endOfDay,
 } from 'date-fns';
 
+interface CalendarEvent {
+    _id: string;
+    title: string;
+    dueDate: string;
+    status: string;
+    type: 'task' | 'assignment';
+    assignment?: string;
+    [key: string]: any;
+}
+
 interface Holiday {
-    date: string; // YYYY-MM-DD
+    date: string;
     name: string;
     category: 'Festival' | 'National / Gazetted';
 }
@@ -61,81 +74,118 @@ const HOLIDAYS: Holiday[] = [
 
 const getHolidayColor = (category: string) => {
     switch (category) {
-        case 'National / Gazetted': return '#ef4444'; // Red
-        case 'Festival': return '#25f85ac4'; // Purple
+        case 'Sunday': return '#ef444494';
+        case 'National / Gazetted': return '#ef4444';
+        case 'Festival': return '#25f85ac4';
         default: return 'var(--color-text-secondary)';
     }
 };
 
+// Derive stable start/end dates for a given view + date so the query key is deterministic
+const getDateRange = (view: string, date: Date): { startDate: Date; endDate: Date; cacheKey: string } => {
+    if (view === 'year') {
+        const startDate = startOfWeek(startOfMonth(startOfYear(date)));
+        const endDate = endOfWeek(endOfMonth(endOfYear(date)));
+        return { startDate, endDate, cacheKey: format(date, 'yyyy') };
+    }
+    if (view === 'month') {
+        const startDate = startOfWeek(startOfMonth(date));
+        const endDate = endOfWeek(endOfMonth(date));
+        return { startDate, endDate, cacheKey: format(date, 'yyyy-MM') };
+    }
+    if (view === 'week') {
+        const startDate = startOfWeek(date);
+        const endDate = endOfWeek(date);
+        return { startDate, endDate, cacheKey: `week-${format(startDate, 'yyyy-MM-dd')}` };
+    }
+    // day
+    return {
+        startDate: startOfDay(date),
+        endDate: endOfDay(date),
+        cacheKey: `day-${format(date, 'yyyy-MM-dd')}`,
+    };
+};
+
+const fetchCalendarEvents = async (startDate: Date, endDate: Date): Promise<CalendarEvent[]> => {
+    const { data } = await api.get('/dashboard/calendar', {
+        params: { start: startDate.toISOString(), end: endDate.toISOString() },
+    });
+    return [
+        ...(data.tasks || []).map((t: any) => ({ ...t, type: 'task' as const })),
+        ...(data.assignments || []).map((a: any) => ({ ...a, type: 'assignment' as const })),
+    ];
+};
+
 const CalendarPage: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [view, setView] = useState<'year' | 'month' | 'week' | 'day'>('month');
-    const [events, setEvents] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
     const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+
+    const { startDate, endDate, cacheKey } = getDateRange(view, currentMonth);
+
+    // Main calendar query — React Query caches by [view, cacheKey] so navigating
+    // back to a period you already visited is instant (no network call).
+    const { data: events = [], isLoading: loading } = useQuery<CalendarEvent[]>({
+        queryKey: ['calendar', view, cacheKey],
+        queryFn: () => fetchCalendarEvents(startDate, endDate),
+        staleTime: 1000 * 60 * 5, // 5 minutes — calendar data doesn't change often
+        placeholderData: keepPreviousData, // keep showing previous data while loading new period
+    });
+
+    // Prefetch the adjacent period (next AND prev) as soon as current data arrives
+    useEffect(() => {
+        const prefetch = (targetDate: Date) => {
+            const { startDate: s, endDate: e, cacheKey: k } = getDateRange(view, targetDate);
+            queryClient.prefetchQuery({
+                queryKey: ['calendar', view, k],
+                queryFn: () => fetchCalendarEvents(s, e),
+                staleTime: 1000 * 60 * 5,
+            });
+        };
+
+        if (view === 'year') {
+            prefetch(addYears(currentMonth, 1));
+            prefetch(subYears(currentMonth, 1));
+        } else if (view === 'month') {
+            prefetch(addMonths(currentMonth, 1));
+            prefetch(subMonths(currentMonth, 1));
+        } else if (view === 'week') {
+            prefetch(addWeeks(currentMonth, 1));
+            prefetch(subWeeks(currentMonth, 1));
+        } else {
+            prefetch(addDays(currentMonth, 1));
+            prefetch(addDays(currentMonth, -1));
+        }
+    }, [cacheKey, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handlePrev = () => {
         if (view === 'year') setCurrentMonth(subYears(currentMonth, 1));
         else if (view === 'month') setCurrentMonth(subMonths(currentMonth, 1));
         else if (view === 'week') setCurrentMonth(subWeeks(currentMonth, 1));
-        else if (view === 'day') setCurrentMonth(addDays(currentMonth, -1));
+        else setCurrentMonth(addDays(currentMonth, -1));
     };
 
     const handleNext = () => {
         if (view === 'year') setCurrentMonth(addYears(currentMonth, 1));
         else if (view === 'month') setCurrentMonth(addMonths(currentMonth, 1));
         else if (view === 'week') setCurrentMonth(addWeeks(currentMonth, 1));
-        else if (view === 'day') setCurrentMonth(addDays(currentMonth, 1));
+        else setCurrentMonth(addDays(currentMonth, 1));
     };
 
-    const handleToday = () => {
-        setCurrentMonth(new Date());
-    };
+    const handleToday = () => setCurrentMonth(new Date());
 
-    useEffect(() => {
-        const fetch = async () => {
-            setLoading(true);
-            try {
-                const start = startOfWeek(startOfMonth(currentMonth));
-                const end = endOfWeek(endOfMonth(currentMonth));
-                const { data } = await api.get('/dashboard/calendar', {
-                    params: { start: start.toISOString(), end: end.toISOString() },
-                });
-                setEvents([
-                    ...(data.tasks || []).map((t: any) => ({ ...t, type: 'task' })),
-                    ...(data.assignments || []).map((a: any) => ({ ...a, type: 'assignment' })),
-                ]);
-            } catch { }
-            finally { setLoading(false); }
-        };
-        fetch();
-    }, [currentMonth]);
-
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    const calStart = startOfWeek(monthStart);
-    const calEnd = endOfWeek(monthEnd);
-
-    const days: Date[] = [];
-    let day = calStart;
-    while (day <= calEnd) {
-        days.push(day);
-        day = addDays(day, 1);
-    }
-
-    const getEventsForDay = (date: Date) => {
-        return events.filter(e => {
+    const getEventsForDay = (date: Date) =>
+        events.filter(e => {
             if (!e.dueDate || new Date(e.dueDate).getFullYear() <= 1970) return false;
-            const eDate = new Date(e.dueDate);
-            return isSameDay(eDate, date);
+            return isSameDay(new Date(e.dueDate), date);
         });
-    };
 
-    const getHolidayForDay = (date: Date) => {
-        return HOLIDAYS.find(h => isSameDay(new Date(h.date), date));
-    };
+    const getHolidayForDay = (date: Date) =>
+        HOLIDAYS.find(h => isSameDay(new Date(h.date), date));
 
     const formatHeaderDate = () => {
         if (view === 'year') return format(currentMonth, 'yyyy');
@@ -164,7 +214,7 @@ const CalendarPage: React.FC = () => {
         }
 
         return (
-            <div className={isMini ? "" : "card"} style={{ overflow: 'hidden' }}>
+            <div className={isMini ? '' : 'card'} style={{ overflow: 'hidden' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
                     {dayNames.map(name => (
                         <div key={name} style={{
@@ -218,7 +268,7 @@ const CalendarPage: React.FC = () => {
                                     fontWeight: today ? 700 : 400,
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'start'
+                                    alignItems: 'start',
                                 }}>
                                     <span>{format(date, 'd')}</span>
                                     {!isMini && holiday && (
@@ -249,7 +299,7 @@ const CalendarPage: React.FC = () => {
     const renderYearView = () => {
         const months = eachMonthOfInterval({
             start: startOfYear(currentMonth),
-            end: endOfYear(currentMonth)
+            end: endOfYear(currentMonth),
         });
 
         return (
@@ -276,7 +326,7 @@ const CalendarPage: React.FC = () => {
                 gridTemplateColumns: 'repeat(7, 1fr)',
                 height: 'calc(100vh - 280px)',
                 minHeight: 600,
-                overflow: 'hidden'
+                overflow: 'hidden',
             }}>
                 {days.map((date, i) => {
                     const dayEvents = getEventsForDay(date);
@@ -291,7 +341,7 @@ const CalendarPage: React.FC = () => {
                             display: 'flex',
                             flexDirection: 'column',
                             height: '100%',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
                         }}>
                             <div style={{ padding: 12, borderBottom: '1px solid var(--color-border)', textAlign: 'center', background: today ? 'var(--color-primary-light)' : 'transparent', flexShrink: 0 }}>
                                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: isSunday ? '#ef4444' : 'var(--color-text-secondary)' }}>
@@ -325,29 +375,23 @@ const CalendarPage: React.FC = () => {
         const dayEvents = getEventsForDay(currentMonth);
         const holiday = getHolidayForDay(currentMonth);
         const isSunday = currentMonth.getDay() === 0;
-
         const hours = Array.from({ length: 24 }, (_, i) => i);
         const now = new Date();
         const isSelectedDayToday = isToday(currentMonth);
 
-        const getEventsForHour = (hour: number) => {
-            return dayEvents.filter(ev => {
+        const getEventsForHour = (hour: number) =>
+            dayEvents.filter(ev => {
                 const date = new Date(ev.dueDate);
-                // Only show in hour slot if it's NOT a default midnight timestamp
-                // or if it specifically matches the hour
                 return date.getHours() === hour && (date.getHours() !== 0 || date.getMinutes() !== 0);
             });
-        };
 
         const allDayEvents = dayEvents.filter(ev => {
             const date = new Date(ev.dueDate);
-            // Defaulting to all-day if it's midnight
             return date.getHours() === 0 && date.getMinutes() === 0;
         });
 
         return (
             <div className="card" style={{ maxWidth: 1000, margin: '0 auto', height: 'calc(100vh - 280px)', minHeight: 600, display: 'flex', flexDirection: 'column', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 24, overflow: 'hidden' }}>
-                {/* Day Header */}
                 <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--color-border)', background: 'linear-gradient(to right, var(--color-surface), var(--color-bg))', flexShrink: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -368,7 +412,6 @@ const CalendarPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* All Day Section */}
                 {(allDayEvents.length > 0 || holiday) && (
                     <div style={{ padding: '12px 32px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'start', gap: 16, flexShrink: 0 }}>
                         <div style={{ width: 80, fontSize: '0.625rem', fontWeight: 800, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', paddingTop: 8 }}>All Day</div>
@@ -389,18 +432,8 @@ const CalendarPage: React.FC = () => {
                 )}
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px', position: 'relative' }}>
-                    {/* Current Time Indicator Line */}
                     {isSelectedDayToday && (
-                        <div style={{
-                            position: 'absolute',
-                            top: `${(now.getHours() * 80) + (now.getMinutes() / 60 * 80)}px`,
-                            left: 112,
-                            right: 32,
-                            height: 2,
-                            background: '#ef4444',
-                            zIndex: 10,
-                            pointerEvents: 'none'
-                        }}>
+                        <div style={{ position: 'absolute', top: `${(now.getHours() * 80) + (now.getMinutes() / 60 * 80)}px`, left: 112, right: 32, height: 2, background: '#ef4444', zIndex: 10, pointerEvents: 'none' }}>
                             <div style={{ position: 'absolute', left: -80, top: -10, background: '#ef4444', color: 'white', fontSize: '0.625rem', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
                                 {format(now, 'h:mm aa')}
                             </div>
@@ -412,31 +445,12 @@ const CalendarPage: React.FC = () => {
                         const hourEvents = getEventsForHour(hour);
                         return (
                             <div key={hour} style={{ display: 'flex', height: 80, borderBottom: '1px dashed var(--color-border-light)', position: 'relative' }}>
-                                <div style={{
-                                    width: 80,
-                                    paddingTop: 12,
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    color: 'var(--color-text-tertiary)',
-                                    textAlign: 'right',
-                                    paddingRight: 16
-                                }}>
+                                <div style={{ width: 80, paddingTop: 12, fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textAlign: 'right', paddingRight: 16 }}>
                                     {format(new Date().setHours(hour, 0), 'h aa')}
                                 </div>
                                 <div style={{ flex: 1, padding: '4px 8px', display: 'flex', gap: 8 }}>
                                     {hourEvents.map((ev, i) => (
-                                        <div key={i} className="group cursor-pointer" style={{
-                                            flex: 1,
-                                            padding: '12px',
-                                            background: ev.type === 'task' ? 'rgba(59, 130, 246, 0.05)' : 'rgba(245, 158, 11, 0.05)',
-                                            color: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)',
-                                            borderLeft: `5px solid ${ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'}`,
-                                            borderRadius: '0 12px 12px 0',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                                            height: 'fit-content',
-                                            alignSelf: 'start',
-                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                                        }}>
+                                        <div key={i} style={{ flex: 1, padding: '12px', background: ev.type === 'task' ? 'rgba(59, 130, 246, 0.05)' : 'rgba(245, 158, 11, 0.05)', color: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)', borderLeft: `5px solid ${ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'}`, borderRadius: '0 12px 12px 0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', height: 'fit-content', alignSelf: 'start', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 4 }}>
                                                 <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.7 }}>{ev.type}</span>
                                                 <span style={{ fontSize: '0.625rem', padding: '2px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>{ev.status}</span>
@@ -450,10 +464,7 @@ const CalendarPage: React.FC = () => {
                     })}
 
                     {dayEvents.length === 0 && !holiday && (
-                        <div style={{
-                            padding: '100px 0',
-                            textAlign: 'center',
-                        }}>
+                        <div style={{ padding: '100px 0', textAlign: 'center' }}>
                             <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'var(--color-text-tertiary)' }}>
                                 <Calendar size={32} />
                             </div>
@@ -466,21 +477,96 @@ const CalendarPage: React.FC = () => {
         );
     };
 
+    const renderSkeleton = () => {
+        if (view === 'year') {
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="card animate-fade-in" style={{ padding: 12, height: 260 }}>
+                            <div className="skeleton" style={{ height: 20, width: '40%', margin: '0 auto 12px', borderRadius: 4 }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, height: 200 }}>
+                                {Array.from({ length: 35 }).map((_, j) => (
+                                    <div key={j} className="skeleton" style={{ height: 28, borderRadius: 4, opacity: j % 7 === 0 || j % 7 === 6 ? 0.4 : 0.8 }} />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        if (view === 'month') {
+            return (
+                <div className="card animate-fade-in" style={{ overflow: 'hidden', padding: 0 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
+                        {dayNames.map(name => (
+                            <div key={name} style={{ padding: '10px 12px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textAlign: 'center', textTransform: 'uppercase' }}>{name}</div>
+                        ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                        {Array.from({ length: 35 }).map((_, idx) => (
+                            <div key={idx} style={{ height: 120, padding: 12, borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div className="skeleton" style={{ width: 20, height: 18, borderRadius: 4 }} />
+                                    {idx % 9 === 0 && <div className="skeleton" style={{ width: 45, height: 12, borderRadius: 3 }} />}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                                    {idx % 3 !== 0 && <div className="skeleton" style={{ height: 16, width: '85%', borderRadius: 4 }} />}
+                                    {idx % 5 === 0 && <div className="skeleton" style={{ height: 16, width: '60%', borderRadius: 4 }} />}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        if (view === 'week') {
+            return (
+                <div className="card animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', height: 'calc(100vh - 280px)', minHeight: 600, overflow: 'hidden', padding: 0 }}>
+                    {Array.from({ length: 7 }).map((_, i) => (
+                        <div key={i} style={{ borderRight: i === 6 ? 'none' : '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <div style={{ padding: 16, borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                <div className="skeleton" style={{ width: 32, height: 14, borderRadius: 4 }} />
+                                <div className="skeleton" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                            </div>
+                            <div style={{ flex: 1, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {i % 2 === 0 && <div className="card skeleton" style={{ height: 50, borderRadius: 12 }} />}
+                                {i % 3 === 0 && <div className="card skeleton" style={{ height: 64, borderRadius: 12 }} />}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        if (view === 'day') {
+            return (
+                <div className="card animate-fade-in" style={{ maxWidth: 1000, margin: '0 auto', height: 'calc(100vh - 280px)', minHeight: 600, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', padding: 0 }}>
+                    <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div className="skeleton" style={{ width: 64, height: 64, borderRadius: 16 }} />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div className="skeleton" style={{ width: '30%', height: 24, borderRadius: 6 }} />
+                            <div className="skeleton" style={{ width: '15%', height: 14, borderRadius: 4 }} />
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, padding: '20px 32px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+                        {Array.from({ length: 6 }).map((_, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: 16, alignItems: 'center', height: 60 }}>
+                                <div className="skeleton" style={{ width: 60, height: 16, borderRadius: 4 }} />
+                                <div className="skeleton" style={{ flex: 1, height: '100%', borderRadius: 12, opacity: idx % 2 === 0 ? 0.8 : 0 }} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
     return (
         <div style={{ maxWidth: 1100 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Calendar</h1>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        background: 'var(--color-surface)',
-                        borderRadius: 12,
-                        padding: '4px',
-                        border: '1px solid var(--color-border)',
-                        height: 40
-                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--color-surface)', borderRadius: 12, padding: '4px', border: '1px solid var(--color-border)', height: 40 }}>
                         <button
                             className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0"
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32, color: 'var(--color-text-secondary)' }}
@@ -488,13 +574,7 @@ const CalendarPage: React.FC = () => {
                         >
                             <ChevronLeft size={18} />
                         </button>
-                        <span style={{
-                            fontSize: '0.8125rem',
-                            fontWeight: 700,
-                            minWidth: view === 'week' ? 180 : 130,
-                            textAlign: 'center',
-                            color: 'var(--color-text)'
-                        }}>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 700, minWidth: view === 'week' ? 180 : 130, textAlign: 'center', color: 'var(--color-text)' }}>
                             {formatHeaderDate()}
                         </span>
                         <button
@@ -523,44 +603,30 @@ const CalendarPage: React.FC = () => {
                             >
                                 <Calendar size={16} />
                                 <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em' }}>{view} View</span>
-                                <ChevronDown
-                                    size={16}
-                                    className={`transition-transform duration-300 ${isViewDropdownOpen ? "rotate-180" : ""}`}
-                                />
+                                <ChevronDown size={16} className={`transition-transform duration-300 ${isViewDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {isViewDropdownOpen && (
                                 <>
-                                    <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() => setIsViewDropdownOpen(false)}
-                                    ></div>
-                                    <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-50 animate-fade-in p-2 backdrop-blur-xl border border-border/50" style={{ padding: "10px", marginTop: "5px" }}>
+                                    <div className="fixed inset-0 z-40" onClick={() => setIsViewDropdownOpen(false)} />
+                                    <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-50 animate-fade-in p-2 backdrop-blur-xl border border-border/50" style={{ padding: '10px', marginTop: '5px' }}>
                                         {[
-                                            { id: 'year', label: 'Yearly', icon: <Layers size={16} />, color: 'primary' },
-                                            { id: 'month', label: 'Monthly', icon: <Calendar size={16} />, color: 'success' },
-                                            { id: 'week', label: 'Weekly', icon: <Columns size={16} />, color: 'info' },
-                                            { id: 'day', label: 'Daily', icon: <Clock size={16} />, color: 'warning' }
+                                            { id: 'year', label: 'Yearly', icon: <Layers size={16} /> },
+                                            { id: 'month', label: 'Monthly', icon: <Calendar size={16} /> },
+                                            { id: 'week', label: 'Weekly', icon: <Columns size={16} /> },
+                                            { id: 'day', label: 'Daily', icon: <Clock size={16} /> },
                                         ].map((v) => (
                                             <button
                                                 key={v.id}
-                                                onClick={() => {
-                                                    setView(v.id as any);
-                                                    setIsViewDropdownOpen(false);
-                                                }}
-                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-[22px] group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'
-                                                    }`}
+                                                onClick={() => { setView(v.id as any); setIsViewDropdownOpen(false); }}
+                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-[22px] group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'}`}
                                             >
-                                                <div className="flex items-center gap-3 cursor-pointer hover:bg-(--color-primary) w-full rounded-xl my-2 ">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${view === v.id ? 'bg-primary/20' : 'bg-surface-hover'
-                                                        }`}>
+                                                <div className="flex items-center gap-3 cursor-pointer hover:bg-(--color-primary) w-full rounded-xl my-2">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${view === v.id ? 'bg-primary/20' : 'bg-surface-hover'}`}>
                                                         {v.icon}
                                                     </div>
                                                     {v.label}
                                                 </div>
-                                                {/* {view === v.id && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                                                )} */}
                                             </button>
                                         ))}
                                     </div>
@@ -572,7 +638,7 @@ const CalendarPage: React.FC = () => {
             </div>
 
             <div style={{ minHeight: '60vh' }}>
-                {loading ? null : (
+                {loading ? renderSkeleton() : (
                     <>
                         {view === 'year' && renderYearView()}
                         {view === 'month' && renderMonthView(currentMonth)}
@@ -582,112 +648,56 @@ const CalendarPage: React.FC = () => {
                 )}
             </div>
 
-            <div style={{
-                marginTop: 20,
-                padding: '12px 16px',
-                background: 'var(--color-surface)',
-                borderRadius: 12,
-                border: '1px solid var(--color-border)',
-                display: 'flex',
-                gap: 24,
-                alignItems: 'center',
-                flexWrap: 'wrap'
-            }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Holiday Categories:
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: getHolidayColor('National / Gazetted') }} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>National / Gazetted Holiday</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: getHolidayColor('Festival') }} />
-                    <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>Festival</span>
-                </div>
+            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--color-surface)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Holiday Categories:</div>
+                {[
+                    { label: 'Sunday', shape: '0%' },
+                    { label: 'National / Gazetted Holiday', shape: '50%' },
+                    { label: 'Festival', shape: '50%' },
+                ].map(({ label, shape }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: shape, background: getHolidayColor(label.includes('National') ? 'National / Gazetted' : label) }} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>{label}</span>
+                    </div>
+                ))}
             </div>
 
             {selectedDay && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-                }} onClick={() => setSelectedDay(null)}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedDay(null)}>
                     <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 450, padding: 24 }} onClick={e => e.stopPropagation()}>
-
-                        {/* main card header and close button */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{format(selectedDay, 'MMMM d, yyyy')}</h2>
                             <button className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
                                 <X size={20} style={{ transform: 'rotate(90deg)' }} />
                             </button>
                         </div>
-
-                        {/* list of tasks or events and deadlines etc */}
                         <div style={{ marginBottom: 24 }}>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>
-                                Events & Deadlines
-                            </div>
-                            <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 10,
-                                maxHeight: '60dvh',
-                                overflowY: 'auto',
-                                paddingRight: 4, // prevents scrollbar overlap
-                            }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>Events & Deadlines</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60dvh', overflowY: 'auto', paddingRight: 4 }}>
                                 {getEventsForDay(selectedDay).length === 0 ? (
                                     <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-tertiary)', background: 'var(--color-surface-hover)', borderRadius: 12 }}>
                                         No events for this day
                                     </div>
                                 ) : (
                                     getEventsForDay(selectedDay).map((ev, i) => (
-                                        <div
-                                            key={i}
-                                            className="card"
-                                            style={{
-                                                padding: '12px',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                cursor: 'pointer',
-                                            }}
-                                            onClick={() => {
-                                                const path = ev.type === 'task'
-                                                    ? `/assignments/${ev.assignment}?tab=tasks&taskId=${ev._id}`
-                                                    : `/assignments/${ev._id}`;
-                                                navigate(path);
-                                            }}
-                                        >
+                                        <div key={i} className="card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                            onClick={() => navigate(ev.type === 'task' ? `/assignments/${ev.assignment}?tab=tasks&taskId=${ev._id}` : `/assignments/${ev._id}`)}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div style={{
-                                                    width: 8, height: 8, borderRadius: '50%',
-                                                    background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'
-                                                }} />
+                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' }} />
                                                 <div>
-                                                    <div style={{
-                                                        fontSize: '0.875rem', fontWeight: 600,
-                                                        textDecoration: ev.status === 'completed' ? 'line-through' : 'none',
-                                                        opacity: ev.status === 'completed' ? 0.6 : 1
-                                                    }}>{ev.title}</div>
+                                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, textDecoration: ev.status === 'completed' ? 'line-through' : 'none', opacity: ev.status === 'completed' ? 0.6 : 1 }}>{ev.title}</div>
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{ev.type === 'task' ? 'Task' : 'Project Assignment'}</div>
                                                 </div>
                                             </div>
-                                            <div className={`badge badge-${ev.status === 'completed' ? 'success' : 'info'}`} style={{ fontSize: '0.6875rem' }}>
-                                                {ev.status}
-                                            </div>
+                                            <div className={`badge badge-${ev.status === 'completed' ? 'success' : 'info'}`} style={{ fontSize: '0.6875rem' }}>{ev.status}</div>
                                         </div>
                                     ))
                                 )}
                             </div>
                         </div>
-
-                        {/* buttons on the bottom card */}
                         <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => navigate('/assignments')}>
-                                Create Project
-                            </button>
-                            <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => setSelectedDay(null)}>
-                                Close
-                            </button>
+                            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => navigate('/assignments')}>Create Project</button>
+                            <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => setSelectedDay(null)}>Close</button>
                         </div>
                     </div>
                 </div>
