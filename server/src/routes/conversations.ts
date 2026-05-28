@@ -8,7 +8,8 @@ import {
     deleteConversation,
     deleteMessage,
     forwardMessage,
-    editMessage
+    editMessage,
+    markConversationRead
 } from '../controllers/conversationController';
 import { authenticate } from '../middlewares/auth';
 import { upload } from '../middlewares/upload';
@@ -22,6 +23,7 @@ router.get('/', getConversations);
 router.post('/', createConversation);
 router.delete('/:id', deleteConversation);
 router.get('/:id/messages', getMessages);
+router.post('/:id/read', markConversationRead);
 router.post('/:id/messages', upload.single('file'), sendMessage);
 router.post('/messages/:messageId/react', toggleReaction);
 router.post('/messages/:messageId/forward', forwardMessage);

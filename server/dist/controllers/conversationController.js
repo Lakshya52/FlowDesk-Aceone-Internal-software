@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.editMessage = exports.forwardMessage = exports.deleteMessage = exports.deleteConversation = exports.toggleReaction = exports.sendMessage = exports.createConversation = exports.getMessages = exports.getConversations = void 0;
+exports.editMessage = exports.forwardMessage = exports.deleteMessage = exports.deleteConversation = exports.toggleReaction = exports.markConversationRead = exports.sendMessage = exports.createConversation = exports.getMessages = exports.getConversations = void 0;
 const Conversation_1 = __importStar(require("../models/Conversation"));
 const Message_1 = __importDefault(require("../models/Message"));
 const Attachment_1 = __importDefault(require("../models/Attachment"));
@@ -147,7 +147,8 @@ const getMessages = async (req, res) => {
         // Notify other participants in the conversation that messages were read
         index_1.io.to(`conversation_${conversationId}`).emit('messages_read', {
             conversationId,
-            readerId: userId
+            readerId: userId.toString(),
+            readAt: new Date().toISOString(),
         });
         res.json({ messages });
     }
@@ -337,6 +338,30 @@ const sendMessage = async (req, res) => {
     }
 };
 exports.sendMessage = sendMessage;
+const markConversationRead = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user._id;
+        const readAt = new Date();
+        // Mark all unread incoming messages as read
+        await Message_1.default.updateMany({
+            conversation: id,
+            sender: { $ne: userId },
+            'readBy.user': { $ne: userId },
+        }, { $push: { readBy: { user: userId, readAt } } });
+        // Broadcast read event
+        index_1.io.to(`conversation_${id}`).emit('messages_read', {
+            conversationId: id,
+            readerId: userId.toString(),
+            readAt: readAt.toISOString(),
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+exports.markConversationRead = markConversationRead;
 const toggleReaction = async (req, res) => {
     try {
         const { messageId } = req.params;

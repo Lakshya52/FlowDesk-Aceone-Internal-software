@@ -10,6 +10,7 @@ export interface IConversation extends Document {
     participants: mongoose.Types.ObjectId[];
     createdBy?: mongoose.Types.ObjectId;
     admins?: mongoose.Types.ObjectId[];
+    readBy?: mongoose.Types.ObjectId[];
     createdAt: Date;
     updatedAt: Date;
 }

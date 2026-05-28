@@ -206,21 +206,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ conversations: updated });
     },
 
-    markAsRead: async (conversationId) => {
-        try {
-            await api.get(`/conversations/${conversationId}/messages`);
-            const { conversations } = get();
-            const updated = conversations.map(c => {
-                if (c._id === conversationId) {
-                    return { ...c, unreadCount: 0 };
-                }
-                return c;
-            });
-            const totalUnreadCount = updated.reduce((acc, cur) => acc + cur.unreadCount, 0);
-            set({ conversations: updated, totalUnreadCount });
-        } catch (error) {
-            console.error('Failed to mark conversation as read:', error);
-        }
+    // markAsRead: async (conversationId) => {
+    //     try {
+    //         await api.get(`/conversations/${conversationId}/messages`);
+    //         const { conversations } = get();
+    //         const updated = conversations.map(c => {
+    //             if (c._id === conversationId) {
+    //                 return { ...c, unreadCount: 0 };
+    //             }
+    //             return c;
+    //         });
+    //         const totalUnreadCount = updated.reduce((acc, cur) => acc + cur.unreadCount, 0);
+    //         set({ conversations: updated, totalUnreadCount });
+    //     } catch (error) {
+    //         console.error('Failed to mark conversation as read:', error);
+    //     }
+    // },
+
+    // markAsRead: async (conversationId) => {
+    //     try {
+    //         await api.post(`/conversations/${conversationId}/read`);
+    //         const { conversations } = get();
+    //         const updated = conversations.map(c => {
+    //             if (c._id === conversationId) {
+    //                 return { ...c, unreadCount: 0 };
+    //             }
+    //             return c;
+    //         });
+    //         const totalUnreadCount = updated.reduce((acc, cur) => acc + cur.unreadCount, 0);
+    //         set({ conversations: updated, totalUnreadCount });
+    //     } catch (error) {
+    //         console.error('Failed to mark conversation as read:', error);
+    //     }
+    // },
+
+     markAsRead: async (conversationId) => {
+        // Just update the local unread badge — the actual DB read marking
+        // is handled by getMessages (on fetch) and mark_messages_read (via socket)
+        const { conversations } = get();
+        const updated = conversations.map(c => {
+            if (c._id === conversationId) {
+                return { ...c, unreadCount: 0 };
+            }
+            return c;
+        });
+        const totalUnreadCount = updated.reduce((acc, cur) => acc + cur.unreadCount, 0);
+        set({ conversations: updated, totalUnreadCount });
     },
 
     updateLastMessage: (conversationId, message) => {
