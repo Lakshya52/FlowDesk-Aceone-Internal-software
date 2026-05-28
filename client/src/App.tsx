@@ -49,10 +49,10 @@ const App: React.FC = () => {
 
   if (isBackendReady === null) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-outfit">
+      <div className="min-h-screen  flex flex-col items-center justify-center font-outfit">
         <div className="relative">
-          <div className="w-16 h-16 border-4 border-[#3b82f6]/20 border-t-[#3b82f6] rounded-full animate-spin"></div>
-          <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-b-[#8b5cf6]/40 rounded-full animate-pulse"></div>
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-16 h-16 border-4 border-[#3b82f6]/10 border-t-[#3b82f6] rounded-full animate-spin"></div>
+          {/* <div className="absolute inset-0 w-16 h-16 border-4 border-transparent rounded-full animate-pulse"></div> */}
         </div>
         <br />
         <p className="mt-6 text-slate-500 font-medium animate-pulse tracking-wide uppercase text-sm">

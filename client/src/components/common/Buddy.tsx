@@ -319,6 +319,8 @@ const Buddy: React.FC = () => {
     );
 
     const suggestions = getPageSuggestions(location.pathname);
+    
+    if (location.pathname === '/chat') return null;
 
     return (
         <>
