@@ -191,6 +191,28 @@ io.on('connection', (socket) => {
         socket.to(`conversation_${conversationId}`).emit('user_chat_stop_typing', { conversationId, userId: socket.data.userId });
     });
 
+    socket.on('mark_messages_read', async ({ conversationId, readerId }) => {
+        try {
+            const Message = (await import('./models/Message')).default;
+            const readAt = new Date();
+            await Message.updateMany(
+                {
+                    conversation: conversationId,
+                    sender: { $ne: readerId },
+                    'readBy.user': { $ne: readerId },
+                },
+                { $push: { readBy: { user: readerId, readAt } } }
+            );
+            io.to(`conversation_${conversationId}`).emit('messages_read', {
+                conversationId,
+                readerId: readerId.toString(),
+                readAt: readAt.toISOString(),
+            });
+        } catch (err) {
+            console.error('mark_messages_read error:', err);
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected');
         const userId = socket.data.userId;

@@ -128,7 +128,8 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
         // Notify other participants in the conversation that messages were read
         io.to(`conversation_${conversationId}`).emit('messages_read', {
             conversationId,
-            readerId: userId
+            readerId: userId.toString(),
+            readAt: new Date().toISOString(),
         });
 
         res.json({ messages });
@@ -343,6 +344,31 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
         }
 
         res.status(201).json({ message: populated });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+export const markConversationRead = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const userId = req.user!._id;
+        const readAt = new Date();
+        // Mark all unread incoming messages as read
+        await Message.updateMany(
+            {
+                conversation: id,
+                sender: { $ne: userId },
+                'readBy.user': { $ne: userId },
+            },
+            { $push: { readBy: { user: userId, readAt } } }
+        );
+        // Broadcast read event
+        io.to(`conversation_${id}`).emit('messages_read', {
+            conversationId: id,
+            readerId: userId.toString(),
+            readAt: readAt.toISOString(),
+        });
+        res.json({ success: true });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

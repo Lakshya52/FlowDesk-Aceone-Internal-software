@@ -11,6 +11,7 @@ router.get('/', conversationController_1.getConversations);
 router.post('/', conversationController_1.createConversation);
 router.delete('/:id', conversationController_1.deleteConversation);
 router.get('/:id/messages', conversationController_1.getMessages);
+router.post('/:id/read', conversationController_1.markConversationRead);
 router.post('/:id/messages', upload_1.upload.single('file'), conversationController_1.sendMessage);
 router.post('/messages/:messageId/react', conversationController_1.toggleReaction);
 router.post('/messages/:messageId/forward', conversationController_1.forwardMessage);
