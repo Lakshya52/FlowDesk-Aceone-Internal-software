@@ -1,713 +1,753 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  FC,
+  KeyboardEvent,
+  ChangeEvent,
+} from "react";
 import { useLocation } from "react-router-dom";
-import { MessageCircle, X, Send, Bot, Sparkles, Trash2, User } from "lucide-react";
 
-interface Message {
-    role: "user" | "assistant";
-    content: string;
-    isStreaming?: boolean;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Role = "user" | "assistant" | "system";
+
+interface ChatMessage {
+  role: Role;
+  content: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+interface OllamaResponseChunk {
+  message?: {
+    content?: string;
+  };
+  done?: boolean;
+}
 
-/* ─── Simple Markdown Renderer ─── */
-const renderMarkdown = (text: string): React.ReactNode[] => {
-    const lines = text.split("\n");
-    const elements: React.ReactNode[] = [];
-    let listItems: React.ReactNode[] = [];
-    let listType: "ul" | "ol" | null = null;
-    let key = 0;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-    const flushList = () => {
-        if (listItems.length > 0 && listType) {
-            const Tag = listType;
-            elements.push(
-                <Tag key={key++} style={{ margin: "6px 0", paddingLeft: 20 }}>
-                    {listItems}
-                </Tag>
-            );
-            listItems = [];
-            listType = null;
-        }
-    };
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLOWDESK KNOWLEDGE BASE — embedded directly into the system prompt so the
+// model has full context without requiring conversation history.
+// Update this section whenever a new feature, bug-fix, or module is added.
+// ═══════════════════════════════════════════════════════════════════════════════
+const FLOWDESK_SYSTEM_PROMPT = `
+You are FlowDesk Buddy — the intelligent embedded AI assistant inside FlowDesk,
+the internal management platform developed exclusively for Aceone Futuristic (OPC) Private Limited.
 
-    const renderInline = (line: string): React.ReactNode => {
-        // Process inline markdown: **bold**, *italic*, `code`
-        const parts: React.ReactNode[] = [];
-        let remaining = line;
-        let i = 0;
+You are NOT a general AI chatbot. You are a highly specialized in-app assistant.
+Every question the user asks should be assumed to be about FlowDesk unless they explicitly say otherwise.
 
-        while (remaining.length > 0) {
-            // Bold **text**
-            const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-            // Inline code `text`
-            const codeMatch = remaining.match(/`([^`]+)`/);
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — PLATFORM OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            // Collect all matches with their positions
-            const candidates: { match: RegExpMatchArray; type: string }[] = [];
-            if (boldMatch) candidates.push({ match: boldMatch, type: "bold" });
-            if (codeMatch) candidates.push({ match: codeMatch, type: "code" });
+FlowDesk is a full-stack internal management ecosystem.
+It centralises project management, task tracking, real-time communication,
+AI assistance, and collaborative tooling into one platform.
 
-            // Sort by position — earliest match wins
-            candidates.sort((a, b) => (a.match.index ?? 0) - (b.match.index ?? 0));
-            const firstMatch = candidates.length > 0 ? candidates[0] : null;
+Tech stack:
+- Frontend: React + TypeScript, Zustand state management, custom Glassmorphism CSS design system
+- Backend: Node.js + Express + Mongoose (MongoDB)
+- Realtime: Socket.io (chat, notifications, online presence)
+- Storage: MongoDB GridFS for secure document/file attachments
 
-            if (!firstMatch) {
-                parts.push(remaining);
-                break;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — MODULES IN DETAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+─── 2A. ASSIGNMENTS (Project Management) ───────────────────────────────────────
+
+Projects are divided into three buckets:
+
+1. Ongoing Work — Active projects currently assigned to teams.
+2. Completed — A permanent, immutable archive for history and auditing.
+3. Recurring Blueprints — Template-based automation engine.
+
+RECURRING BLUEPRINTS — how they work under the hood:
+- A Blueprint is a reusable template (pre-filled tasks, assigned teams, metadata).
+- Supported recurrence intervals: Daily, Weekly, Monthly, Yearly.
+- When the recurrence window is due, the engine spawns a brand-new project instance
+  from the blueprint, automatically pre-populating all tasks and assignments.
+- Duplicate prevention: before spawning, the engine checks whether a project for
+  the current recurrence window already exists. If yes, it skips spawning.
+- Catch-up logic: if the FlowDesk server was offline during a scheduled spawn,
+  the engine detects the missed window on next boot and spawns the missed instance.
+- This prevents both duplicates and silent skips.
+
+─── 2B. TASK ECOSYSTEM ─────────────────────────────────────────────────────────
+
+Tasks are the granular units of work inside a project.
+
+Task lifecycle states (in order):
+  Todo → In Progress → Review → Completed
+
+Task features:
+- Subtask checklists: each task supports multi-step sub-items.
+- Team ownership: tasks can be assigned to an individual or an entire team.
+- No-due-date handling: special logic prevents the Unix Epoch (Jan 1 1970) bug
+  that occurs when null dates are passed directly to date constructors.
+  FlowDesk instead stores and displays a "No Due Date" state explicitly.
+
+─── 2C. AI BUDDY (this assistant) ──────────────────────────────────────────────
+
+- Embedded AI assistant powered by a local Ollama LLM.
+- Assists with: project analysis, deadline forecasting, task description generation,
+  technical architecture questions, FlowDesk navigation help.
+- Operates in single-turn mode: each message is answered independently using
+  the knowledge embedded in this system prompt — no chat history is sent.
+- This keeps the payload small and responses fast.
+
+─── 2D. COLLABORATIVE CANVAS ───────────────────────────────────────────────────
+
+A digital whiteboard and note-taking space:
+- Post-it style sticky notes for brainstorming.
+- Visual workflow organisation.
+- Two modes:
+  - Personal mode: private drafting, only visible to you.
+  - Collaborative mode: shared team session, visible to all team members.
+
+─── 2E. COMMUNICATION & NOTIFICATIONS ──────────────────────────────────────────
+
+- Real-time project chat rooms: every project gets a dedicated Socket.io chat room.
+- Activity logs: a comprehensive audit trail of every change to a project or task.
+- Dynamic notifications: in-app alerts for new assignments, @mentions, and
+  approaching deadlines.
+- Online/offline presence: a green dot system showing which colleagues are active
+  (detailed explanation in Section 4).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — ROLE-BASED ACCESS CONTROL (RBAC)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Three roles exist:
+
+Admin:
+- Full system control
+- Access to financial reports
+- User management (create, edit, deactivate accounts)
+- Global system settings
+
+Manager:
+- Oversees specific teams
+- Creates and manages assignments
+- Approves completed work
+
+Member:
+- Task execution and status updates
+- Collaboration within assigned projects
+- Cannot create projects or manage users
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — ONLINE/OFFLINE PRESENCE SYSTEM (deep dive)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This is one of the most commonly asked-about technical systems. Here is the complete
+explanation of how it works under the hood.
+
+HOW PRESENCE IS DETECTED:
+1. When a user opens FlowDesk or focuses their browser tab, the frontend emits a
+   Socket.io event to the server: { userId, status: "online" }.
+2. When a user closes the tab, navigates away, or goes idle, the frontend emits:
+   { userId, status: "offline" }.
+3. The backend receives the event, updates the user's status in memory/DB,
+   and broadcasts it to ALL connected clients.
+
+THE SELF-BROADCAST PROBLEM (and the bug it caused):
+- Every client receives every status broadcast — including broadcasts about themselves.
+- Before the fix: when Deepak (the logged-in user) came online, the app received
+  a broadcast saying "userId: Deepak's ID is now online".
+- The store logic naively searched all sidebar conversations for a participant
+  matching that ID. Since Deepak is a participant in EVERY chat on his sidebar,
+  every single conversation turned green — even though all colleagues were offline.
+
+THE FIX — currentUserId exclusion filter:
+The status change handler receives three arguments:
+  handleUserStatusChange(userId, status, currentUserId)
+
+  - userId: the ID of whoever just changed status (could be anyone)
+  - status: "online" or "offline"
+  - currentUserId: YOUR own logged-in user ID (from Zustand AuthStore)
+
+Inside chatStore.ts, the filtering logic is:
+  const otherParticipant = c.participants.find(
+    p => p._id === userId && p._id !== currentUserId
+  );
+
+This means: only update a chat's green dot if the status change belongs to
+the OTHER person in that chat, not yourself.
+
+Scenario A — colleague Jane goes online:
+  userId = Jane's ID, currentUserId = Deepak's ID
+  → p._id === userId: true (Jane matches)
+  → p._id !== currentUserId: true (Jane ≠ Deepak)
+  → otherParticipant found → Jane's chat turns green ✅
+
+Scenario B — Deepak himself goes online:
+  userId = Deepak's ID, currentUserId = Deepak's ID
+  → p._id === userId: true (Deepak matches)
+  → p._id !== currentUserId: false (Deepak === Deepak)
+  → otherParticipant NOT found → no chats change ✅
+
+The fix relies on Zustand's AuthStore always having the current session's user ID
+available as a stable, synchronously readable reference — no async, no prop-drilling.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — HOW TO ANSWER QUESTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STYLE RULES:
+1. Be concise first. Expand only if the user asks for more detail.
+2. Speak like a premium SaaS assistant — helpful, clear, professional but warm.
+3. Use bullet points for workflows or step-by-step explanations.
+4. When asked "how does X work" or "what is happening under the hood", always explain:
+   - frontend flow
+   - backend/server flow
+   - Socket.io events (if realtime is involved)
+   - Zustand state updates (if state management is involved)
+   - database involvement (if persistence is involved)
+   - why the logic exists (the problem it solves)
+   - any important edge cases
+5. Use concrete examples with realistic names (e.g. "Deepak", "Jane") when explaining
+   multi-user flows.
+6. Never invent FlowDesk features, APIs, schemas, or permissions that are not described
+   in this system prompt.
+7. If a feature is not covered in this prompt, say:
+   "That functionality does not currently appear to exist in FlowDesk, or I may not
+    have information about it yet."
+8. If the user asks something entirely unrelated to FlowDesk:
+   "I'm specialised in FlowDesk and its internal systems. For broader topics, a
+    general-purpose AI assistant would serve you better."
+
+NEVER:
+- Hallucinate APIs or endpoints
+- Invent database schemas
+- Fabricate module names or permission levels
+- Pretend a feature exists if it is not documented above
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — SINGLE-TURN OPERATION NOTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You operate in single-turn mode. Each user message is answered independently.
+You do NOT have memory of previous messages in this chat session.
+If the user refers to something said earlier ("as I mentioned", "the thing we discussed"),
+politely clarify:
+  "I work in single-turn mode and don't retain previous messages. Could you briefly
+   restate the context? I'm happy to help."
+`;
+
+const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+// const DEFAULT_MODEL = "qwen2.5-coder:1.5b-base";
+const DEFAULT_MODEL = "qwen2.5-coder:1.5b-instruct";
+
+const SUGGESTIONS: string[] = [
+  "How do Recurring Blueprints work?",
+  "What's the difference between roles?",
+  "How does real-time presence detection work?",
+  "How do I track task progress?",
+  "What is the Collaborative Canvas?",
+];
+
+const INITIAL_MESSAGE: ChatMessage = {
+  role: "assistant",
+  content:
+    "Hey! I'm FlowDesk Buddy 👋\n\nI'm here to help you navigate FlowDesk.\n\nI answer each question using built-in FlowDesk knowledge — no need to repeat context from earlier messages.",
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const TypingIndicator: FC = () => (
+  <div
+    style={{
+      display: "flex",
+      gap: 4,
+      alignItems: "center",
+      padding: "12px 16px",
+    }}
+  >
+    {[0, 1, 2].map((i) => (
+      <span
+        key={i}
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#94a3b8",
+          animation: "bounce 1.2s infinite",
+          animationDelay: `${i * 0.2}s`,
+        }}
+      />
+    ))}
+  </div>
+);
+
+interface MessageProps {
+  msg: ChatMessage;
+}
+
+const Message: FC<MessageProps> = ({ msg }) => {
+  const isUser = msg.role === "user";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: isUser ? "flex-end" : "flex-start",
+        marginBottom: 12,
+        gap: 8,
+        alignItems: "flex-start",
+      }}
+    >
+      {!isUser && (
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            fontSize: 13,
+            color: "#fff",
+            fontWeight: 600,
+            marginTop: 2,
+          }}
+        >
+          F
+        </div>
+      )}
+
+      <div
+        style={{
+          maxWidth: "75%",
+          padding: "10px 14px",
+          borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+          background: isUser
+            ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+            : "rgba(255,255,255,0.06)",
+          color: isUser ? "#fff" : "#e2e8f0",
+          fontSize: 14,
+          lineHeight: 1.6,
+          border: isUser ? "none" : "1px solid rgba(255,255,255,0.08)",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {msg.content}
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+const FlowDeskBuddy: FC = () => {
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
+  const [input, setInput] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [model] = useState<string>(DEFAULT_MODEL);
+  const [ollamaError, setOllamaError] = useState<string | null>(null);
+  // const [showSettings] = useState<boolean>(false);
+  const [streamingContent, setStreamingContent] = useState<string>("");
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isMinimized] = useState<boolean>(false);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingContent, isLoading]);
+
+  const sendMessage = async (text?: string): Promise<void> => {
+    const userText = (text ?? input).trim();
+    if (!userText || isLoading) return;
+
+    setInput("");
+    setOllamaError(null);
+
+    // ─── SINGLE-TURN: append to display list but only send current message to LLM ───
+    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+    setIsLoading(true);
+    setStreamingContent("");
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const response = await fetch(OLLAMA_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model,
+          stream: true,
+          // ── Only system prompt + current user message. No history. ──────────
+          messages: [
+            {
+              role: "system",
+              content: FLOWDESK_SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content: userText,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
+      if (!response.body) throw new Error("No response body from Ollama");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const parsed: OllamaResponseChunk = JSON.parse(line);
+            if (parsed.message?.content) {
+              fullContent += parsed.message.content;
+              setStreamingContent(fullContent);
             }
-
-            const before = remaining.slice(0, firstMatch.match.index!);
-            if (before) parts.push(before);
-
-            if (firstMatch.type === "bold") {
-                parts.push(<strong key={`${i}-b`}>{firstMatch.match[1]}</strong>);
-            } else if (firstMatch.type === "code") {
-                parts.push(
-                    <code
-                        key={`${i}-c`}
-                        style={{
-                            background: "rgba(0,0,0,0.06)",
-                            padding: "1px 5px",
-                            borderRadius: 4,
-                            fontSize: "0.85em",
-                            fontFamily: "monospace",
-                        }}
-                    >
-                        {firstMatch.match[1]}
-                    </code>
-                );
-            } else if (firstMatch.type === "italic") {
-                parts.push(<em key={`${i}-i`}>{firstMatch.match[1]}</em>);
-            }
-
-            remaining = remaining.slice(firstMatch.match.index! + firstMatch.match[0].length);
-            i++;
+          } catch {
+            // malformed chunk — skip
+          }
         }
+      }
 
-        return parts.length === 1 && typeof parts[0] === "string" ? parts[0] : <>{parts}</>;
-    };
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: fullContent },
+      ]);
+      setStreamingContent("");
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
 
-    for (const line of lines) {
-        const trimmed = line.trim();
+      const message =
+        err instanceof Error ? err.message : "Unknown error occurred";
 
-        // Headers
-        if (trimmed.startsWith("### ")) {
-            flushList();
-            elements.push(
-                <h4 key={key++} style={{ fontSize: "0.9rem", fontWeight: 700, margin: "10px 0 4px", color: "#1e293b" }}>
-                    {renderInline(trimmed.slice(4))}
-                </h4>
-            );
-            continue;
-        }
-        if (trimmed.startsWith("## ")) {
-            flushList();
-            elements.push(
-                <h3 key={key++} style={{ fontSize: "0.95rem", fontWeight: 700, margin: "10px 0 4px", color: "#1e293b" }}>
-                    {renderInline(trimmed.slice(3))}
-                </h3>
-            );
-            continue;
-        }
-
-        // Unordered list
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-            if (listType !== "ul") flushList();
-            listType = "ul";
-            listItems.push(
-                <li key={key++} style={{ marginBottom: 2, fontSize: "0.875rem", lineHeight: 1.5 }}>
-                    {renderInline(trimmed.slice(2))}
-                </li>
-            );
-            continue;
-        }
-
-        // Ordered list
-        const orderedMatch = trimmed.match(/^(\d+)\.\s+(.+)/);
-        if (orderedMatch) {
-            if (listType !== "ol") flushList();
-            listType = "ol";
-            listItems.push(
-                <li key={key++} style={{ marginBottom: 2, fontSize: "0.875rem", lineHeight: 1.5 }}>
-                    {renderInline(orderedMatch[2])}
-                </li>
-            );
-            continue;
-        }
-
-        // Empty line
-        if (!trimmed) {
-            flushList();
-            elements.push(<div key={key++} style={{ height: 6 }} />);
-            continue;
-        }
-
-        // Regular paragraph
-        flushList();
-        elements.push(
-            <p key={key++} style={{ margin: "2px 0", fontSize: "0.875rem", lineHeight: 1.6 }}>
-                {renderInline(trimmed)}
-            </p>
-        );
+      setOllamaError(
+        message.includes("fetch") || message.includes("Failed")
+          ? "Cannot reach Ollama at 127.0.0.1:11434"
+          : `Ollama error: ${message}`,
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    flushList();
-    return elements;
-};
+  const stopGeneration = (): void => {
+    abortRef.current?.abort();
+    setIsLoading(false);
+    if (streamingContent) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: streamingContent },
+      ]);
+      setStreamingContent("");
+    }
+  };
 
-/* ─── Quick Suggestions Per Page ─── */
-const getPageSuggestions = (path: string): string[] => {
-    const suggestions: Record<string, string[]> = {
-        "/dashboard": ["What do the dashboard stats mean?", "How do I track overdue tasks?", "Show me my team overview"],
-        "/assignments": ["How do I create a project?", "How to add team members to a project?", "How to filter assignments?"],
-        "/tasks": ["How do I create a task?", "How to change task priority?", "How to use bulk actions?"],
-        "/clients": ["How do I add a company?", "How to import from Excel?", "How to add contacts?"],
-        "/teams": ["How to invite team members?", "What are team roles?", "How to create a team?"],
-        "/calendar": ["What do the colors mean?", "How to filter by project?", "How to export the calendar?"],
-        "/reports": ["How to generate a report?", "How to export as PDF?", "What report types are available?"],
-        "/settings": ["How to change my password?", "How to enable dark mode?", "How to set up notifications?"],
-    };
+  const clearChat = (): void => {
+    setMessages([
+      { role: "assistant", content: "Chat cleared! I'm still here to help." },
+    ]);
+    setOllamaError(null);
+  };
 
-    return suggestions[path] || ["What can I do on this page?", "How do I create a task?", "Help me navigate"];
-};
+  const handleTextareaChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    setInput(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  };
 
-/* ─── Buddy Component ─── */
-const Buddy: React.FC = () => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-    const location = useLocation();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
 
-    // Get current page context (Title, H1, etc.)
-    const pageContext = {
-        title: document.title,
-        header: document.querySelector('h1')?.innerText || document.querySelector('h2')?.innerText || '',
-        path: location.pathname
-    };
+  // if route is /chat or /chat/user then return null
+  const location = useLocation();
+  if (location.pathname === "/chat" || location.pathname === "/canvas") {
+    return null;
+  }
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; }
 
-    useEffect(() => {
-        if (isOpen) {
-            setTimeout(() => inputRef.current?.focus(), 200);
+        @keyframes bounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-5px); opacity: 1; }
         }
-    }, [isOpen]);
-
-    const clearChat = () => {
-        setMessages([]);
-        setIsLoading(false);
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-    };
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
 
-    const sendMessage = useCallback(
-        async (overrideMessage?: string) => {
-            const userMessage = (overrideMessage || input).trim();
-            if (!userMessage || isLoading) return;
+        .msg-enter { animation: fadeIn 0.2s ease; }
 
-            const userMsg: Message = { role: "user", content: userMessage };
-            const newMessages = [...messages, userMsg];
-            setMessages(newMessages);
-            setInput("");
-            setIsLoading(true);
+        .buddy-floating-btn {
+          position: fixed; bottom: 24px; right: 24px;
+          width: 62px; height: 62px; border-radius: 50%; border: none;
+          cursor: pointer; z-index: 9999;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          color: white; font-size: 26px;
+          box-shadow: 0 10px 30px rgba(99,102,241,0.35), 0 0 0 1px rgba(255,255,255,0.08);
+          transition: all 0.2s ease;
+        }
+        .buddy-floating-btn:hover { transform: translateY(-2px) scale(1.03); }
 
-            // Create placeholder assistant message for streaming
-            const assistantPlaceholder: Message = { role: "assistant", content: "", isStreaming: true };
-            setMessages([...newMessages, assistantPlaceholder]);
+        .buddy-window {
+          position: fixed; bottom: 24px; right: 24px;
+          width: 400px; height: 720px; max-height: calc(100vh - 48px);
+          border-radius: 24px; overflow: hidden; z-index: 9999;
+          box-shadow: 0 25px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
+          animation: fadeUp 0.25s ease;
+        }
+        .buddy-window.minimized { height: 72px; }
+        .buddy-window.minimized .messages-area,
+        .buddy-window.minimized .input-area,
+        .buddy-window.minimized .suggestions,
+        .buddy-window.minimized .settings-panel,
+        .buddy-window.minimized .error-banner { display: none; }
 
-            const abortController = new AbortController();
-            abortControllerRef.current = abortController;
+        .buddy-root {
+          width: 100%; height: 100%; display: flex; flex-direction: column;
+          background: #0f1117; color: #e2e8f0; position: relative; overflow: hidden;
+        }
 
-            try {
-                // Build history for context (last 10 messages)
-                const history = newMessages.slice(-10).map((m) => ({
-                    role: m.role,
-                    content: m.content,
-                }));
+        .header {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 14px 20px;
+          border-bottom: 1px solid rgba(255,255,255,0.07);
+          background: rgba(15,17,23,0.95); backdrop-filter: blur(10px);
+          flex-shrink: 0; z-index: 10;
+        }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .avatar {
+          width: 34px; height: 34px; border-radius: 10px;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          display: flex; align-items: center; justify-content: center;
+          font-weight: 700; font-size: 15px; color: #fff;
+        }
+        .header-title { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+        .header-sub { font-size: 12px; color: #64748b; margin-top: 1px; }
+        .header-actions { display: flex; gap: 6px; }
+        .icon-btn {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: #94a3b8; border-radius: 8px;
+          width: 32px; height: 32px; cursor: pointer;
+          display: flex; align-items: center; justify-content: center; font-size: 15px;
+        }
 
-                const response = await fetch(`${API_BASE}/buddy/stream`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        message: userMessage,
-                        path: location.pathname,
-                        context: pageContext,
-                        history,
-                    }),
-                    signal: abortController.signal,
-                });
+        .single-turn-badge {
+          display: flex; align-items: center; gap: 6px;
+          padding: 6px 14px;
+          background: rgba(99,102,241,0.08);
+          border-bottom: 1px solid rgba(99,102,241,0.15);
+          font-size: 11px; color: #818cf8; flex-shrink: 0;
+        }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #6366f1; }
 
-                if (!response.ok || !response.body) {
-                    // Fallback to non-streaming endpoint
-                    const fallbackRes = await fetch(`${API_BASE}/buddy`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ message: userMessage, path: location.pathname, context: pageContext, history }),
-                    });
-                    const fallbackData = await fallbackRes.json();
-                    setMessages([...newMessages, { role: "assistant", content: fallbackData.reply || "I'm here to help! What would you like to know about FlowDesk?" }]);
-                    setIsLoading(false);
-                    return;
-                }
+        .messages-area { flex: 1; overflow-y: auto; padding: 20px 20px 8px; }
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let fullContent = "";
+        .suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 20px 14px; }
+        .suggestion-chip {
+          background: rgba(99,102,241,0.1);
+          border: 1px solid rgba(99,102,241,0.25);
+          color: #a5b4fc; padding: 5px 11px; border-radius: 20px;
+          font-size: 12px; cursor: pointer;
+        }
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+        .input-area {
+          display: flex; align-items: flex-end; gap: 10px;
+          padding: 12px 20px 18px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .input-wrap {
+          flex: 1; background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1); border-radius: 14px;
+          display: flex; align-items: flex-end; padding: 2px 4px 2px 14px;
+        }
+        .input-wrap textarea {
+          flex: 1; background: transparent; border: none; outline: none;
+          color: #e2e8f0; font-size: 14px; resize: none;
+          line-height: 1.5; padding: 9px 0; max-height: 120px;
+        }
+        .send-btn {
+          width: 34px; height: 34px; border-radius: 10px; border: none;
+          cursor: pointer; display: flex; align-items: center;
+          justify-content: center; margin-bottom: 3px;
+        }
+        .send-btn.active { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+        .send-btn.stop { background: rgba(239,68,68,0.15); color: #f87171; }
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split("\n").filter((l) => l.startsWith("data: "));
+        .error-banner {
+          margin: 0 16px 8px; padding: 10px 14px; border-radius: 10px;
+          background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);
+          color: #fca5a5; font-size: 12px;
+        }
 
-                    for (const line of lines) {
-                        const data = line.slice(6).trim();
-                        if (data === "[DONE]") continue;
+        @media (max-width: 640px) {
+          .buddy-window {
+            width: calc(100vw - 24px); height: calc(100vh - 24px);
+            bottom: 12px; right: 12px; border-radius: 20px;
+          }
+          .buddy-floating-btn { bottom: 18px; right: 18px; }
+        }
+      `}</style>
 
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.content) {
-                                fullContent += parsed.content;
-                                setMessages([...newMessages, { role: "assistant", content: fullContent, isStreaming: true }]);
-                            }
-                        } catch {
-                            // Skip unparseable
-                        }
-                    }
-                }
+      {/* Floating Open Button */}
+      {!isOpen && (
+        <button className="buddy-floating-btn" onClick={() => setIsOpen(true)}>
+          💬
+        </button>
+      )}
 
-                // Finalize message (remove streaming flag)
-                setMessages([...newMessages, { role: "assistant", content: fullContent || "I'm here to help! What would you like to know about FlowDesk?" }]);
-            } catch (err: any) {
-                if (err.name === "AbortError") return;
-
-                // Fallback to non-streaming
-                try {
-                    const history = newMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
-                    const res = await fetch(`${API_BASE}/buddy`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ message: userMessage, path: location.pathname, history }),
-                    });
-                    const data = await res.json();
-                    setMessages([...newMessages, { role: "assistant", content: data.reply || "I'm here to help! Ask me anything about FlowDesk." }]);
-                } catch {
-                    setMessages([
-                        ...newMessages,
-                        {
-                            role: "assistant",
-                            content: "I'm here to help! 👋\n\nUse the **sidebar** to navigate between pages. Each page has a **Create** button (top right) for adding new items.\n\nWhat would you like to do?",
-                        },
-                    ]);
-                }
-            } finally {
-                setIsLoading(false);
-                abortControllerRef.current = null;
-            }
-        },
-        [input, messages, isLoading, location.pathname, pageContext]
-    );
-
-    const suggestions = getPageSuggestions(location.pathname);
-    
-    if (location.pathname === '/chat') return null;
-
-    return (
-        <>
-            {/* Floating trigger button */}
-            <div
-                onClick={() => setIsOpen(!isOpen)}
-                style={{
-                    position: "fixed",
-                    bottom: 80,
-                    right: 24,
-                    width: 56,
-                    height: 56,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 8px 32px rgba(79, 70, 229, 0.4)",
-                    zIndex: 1000,
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(1.1)";
-                    e.currentTarget.style.boxShadow = "0 12px 40px rgba(79, 70, 229, 0.5)";
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = "0 8px 32px rgba(79, 70, 229, 0.4)";
-                }}
-                title="Open FlowDesk Buddy"
-
-            >
-                {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
+      {/* Floating Chat Window */}
+      {isOpen && (
+        <div className={`buddy-window ${isMinimized ? "minimized" : ""}`}>
+          <div className="buddy-root">
+            {/* Header */}
+            <div className="header">
+              <div className="header-left">
+                {/* <div className="avatar">F</div> */}
+                <div>
+                  <div
+                    className={`header-title ${isMinimized ? "hidden" : ""}`}
+                  >
+                    FlowDesk Buddy
+                  </div>
+                  {/* <div className="header-sub">Powered by Ollama <br /> {model}</div> */}
+                </div>
+              </div>
+              <div className="header-actions">
+                {/* <button className="icon-btn" onClick={() => setIsMinimized((m) => !m)}>
+                  {isMinimized ? "▢" : "—"}
+                  </button> */}
+                <button className="icon-btn" onClick={clearChat}>
+                  ⟳
+                </button>
+                <button className="icon-btn" onClick={() => setIsOpen(false)}>
+                  ✕
+                </button>
+                {/* <button className="icon-btn" onClick={() => setShowSettings((s) => !s)}>⚙</button> */}
+              </div>
             </div>
 
-            {/* Chat Window */}
-            {isOpen && (
-                <div
-                    style={{
-                        position: "fixed",
-                        bottom: 92,
-                        right: 24,
-                        width: 420,
-                        height: 580,
-                        background: "#ffffff",
-                        borderRadius: 16,
-                        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)",
-                        display: "flex",
-                        flexDirection: "column",
-                        overflow: "hidden",
-                        zIndex: 999,
-                        animation: "buddySlideUp 0.3s ease-out",
-                    }}
-                >
-                    <style>{`
-                        @keyframes buddySlideUp {
-                            from { opacity: 0; transform: translateY(20px) scale(0.95); }
-                            to { opacity: 1; transform: translateY(0) scale(1); }
-                        }
-                        @keyframes buddyPulse {
-                            0%, 100% { opacity: 0.4; }
-                            50% { opacity: 1; }
-                        }
-                        @keyframes buddyCursor {
-                            0%, 100% { opacity: 1; }
-                            50% { opacity: 0; }
-                        }
-                    `}</style>
+            {/* Single-turn mode badge */}
+            {/* <div className="single-turn-badge">
+              <div className="badge-dot" />
+              Single-turn mode — each message answered from built-in FlowDesk knowledge
+            </div> */}
 
-                    {/* Header */}
-                    <div
-                        style={{
-                            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-                            padding: "16px 20px",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            flexShrink: 0,
-                        }}
-                    >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: "50%",
-                                    background: "rgba(255,255,255,0.2)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Sparkles size={18} color="white" />
-                            </div>
-                            <div>
-                                <h3 style={{ color: "white", fontSize: "1rem", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>FlowDesk Buddy</h3>
-                                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem", margin: 0 }}>
-                                    {isLoading ? "Thinking..." : "Ask me anything"}
-                                </p>
-                            </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                            {messages.length > 0 && (
-                                <button
-                                    onClick={clearChat}
-                                    style={{
-                                        background: "rgba(255,255,255,0.15)",
-                                        border: "none",
-                                        borderRadius: 8,
-                                        padding: 8,
-                                        cursor: "pointer",
-                                        color: "rgba(255,255,255,0.8)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                    }}
-                                    title="Clear chat"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                style={{
-                                    background: "rgba(255,255,255,0.15)",
-                                    border: "none",
-                                    borderRadius: 8,
-                                    padding: 8,
-                                    cursor: "pointer",
-                                    color: "rgba(255,255,255,0.8)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                }}
-                                title="Close"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                    </div>
+            {/* Settings */}
+            {/* {showSettings && (
+              <div className="settings-panel" style={{ padding: 20, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>Ollama model</div>
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={{
+                    width: "100%", padding: 10, borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.05)", color: "#fff",
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            )} */}
 
-                    {/* Messages area */}
-                    <div
-                        style={{
-                            flex: 1,
-                            overflowY: "auto",
-                            padding: "16px 16px 8px",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 16,
-                            background: "#fafafa",
-                        }}
-                    >
-                        {/* Empty state */}
-                        {messages.length === 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, padding: "20px 0" }}>
-                                <div
-                                    style={{
-                                        width: 64,
-                                        height: 64,
-                                        borderRadius: "50%",
-                                        background: "linear-gradient(135deg, #ede9fe, #e0e7ff)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        marginBottom: 16,
-                                    }}
-                                >
-                                    <Bot size={28} color="#6366f1" />
-                                </div>
-                                <p style={{ fontSize: "1rem", fontWeight: 600, color: "#1e293b", margin: "0 0 4px" }}>Hi! I'm FlowDesk Buddy</p>
-                                <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 20px", textAlign: "center" }}>
-                                    Your intelligent assistant for everything in FlowDesk
-                                </p>
+            {/* Error banner */}
+            {ollamaError && <div className="error-banner">⚠ {ollamaError}</div>}
 
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-                                    <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                                        Suggested questions
-                                    </p>
-                                    {suggestions.map((q: string, idx: number) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => sendMessage(q)}
-                                            style={{
-                                                background: "white",
-                                                border: "1px solid #e2e8f0",
-                                                borderRadius: 10,
-                                                padding: "10px 14px",
-                                                fontSize: "0.85rem",
-                                                color: "#475569",
-                                                cursor: "pointer",
-                                                textAlign: "left",
-                                                transition: "all 0.15s ease",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 8,
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = "#f1f5f9";
-                                                e.currentTarget.style.borderColor = "#6366f1";
-                                                e.currentTarget.style.color = "#4f46e5";
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.background = "white";
-                                                e.currentTarget.style.borderColor = "#e2e8f0";
-                                                e.currentTarget.style.color = "#475569";
-                                            }}
-                                        >
-                                            <MessageCircle size={16} style={{ opacity: 0.5, flexShrink: 0 }} />
-                                            {q}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Messages */}
-                        {messages.filter(m => m.role === 'user' || m.content !== '').map((msg, i) => (
-                            <div key={i} style={{ display: "flex", gap: 10, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
-                                {/* Avatar */}
-                                <div
-                                    style={{
-                                        width: 30,
-                                        height: 30,
-                                        borderRadius: "50%",
-                                        background: msg.role === "user" ? "linear-gradient(135deg, #6366f1, #7c3aed)" : "linear-gradient(135deg, #e0e7ff, #ede9fe)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        flexShrink: 0,
-                                        marginTop: 2,
-                                    }}
-                                >
-                                    {msg.role === "user" ? <User size={16} color="white" /> : <Sparkles size={16} color="#6366f1" />}
-                                </div>
-
-                                {/* Message bubble */}
-                                <div
-                                    style={{
-                                        maxWidth: "82%",
-                                        padding: "10px 14px",
-                                        borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                                        background: msg.role === "user" ? "linear-gradient(135deg, #4f46e5, #6366f1)" : "white",
-                                        color: msg.role === "user" ? "white" : "#1e293b",
-                                        boxShadow: msg.role === "user" ? "0 2px 8px rgba(79, 70, 229, 0.2)" : "0 1px 4px rgba(0, 0, 0, 0.06)",
-                                        border: msg.role === "user" ? "none" : "1px solid #e2e8f0",
-                                    }}
-                                >
-                                    {msg.role === "user" ? (
-                                        <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.6 }}>{msg.content}</p>
-                                    ) : (
-                                        <div>
-                                            {renderMarkdown(msg.content)}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Typing indicator */}
-                        {isLoading && messages[messages.length - 1]?.content === "" && (
-                            <div style={{ display: "flex", gap: 10 }}>
-                                <div
-                                    style={{
-                                        width: 30,
-                                        height: 30,
-                                        borderRadius: "50%",
-                                        background: "linear-gradient(135deg, #e0e7ff, #ede9fe)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        flexShrink: 0,
-                                    }}
-                                >
-                                    <Sparkles size={16} color="#6366f1" />
-                                </div>
-                                <div
-                                    style={{
-                                        background: "white",
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "14px 14px 14px 4px",
-                                        padding: "12px 18px",
-                                        display: "flex",
-                                        gap: 5,
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    {[0, 1, 2].map((i) => (
-                                        <span
-                                            key={i}
-                                            style={{
-                                                width: 7,
-                                                height: 7,
-                                                borderRadius: "50%",
-                                                background: "#6366f1",
-                                                animation: `buddyPulse 1.4s ease-in-out infinite`,
-                                                animationDelay: `${i * 0.2}s`,
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Input area */}
-                    <div
-                        style={{
-                            padding: "12px 16px 16px",
-                            background: "white",
-                            borderTop: "1px solid #f1f5f9",
-                            flexShrink: 0,
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: 8,
-                                alignItems: "center",
-                                background: "#f8fafc",
-                                borderRadius: 12,
-                                border: "1px solid #e2e8f0",
-                                padding: "4px 4px 4px 14px",
-                                transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-                            }}
-                            onFocus={(e) => {
-                                e.currentTarget.style.borderColor = "#6366f1";
-                                e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 102, 241, 0.1)";
-                            }}
-                            onBlur={(e) => {
-                                e.currentTarget.style.borderColor = "#e2e8f0";
-                                e.currentTarget.style.boxShadow = "none";
-                            }}
-                        >
-                            <input
-                                ref={inputRef}
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        e.preventDefault();
-                                        sendMessage();
-                                    }
-                                }}
-                                placeholder="Ask anything about FlowDesk..."
-                                disabled={isLoading}
-                                style={{
-                                    flex: 1,
-                                    border: "none",
-                                    outline: "none",
-                                    background: "transparent",
-                                    fontSize: "0.875rem",
-                                    color: "#1e293b",
-                                    padding: "8px 0",
-                                }}
-                            />
-                            <button
-                                onClick={() => sendMessage()}
-                                disabled={isLoading || !input.trim()}
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 10,
-                                    border: "none",
-                                    background: input.trim() ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "#e2e8f0",
-                                    color: input.trim() ? "white" : "#94a3b8",
-                                    cursor: input.trim() && !isLoading ? "pointer" : "default",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    transition: "all 0.2s ease",
-                                    flexShrink: 0,
-                                }}
-                            >
-                                <Send size={16} />
-                            </button>
-                        </div>
-                        <p style={{ fontSize: "0.7rem", color: "#94a3b8", textAlign: "center", margin: "8px 0 0", lineHeight: 1.3 }}>
-                            Powered by FlowDesk AI · Ask about any feature
-                        </p>
-                    </div>
+            {/* Messages */}
+            <div className="messages-area">
+              {messages.map((msg, i) => (
+                <div key={i} className="msg-enter">
+                  <Message msg={msg} />
                 </div>
+              ))}
+              {isLoading && !streamingContent && <TypingIndicator />}
+              {streamingContent && (
+                <div className="msg-enter">
+                  <Message
+                    msg={{ role: "assistant", content: streamingContent }}
+                  />
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Quick suggestions (show only at start) */}
+            {messages.length <= 1 && (
+              <div className="suggestions">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    className="suggestion-chip"
+                    onClick={() => sendMessage(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             )}
-        </>
-    );
+
+            {/* Input */}
+            <div className="input-area">
+              <div className="input-wrap">
+                <textarea
+                  ref={inputRef}
+                  rows={1}
+                  placeholder="Ask me anything about FlowDesk..."
+                  value={input}
+                  onChange={handleTextareaChange}
+                  onKeyDown={handleKeyDown}
+                />
+              </div>
+              {isLoading ? (
+                <button className="send-btn stop" onClick={stopGeneration}>
+                  ■
+                </button>
+              ) : (
+                <button
+                  className={`send-btn ${input.trim() ? "active" : ""}`}
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim()}
+                >
+                  ↑
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
-export default Buddy;
+export default FlowDeskBuddy;
