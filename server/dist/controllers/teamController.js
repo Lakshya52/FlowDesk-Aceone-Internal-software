@@ -44,7 +44,7 @@ const createTeam = async (req, res) => {
         const team = await Team_1.default.create({
             ...req.body,
             createdBy: req.user._id,
-            manager: req.user._id,
+            // manager: req.user!._id,
         });
         await ActivityLog_1.default.create({
             action: 'Team created',
@@ -75,7 +75,8 @@ const getTeams = async (req, res) => {
         const teams = await Team_1.default.find(query)
             .populate('members', 'name email avatar role')
             .populate('createdBy', 'name email')
-            .populate('manager', 'name email')
+            .populate('manager', 'name email avatar')
+            .populate('joinRequests', 'name email avatar role')
             .sort({ createdAt: -1 });
         res.json({ teams });
     }
@@ -161,7 +162,9 @@ const updateTeamMembers = async (req, res) => {
         await team.save();
         const populated = await Team_1.default.findById(team._id)
             .populate('members', 'name email avatar role')
-            .populate('createdBy', 'name email');
+            .populate('createdBy', 'name email')
+            .populate('manager', 'name email avatar')
+            .populate('joinRequests', 'name email avatar role');
         await ActivityLog_1.default.create({
             action: 'Team members updated',
             user: req.user._id,

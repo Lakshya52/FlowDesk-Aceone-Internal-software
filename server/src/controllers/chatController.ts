@@ -5,6 +5,7 @@ import { AuthRequest } from '../middlewares/auth';
 import { io } from '../index';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../models/Notification';
+import { encrypt, decrypt } from '../utils/encryption';
 
 import { uploadToGridFS } from '../utils/gridfs';
 
@@ -53,8 +54,11 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             }
         }
 
+        // Encrypt message content before storing in DB
+        const encryptedContent = content ? encrypt(content) : '';
+
         const message = await ChatMessage.create({
-            content: content || '',
+            content: encryptedContent,
             sender: req.user!._id,
             assignment: assignmentId,
             attachments: attachmentIds,
@@ -74,8 +78,14 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                 populate: { path: 'sender', select: 'name' }
             });
 
+        // Decrypt content before sending to clients (HTTP response + socket)
+        const populatedObj = populated ? (populated as any).toObject() : null;
+        if (populatedObj && populatedObj.content) {
+            populatedObj.content = decrypt(populatedObj.content);
+        }
+
         // Emit to all users in the assignment room
-        io.to(`assignment_${assignmentId}`).emit('new_message', populated);
+        io.to(`assignment_${assignmentId}`).emit('new_message', populatedObj);
 
         // Notify mentioned users
         if (mentions && Array.isArray(mentions)) {
@@ -108,7 +118,7 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             }
         }
 
-        res.status(201).json({ message: populated });
+        res.status(201).json({ message: populatedObj });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -147,7 +157,16 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
             .skip(skip)
             .limit(limitNum);
 
-        res.json({ messages, total, page: pageNum, totalPages: Math.ceil(total / limitNum) });
+        // Decrypt message content before sending to client
+        const decryptedMessages = messages.map(msg => {
+            const msgObj = (msg as any).toObject();
+            if (msgObj.content) {
+                msgObj.content = decrypt(msgObj.content);
+            }
+            return msgObj;
+        });
+
+        res.json({ messages: decryptedMessages, total, page: pageNum, totalPages: Math.ceil(total / limitNum) });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }

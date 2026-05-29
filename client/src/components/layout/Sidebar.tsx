@@ -13,14 +13,16 @@ import {
     Settings,
     // Zap,
     Users,
-    Menu,
-    ChevronLeft,
+    // Menu,
+    // ChevronLeft,
     ChevronDown,
     // ChevronRight
     Building2,
     Shapes,
     Mail,
-    MessageSquare
+    MessageSquare,
+    PanelRightClose,
+    PanelLeftClose
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -144,7 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                         color: 'var(--color-text-secondary)'
                     }}
                 >
-                    {isOpen ? <ChevronLeft size={16} /> : <Menu size={16} />}
+                    {isOpen ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
                 </button>
             </div>
 

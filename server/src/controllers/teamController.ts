@@ -8,7 +8,7 @@ export const createTeam = async (req: AuthRequest, res: Response): Promise<void>
         const team = await Team.create({
             ...req.body,
             createdBy: req.user!._id,
-            manager: req.user!._id,
+            // manager: req.user!._id,
         });
 
         await ActivityLog.create({
@@ -43,7 +43,8 @@ export const getTeams = async (req: AuthRequest, res: Response): Promise<void> =
         const teams = await Team.find(query)
             .populate('members', 'name email avatar role')
             .populate('createdBy', 'name email')
-            .populate('manager', 'name email')
+            .populate('manager', 'name email avatar')
+            .populate('joinRequests', 'name email avatar role')
             .sort({ createdAt: -1 });
 
         res.json({ teams });
@@ -136,7 +137,9 @@ export const updateTeamMembers = async (req: AuthRequest, res: Response): Promis
 
         const populated = await Team.findById(team._id)
             .populate('members', 'name email avatar role')
-            .populate('createdBy', 'name email');
+            .populate('createdBy', 'name email')
+            .populate('manager', 'name email avatar')
+            .populate('joinRequests', 'name email avatar role');
 
         await ActivityLog.create({
             action: 'Team members updated',
