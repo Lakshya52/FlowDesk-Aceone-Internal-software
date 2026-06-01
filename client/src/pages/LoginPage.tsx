@@ -87,7 +87,7 @@ const LoginPage: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             background: 'var(--color-bg)',
-            padding: 24,
+            padding: window.innerWidth < 768 ? 16 : 24,
             position: 'relative'
         }}>
             {/* Back Button */}

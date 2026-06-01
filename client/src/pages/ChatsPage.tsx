@@ -147,6 +147,7 @@ export default function ChatsPage() {
 
   // Sidebar collapse state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isMobile = window.innerWidth < 768;
 
   // Hover States
   const [hoveredConvId, setHoveredConvId] = useState<string | null>(null);
@@ -887,7 +888,7 @@ export default function ChatsPage() {
         style={{
           height: "calc(100vh - 120px)",
           display: "flex",
-          borderRadius: 24,
+          borderRadius: isMobile ? 12 : 24,
           background: "var(--color-surface)",
           border: "1px solid var(--color-border)",
           boxShadow: "var(--shadow-lg)",
@@ -898,17 +899,18 @@ export default function ChatsPage() {
         {/* LEFT PANEL: Chats List — collapsible */}
         <div
           style={{
-            width: sidebarCollapsed ? 0 : 340,
-            minWidth: sidebarCollapsed ? 0 : 340,
-            display: "flex",
+            width: sidebarCollapsed ? 0 : (isMobile ? '100%' : 340),
+            minWidth: sidebarCollapsed ? 0 : (isMobile ? '100%' : 340),
+            display: sidebarCollapsed && isMobile ? 'none' : 'flex',
             flexDirection: "column",
             borderRight: sidebarCollapsed
               ? "none"
               : "1px solid var(--color-border)",
             background: "var(--color-surface)",
             overflow: "hidden",
-            transition: "width 0.25s ease, min-width 0.25s ease",
+            transition: isMobile ? 'none' : "width 0.25s ease, min-width 0.25s ease",
             flexShrink: 0,
+            ...(isMobile && !sidebarCollapsed ? { position: 'absolute' as any, inset: 0, zIndex: 20 } : {}),
           }}
         >
           <div
@@ -1051,7 +1053,8 @@ export default function ChatsPage() {
                           key={c._id}
                           onClick={() => {
                             setActiveConversationId(c._id);
-                            // On mobile-like widths auto-collapse sidebar
+                            // On mobile auto-collapse sidebar to show chat
+                            if (isMobile) setSidebarCollapsed(true);
                           }}
                           onMouseEnter={() => setHoveredConvId(c._id)}
                           onMouseLeave={() => setHoveredConvId(null)}
@@ -1215,7 +1218,10 @@ export default function ChatsPage() {
                     {matchingExternalUsers.map((u) => (
                       <div
                         key={u._id}
-                        onClick={() => handleStartDirectChat(u._id)}
+                        onClick={() => {
+                          handleStartDirectChat(u._id);
+                          if (isMobile) setSidebarCollapsed(true);
+                        }}
                         onMouseEnter={() => setHoveredContactId(u._id)}
                         onMouseLeave={() => setHoveredContactId(null)}
                         style={{
@@ -1293,8 +1299,8 @@ export default function ChatsPage() {
               {/* Conversation Header */}
               <div
                 style={{
-                  height: 64,
-                  padding: "0 24px",
+                  height: isMobile ? 56 : 64,
+                  padding: isMobile ? "0 12px" : "0 24px",
                   borderBottom: "1px solid var(--color-border)",
                   background: "var(--color-surface)",
                   display: "flex",
@@ -1305,8 +1311,8 @@ export default function ChatsPage() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {/* Expand sidebar button — visible only when collapsed */}
-                  {sidebarCollapsed && (
+                  {/* Back / Expand sidebar button — visible when collapsed or always on mobile */}
+                  {(sidebarCollapsed || isMobile) && (
                     <button
                       onClick={() => setSidebarCollapsed(false)}
                       style={{

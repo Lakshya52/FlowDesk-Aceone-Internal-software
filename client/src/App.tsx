@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'react-hot-toast';
+import React, { useState, useEffect } from "react";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "react-hot-toast";
+import { WifiOff } from "lucide-react";
 // import axios from 'axios';
-import api from './lib/api';
-import AppLayout from './components/layout/AppLayout';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import AssignmentsPage from './pages/AssignmentsPage';
-import AssignmentDetailPage from './pages/AssignmentDetailPage';
-import TasksPage from './pages/TasksPage';
-import CalendarPage from './pages/CalendarPage';
-import ReportsPage from './pages/ReportsPage';
-import FilesPage from './pages/FilesPage';
-import SettingsPage from './pages/SettingsPage';
-import TeamsPage from './pages/TeamsPage';
-import ClientsPage from './pages/ClientsPage';
-import CanvasPage from './pages/CanvasPage';
-import BulkEmailPage from './pages/BulkEmailPage';
-import ChatsPage from './pages/ChatsPage';
+import api from "./lib/api";
+import AppLayout from "./components/layout/AppLayout";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import AssignmentsPage from "./pages/AssignmentsPage";
+import AssignmentDetailPage from "./pages/AssignmentDetailPage";
+import TasksPage from "./pages/TasksPage";
+import CalendarPage from "./pages/CalendarPage";
+import ReportsPage from "./pages/ReportsPage";
+import FilesPage from "./pages/FilesPage";
+import SettingsPage from "./pages/SettingsPage";
+import TeamsPage from "./pages/TeamsPage";
+import ClientsPage from "./pages/ClientsPage";
+import CanvasPage from "./pages/CanvasPage";
+import BulkEmailPage from "./pages/BulkEmailPage";
+import ChatsPage from "./pages/ChatsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,9 +27,70 @@ const queryClient = new QueryClient({
   },
 });
 
-import LandingPage from './pages/LandingPage';
-import NotFoundPage from './pages/NotFoundPage';
-import Buddy from './components/common/Buddy';
+import LandingPage from "./pages/LandingPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import Buddy from "./components/common/Buddy";
+
+const OfflineBanner: React.FC = () => {
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline = () => setIsOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online", goOnline);
+    return () => {
+      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online", goOnline);
+    };
+  }, []);
+
+  if (!isOffline) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 99999,
+        display: "flex",
+        justifyContent: "center",
+        padding: "12px 16px",
+        pointerEvents: "none",
+        animation: "slideDown 0.35s ease-out",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "12px 24px",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #1e293b, #0f172a)",
+          color: "#f8fafc",
+          fontSize: "0.875rem",
+          fontWeight: 600,
+          boxShadow:
+            "0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)",
+          backdropFilter: "blur(12px)",
+          pointerEvents: "auto",
+        }}
+      >
+        <WifiOff size={18} style={{ color: "#f87171", flexShrink: 0 }} />
+        <span>Internet Connection Required</span>
+      </div>
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   const [isBackendReady, setIsBackendReady] = useState<boolean | null>(null);
@@ -36,10 +98,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        await api.get('/health');
+        await api.get("/health");
         setIsBackendReady(true);
       } catch (error) {
-        console.error('Backend health check failed:', error);
+        console.error("Backend health check failed:", error);
         setIsBackendReady(false);
       }
     };
@@ -64,19 +126,38 @@ const App: React.FC = () => {
 
   if (isBackendReady === false) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-outfit " style={{ padding: "20px" }}>
-        <div className="p-8 flex flex-col items-center justify-center gap-5  rounded-3xl bg-white border border-slate-200 shadow-xl max-w-md w-full relative overflow-hidden" style={{ padding: "30px" }}>
+      <div
+        className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-outfit "
+        style={{ padding: "20px" }}
+      >
+        <div
+          className="p-8 flex flex-col items-center justify-center gap-5  rounded-3xl bg-white border border-slate-200 shadow-xl max-w-md w-full relative overflow-hidden"
+          style={{ padding: "30px" }}
+        >
           <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#ef4444]/5 rounded-full blur-3xl"></div>
 
           <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-red-100">
-            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg
+              className="w-8 h-8 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Server Connection Failed</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+            Server Connection Failed
+          </h2>
           <p className="text-slate-500 mb-8 leading-relaxed">
-            We couldn't connect to FlowDesk services. This might be due to a temporary outage or network issues.
+            We couldn't connect to FlowDesk services. This might be due to a
+            temporary outage or network issues.
           </p>
 
           <button
@@ -93,6 +174,7 @@ const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OfflineBanner />
       <Toaster position="top-right" />
       <HashRouter>
         <Buddy />
@@ -106,7 +188,10 @@ const App: React.FC = () => {
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/clients" element={<ClientsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/reports" element={<Navigate to="/reports/employee" replace />} />
+            <Route
+              path="/reports"
+              element={<Navigate to="/reports/employee" replace />}
+            />
             <Route path="/reports/:reportType" element={<ReportsPage />} />
             <Route path="/files" element={<FilesPage />} />
             <Route path="/teams" element={<TeamsPage />} />

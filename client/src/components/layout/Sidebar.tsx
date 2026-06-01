@@ -22,7 +22,8 @@ import {
     Mail,
     MessageSquare,
     PanelRightClose,
-    PanelLeftClose
+    PanelLeftClose,
+    X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -129,7 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                 )}
             </div>
 
-            {/* Toggle Button */}
+            {/* Toggle/Close Button */}
             <div style={{ display: 'flex', justifyContent: isOpen ? 'flex-end' : 'center', padding: isOpen ? '12px 16px 0' : '12px 0 0' }}>
                 <button
                     onClick={toggleSidebar}
@@ -146,7 +147,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                         color: 'var(--color-text-secondary)'
                     }}
                 >
-                    {isOpen ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />}
+                    {window.innerWidth < 768 ? <X size={16} /> : (isOpen ? <PanelLeftClose size={16} /> : <PanelRightClose size={16} />)}
                 </button>
             </div>
 

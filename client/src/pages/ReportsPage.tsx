@@ -144,12 +144,12 @@ const ReportsPage = (): React.JSX.Element => {
   return (
     <div className="min-h-screen bg-[var(--color-bg)] pb-20">
       {/* Page Header */}
-      <div className="bg-surface border-b border-border top-0 z-30 card rounded-2xl px-8 lg:px-16 py-10">
+      <div className="bg-surface border-b border-border top-0 z-30 card rounded-2xl px-4 sm:px-8 lg:px-16 py-6 sm:py-10">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8" style={{
           padding: "20px"
         }}>
           <div>
-            <h1 className="text-3xl font-black text-text tracking-tight flex items-center gap-4">
+            <h1 className="text-xl sm:text-3xl font-black text-text tracking-tight flex items-center gap-4">
               <div className="">
                 {activeTabData?.icon
                   ? React.cloneElement(activeTabData.icon as React.ReactElement)
@@ -228,7 +228,7 @@ const ReportsPage = (): React.JSX.Element => {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-12 mt-8">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-12 mt-6 sm:mt-8">
 
 
         {/* Filters Section */}

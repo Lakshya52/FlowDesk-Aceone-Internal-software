@@ -69,11 +69,13 @@ const FilesPage: React.FC = () => {
         return '📎';
     };
 
+    const isMobile = window.innerWidth < 768;
+
     return (
-        <div style={{ maxWidth: 900 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ maxWidth: 900, width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: isMobile ? 16 : 24, gap: isMobile ? 12 : 0 }}>
                 <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Files</h1>
+                    <h1 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Files</h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>{files.length} files</p>
                 </div>
                 {isUploading ? (
@@ -106,7 +108,7 @@ const FilesPage: React.FC = () => {
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {files.map(f => (
-                        <div key={f._id} className="card" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={f._id} className="card" style={{ padding: isMobile ? '12px 14px' : '14px 18px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 10 : 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <span style={{ fontSize: '1.25rem' }}>{getFileIcon(f.fileType)}</span>
                                 <div>

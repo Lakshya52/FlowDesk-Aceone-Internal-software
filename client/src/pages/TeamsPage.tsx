@@ -177,14 +177,15 @@ const TeamsPage: React.FC = () => {
         }
     };
 
-    // ── Render ────────────────────────────────────────────────────
+    const isMobile = window.innerWidth < 768;
+
     return (
-        <div style={{ maxWidth: 1200 }}>
+        <div style={{ maxWidth: 1200, width: '100%' }}>
 
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'flex-start', marginBottom: isMobile ? 20 : 32, gap: isMobile ? 12 : 0 }}>
                 <div>
-                    <h1 style={{ fontSize: '1.625rem', fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 4 }}>
+                    <h1 style={{ fontSize: isMobile ? '1.25rem' : '1.625rem', fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 4 }}>
                         Our Teams
                     </h1>
                     <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
@@ -202,7 +203,7 @@ const TeamsPage: React.FC = () => {
 
             {/* Teams Grid */}
             {loading ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
                     {[1, 2, 3].map(i => (
                         <div key={i} className="skeleton" style={{ height: 230, borderRadius: 14 }} />
                     ))}
@@ -223,7 +224,7 @@ const TeamsPage: React.FC = () => {
                     </p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
                     {teams.map((team: any) => {
                         const selfIsMember    = team.members?.some((m: any) => m._id === user?._id);
                         const selfHasRequest  = team.joinRequests?.some((m: any) => m._id === user?._id);
