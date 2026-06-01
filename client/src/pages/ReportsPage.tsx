@@ -105,7 +105,6 @@ const ReportsPage = (): React.JSX.Element => {
       }
       return newOptions;
     },
-    staleTime: 5 * 60 * 1000,
   });
   useEffect(() => {
     if (queryFilterOptions) {

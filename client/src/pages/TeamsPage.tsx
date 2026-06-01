@@ -37,7 +37,6 @@ const TeamsPage: React.FC = () => {
             const { data } = await api.get('/teams?all=true');
             return data.teams || [];
         },
-        staleTime: 1000 * 60 * 5,
     });
     const teams = teamsData || [];
 
@@ -47,7 +46,6 @@ const TeamsPage: React.FC = () => {
             const { data } = await api.get('/auth/users?all=true');
             return data.users || [];
         },
-        staleTime: 1000 * 60 * 5,
         enabled: isAdmin || isManager,
     });
     const users = usersData || [];
