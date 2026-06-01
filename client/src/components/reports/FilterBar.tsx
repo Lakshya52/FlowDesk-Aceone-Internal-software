@@ -58,9 +58,9 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
 
     return (
         <div className="card p-6  border-border/80 shadow-md " style={{ marginTop: "20px" }}>
-            <div className="flex flex-wrap items-end gap-10">
+            <div className="flex flex-wrap items-end gap-4 sm:gap-6">
                 {/* Date Range Group */}
-                <div className="flex flex-col gap-2 min-w-[280px]">
+                <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[280px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Calendar size={16} className="text-primary" />
                         Time Period
@@ -84,7 +84,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
 
                 {/* Team Filter */}
                 {isAdminOrManager && (
-                    <div className="flex flex-col gap-2 min-w-[180px]">
+                    <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                             <Users size={16} className="text-primary" />
                             Team
@@ -104,7 +104,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
 
                 {/* Employee Filter */}
                 {isAdminOrManager && (
-                    <div className="flex flex-col gap-2 min-w-[180px]">
+                    <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[180px]">
                         <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                             <User size={16} className="text-primary" />
                             Member
@@ -123,7 +123,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 )}
 
                 {/* Project Filter */}
-                <div className="flex flex-col gap-2 min-w-[200px]">
+                <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[200px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Target size={16} className="text-primary" />
                         Project
@@ -141,7 +141,7 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 </div>
 
                 {/* Status Filter */}
-                <div className="flex flex-col gap-2 min-w-[150px]">
+                <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[150px]">
                     <label className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-2">
                         <Activity size={16} className="text-primary" />
                         Status
@@ -160,10 +160,10 @@ const FilterBar = ({ filters, setFilters, filterOptions, onReset, user }: Filter
                 </div>
 
                 {/* Reset Button */}
-                <div className="ml-auto flex items-center h-10 mb-0.5">
+                <div className="w-full sm:w-auto sm:ml-auto flex items-center h-10 mb-0.5 justify-end">
                     <button
                         onClick={onReset}
-                        className="flex items-center gap-2 px-4 h-full text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger-light rounded-lg border border-transparent hover:border-danger/10 transition-all active:scale-95 group/reset"
+                        className="flex items-center justify-center gap-2 px-4 h-full text-xs font-bold uppercase tracking-wider text-danger hover:bg-danger-light rounded-lg border border-transparent hover:border-danger/10 transition-all active:scale-95 group/reset w-full sm:w-auto"
                     >
                         <RotateCcw size={16} className="group-hover/reset:rotate-180 transition-transform duration-500" />
                         Reset Filters

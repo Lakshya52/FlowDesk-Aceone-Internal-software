@@ -594,3 +594,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 input, textarea, select, button, a-button, .btn, [role="button"], a {
     -webkit-app-region: no-drag;
 }
+
+
+/* Desktop: hide horizontal scrollbar */
+@media (min-width: 769px) {
+  ::-webkit-scrollbar:horizontal {
+    display: none;
+  }
+}

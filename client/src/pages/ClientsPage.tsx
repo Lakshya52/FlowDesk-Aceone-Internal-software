@@ -40,21 +40,23 @@ const ClientsPage: React.FC = () => {
         queryKey: ['companies'],
         queryFn: async () => {
             const { data } = await api.get("/companies");
-            // Flatten the hierarchy from server for easier frontend filtering and rebuilding
-            const flatList: Company[] = [];
-            const flatten = (list: any[]) => {
-                list.forEach(item => {
-                    const { children, ...rest } = item;
-                    flatList.push(rest);
-                    if (children) flatten(children);
-                });
-            };
-            flatten(data.companies || []);
-            return flatList;
+            return data.companies || [];
         },
+        staleTime: Infinity,
     });
 
-    const companies = companiesData || [];
+    const companies = React.useMemo(() => {
+        const flatList: Company[] = [];
+        const flatten = (list: any[]) => {
+            list.forEach(item => {
+                const { children, ...rest } = item;
+                flatList.push(rest);
+                if (children) flatten(children);
+            });
+        };
+        flatten(companiesData || []);
+        return flatList;
+    }, [companiesData]);
     const [selected, setSelected] = useState<Company | null>(null);
     const [showCreate, setShowCreate] = useState(false);
     const [showContactForm, setShowContactForm] = useState(false);
@@ -65,6 +67,10 @@ const ClientsPage: React.FC = () => {
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const detailsRef = useRef<HTMLDivElement>(null);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const [companyAssignments, setCompanyAssignments] = useState<any[]>([]);
     const [loadingAssignments, setLoadingAssignments] = useState(false);
@@ -120,6 +126,17 @@ const ClientsPage: React.FC = () => {
             isMounted = false;
         };
     }, [selected?._id]);
+
+    useEffect(() => {
+        if (selected?._id && window.innerWidth < 1024) {
+            // Smooth scroll to the details container on mobile/tablet viewports where layout is stacked
+            detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [selected?._id]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
     const fetchCompanyDetails = async (companyId: string) => {
         try {
@@ -236,11 +253,35 @@ const ClientsPage: React.FC = () => {
         setExpandedCompanies(newExpanded);
     };
 
-    const buildTree = (parentId: string | null = null): any[] => {
-        return companies
-            .filter((c) => (c.parentCompanyId || null) === parentId)
-            .map((c) => ({ ...c, children: buildTree(c._id) }));
-    };
+    const filteredTree = React.useMemo(() => {
+        const buildTreeLocal = (parentId: string | null = null): any[] => {
+            return companies
+                .filter((c) => (c.parentCompanyId || null) === parentId)
+                .map((c) => ({ ...c, children: buildTreeLocal(c._id) }));
+        };
+        const rootCompanies = buildTreeLocal();
+        if (!searchQuery) return rootCompanies;
+
+        const matchCompany = (c: any): boolean =>
+            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.children && c.children.some(matchCompany));
+
+        const filterCompany = (c: any): any => {
+            return {
+                ...c,
+                children: c.children?.map(filterCompany).filter((child: any) => matchCompany(child) || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            };
+        };
+
+        return rootCompanies.map(filterCompany).filter((c: any) => matchCompany(c) || c.children?.length > 0);
+    }, [companies, searchQuery]);
+
+    const totalPages = Math.ceil(filteredTree.length / ITEMS_PER_PAGE);
+    const displayPage = Math.min(currentPage, totalPages || 1);
+    const paginatedTree = React.useMemo(() => {
+        const activePage = Math.min(currentPage, totalPages || 1);
+        return filteredTree.slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE);
+    }, [filteredTree, currentPage, totalPages]);
 
     // const tree = buildTree();
 
@@ -478,12 +519,12 @@ const ClientsPage: React.FC = () => {
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 24, maxWidth: 1200, margin: '0 auto' }}>
             {/* Header section with actions */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
                     <h1 style={{ fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.02em" }}>Companies & Clients</h1>
                     <p style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)", marginTop: 4 }}>Manage client relationships, contacts, and projects</p>
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div className="flex flex-wrap gap-2.5 items-center">
                     <button className="btn btn-secondary btn-sm" onClick={() => setShowImport(true)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Upload size={16} />Import
                     </button>
@@ -604,7 +645,7 @@ const ClientsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 24, height: "calc(100vh - 180px)", minHeight: 600 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 lg:h-[calc(100vh-180px)]" style={{ minHeight: 600 }}>
                 {/* Left panel: Company List & Hierarchy */}
                 <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
                     <div style={{ padding: 16, borderBottom: "1px solid var(--color-border)" }}>
@@ -634,7 +675,33 @@ const ClientsPage: React.FC = () => {
                                     Companies List
                                 </span>
                             )}
-                            <span className="badge" style={{ fontSize: '0.65rem' }}>{companies.length} total</span>
+                            {/* Pagination controls matching Dashboard Recent Activity */}
+                            {totalPages > 1 && (
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <button
+                                        className="btn btn-ghost btn-xs"
+                                        style={{ fontSize: "0.6875rem", padding: "2px 6px" }}
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    >
+                                        Prev
+                                    </button>
+                                    <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
+                                        Page {displayPage} of {totalPages}
+                                    </span>
+                                    <button
+                                        className="btn btn-ghost btn-xs"
+                                        style={{ fontSize: "0.6875rem", padding: "2px 6px" }}
+                                        disabled={currentPage >= totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
+                            {(totalPages <= 1 || !totalPages) && (
+                                <span className="badge" style={{ fontSize: '0.65rem' }}>{companies.length} total</span>
+                            )}
                         </div>
                     </div>
 
@@ -645,22 +712,6 @@ const ClientsPage: React.FC = () => {
                                 Loading companies...</div>
                         ) : (
                             (() => {
-                                const rootCompanies = buildTree();
-                                const filteredTree = searchQuery
-                                    ? (() => {
-                                        const matchCompany = (c: any): boolean =>
-                                            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                            (c.children && c.children.some(matchCompany));
-                                        const filterCompany = (c: any): any => {
-                                            return {
-                                                ...c,
-                                                children: c.children?.map(filterCompany).filter((child: any) => matchCompany(child) || c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                            };
-                                        };
-                                        return rootCompanies.map(filterCompany).filter((c: any) => matchCompany(c) || c.children?.length > 0);
-                                    })()
-                                    : rootCompanies;
-
                                 if (filteredTree.length === 0) {
                                     return (
                                         <div style={{ opacity: 0.6, fontSize: "0.875rem", textAlign: 'center', padding: 40 }}>
@@ -671,7 +722,7 @@ const ClientsPage: React.FC = () => {
 
                                 return (
                                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                        {filteredTree.map((company) => (
+                                        {paginatedTree.map((company) => (
                                             <CompanyNode
                                                 key={company._id}
                                                 node={company}
@@ -695,7 +746,7 @@ const ClientsPage: React.FC = () => {
                 </div>
 
                 {/* Right section - details of the company */}
-                <div className="card" style={{ overflowY: "auto", padding: 0, position: 'relative' }}>
+                <div ref={detailsRef} className="card" style={{ overflowY: "auto", padding: 0, position: 'relative' }}>
                     {!selected ? (
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.4 }}>
                             <Building2 size={64} style={{ marginBottom: 16 }} />

@@ -7,7 +7,8 @@ import Header from './Header';
 const AppLayout: React.FC = () => {
     const { user } = useAuthStore();
     const location = useLocation();
-    const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
+    const [isMobile, setIsMobile] = React.useState(window.innerWidth < 768);
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth >= 768);
     const [sidebarWidth, setSidebarWidth] = React.useState(() => {
         const saved = localStorage.getItem('sidebar-width');
         return saved ? parseInt(saved, 10) : 260;
@@ -15,14 +16,32 @@ const AppLayout: React.FC = () => {
     const [isResizing, setIsResizing] = React.useState(false);
 
     React.useEffect(() => {
-        if (!isResizing) {
+        const handleResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            // Auto close/open based on screen switch
+            setIsSidebarOpen(!mobile);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    React.useEffect(() => {
+        if (isMobile) {
+            setIsSidebarOpen(false);
+        }
+    }, [location.pathname, isMobile]);
+
+    React.useEffect(() => {
+        if (!isResizing && !isMobile) {
             localStorage.setItem('sidebar-width', sidebarWidth.toString());
         }
-    }, [sidebarWidth, isResizing]);
+    }, [sidebarWidth, isResizing, isMobile]);
 
     const startResizing = React.useCallback(() => {
+        if (isMobile) return;
         setIsResizing(true);
-    }, []);
+    }, [isMobile]);
 
     const stopResizing = React.useCallback(() => {
         setIsResizing(false);
@@ -30,14 +49,14 @@ const AppLayout: React.FC = () => {
 
     const resize = React.useCallback(
         (mouseMoveEvent: MouseEvent) => {
-            if (isResizing) {
+            if (isResizing && !isMobile) {
                 const newWidth = mouseMoveEvent.clientX;
                 if (newWidth > 180 && newWidth < 600) {
                     setSidebarWidth(newWidth);
                 }
             }
         },
-        [isResizing]
+        [isResizing, isMobile]
     );
     React.useEffect(() => {
         window.addEventListener("mousemove", resize);
@@ -47,8 +66,6 @@ const AppLayout: React.FC = () => {
             window.removeEventListener("mouseup", stopResizing);
         };
     }, [resize, stopResizing]);
-
-    // Notifications are fully handled by Electron main process via IPC - no browser setup needed
 
     if (!user) {
         return <Navigate to="/login" state={{ from: location }} replace />;
@@ -60,12 +77,36 @@ const AppLayout: React.FC = () => {
             height: '100vh', 
             overflow: 'hidden',
             cursor: isResizing ? 'col-resize' : 'default',
-            userSelect: isResizing ? 'none' : 'auto'
+            userSelect: isResizing ? 'none' : 'auto',
+            position: 'relative',
         }}>
-            <Sidebar isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} width={sidebarWidth} />
+            {isMobile && isSidebarOpen && (
+                <div 
+                    onClick={() => setIsSidebarOpen(false)} 
+                    style={{ 
+                        position: 'fixed', 
+                        inset: 0, 
+                        background: 'rgba(0,0,0,0.5)', 
+                        zIndex: 998,
+                        backdropFilter: 'blur(2px)',
+                    }} 
+                />
+            )}
+            
+            <div style={{
+                position: isMobile ? 'fixed' : 'relative',
+                left: isMobile ? (isSidebarOpen ? 0 : '-280px') : 0,
+                zIndex: isMobile ? 999 : 1,
+                transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                height: '100vh',
+                background: 'var(--color-surface)',
+                boxShadow: isMobile && isSidebarOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none',
+            }}>
+                <Sidebar isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} width={isMobile ? 260 : sidebarWidth} />
+            </div>
             
             {/* Resizer Handle */}
-            {isSidebarOpen && (
+            {isSidebarOpen && !isMobile && (
                 <div
                     onMouseDown={startResizing}
                     style={{
@@ -81,12 +122,12 @@ const AppLayout: React.FC = () => {
                     onMouseLeave={(e) => { if(!isResizing) e.currentTarget.style.background = 'transparent'; }}
                 />
             )}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <Header />
-                <main style={{
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
+                <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+                <main id="main-content-scroll" style={{
                     flex: 1,
                     overflow: 'auto',
-                    padding: location.pathname === '/canvas' ? '0' : '24px 32px',
+                    padding: location.pathname === '/canvas' ? '0' : (isMobile ? '16px' : '24px 32px'),
                     background: 'var(--color-bg)',
                     position: 'relative'
                 }}>

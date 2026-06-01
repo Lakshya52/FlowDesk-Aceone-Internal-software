@@ -665,7 +665,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     ];
 
     return (
-        <div style={{ maxWidth: 1000 }}>
+        <div style={{ maxWidth: 1000, width: '100%' }}>
+
             {comments ? null : null}
             {/* Back button */}
             <button className="btn btn-ghost btn-sm" style={{ marginBottom: 16 }} onClick={() => navigate('/assignments')}>
@@ -673,8 +674,8 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
             </button>
 
             {/* Project header */}
-            <div className="card" style={{ padding: '24px', marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div className="card" style={{ padding: window.innerWidth < 768 ? '16px' : '24px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', flexDirection: window.innerWidth < 768 ? 'column' as any : 'row' as any, justifyContent: 'space-between', alignItems: window.innerWidth < 768 ? 'stretch' : 'flex-start', marginBottom: 16, gap: window.innerWidth < 768 ? 12 : 0 }}>
                     <div style={{ flex: 1 }}>
                         {isEditingProject ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
@@ -702,7 +703,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                     onChange={e => setEditProjectForm({ ...editProjectForm, description: e.target.value })}
                                     placeholder="Project Description"
                                 />
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
                                     <div style={{ position: 'relative' }}>
                                         <label style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', display: 'block', marginBottom: 4 }}>Client / Company</label>
                                         <input

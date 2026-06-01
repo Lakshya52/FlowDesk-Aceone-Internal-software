@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../lib/api";
 import {
     Mail,
@@ -21,21 +21,24 @@ const BulkEmailPage: React.FC = () => {
         queryKey: ['companies'],
         queryFn: async () => {
             const { data } = await api.get("/companies");
-            const allCompanies: Company[] = [];
-            const flatten = (list: any[]) => {
-                list.forEach(c => {
-                    allCompanies.push(c);
-                    if (c.children && c.children.length > 0) {
-                        flatten(c.children);
-                    }
-                });
-            };
-            flatten(data.companies || []);
-            return allCompanies;
+            return data.companies || [];
         },
+        staleTime: Infinity,
     });
 
-    const companies = companiesData || [];
+    const companies = React.useMemo(() => {
+        const allCompanies: Company[] = [];
+        const flatten = (list: any[]) => {
+            list.forEach(c => {
+                allCompanies.push(c);
+                if (c.children && c.children.length > 0) {
+                    flatten(c.children);
+                }
+            });
+        };
+        flatten(companiesData || []);
+        return allCompanies;
+    }, [companiesData]);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [subject, setSubject] = useState("");
@@ -92,18 +95,28 @@ const BulkEmailPage: React.FC = () => {
         }
     };
 
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
     return (
         <div style={{
-            height: "calc(100vh - 120px)", // Account for header and main padding
+            height: isMobile ? 'auto' : "calc(100vh - 120px)",
+            minHeight: isMobile ? 'calc(100vh - 160px)' : 0,
             display: "flex",
             flexDirection: "column",
-            gap: 24,
-            minHeight: 0
+            gap: isMobile ? 16 : 24,
         }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: isMobile ? 'column' : 'row', justifyContent: "space-between", alignItems: isMobile ? 'flex-start' : 'center', flexShrink: 0, gap: isMobile ? 12 : 0 }}>
                 <div>
-                    <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 4 }}>Bulk Email Messaging</h1>
-                    <p style={{ opacity: 0.7 }}>Send broadcast messages to selected company emails</p>
+                    <h1 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 700, marginBottom: 4 }}>Bulk Email Messaging</h1>
+                    <p style={{ opacity: 0.7, fontSize: isMobile ? '0.8rem' : undefined }}>Send broadcast messages to selected company emails</p>
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
                     <div className="card" style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, background: "var(--color-primary-light)", border: "none" }}>
@@ -133,9 +146,9 @@ const BulkEmailPage: React.FC = () => {
                 </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, flex: 1, minHeight: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 16 : 24, flex: 1, minHeight: 0 }}>
                 {/* Left Side: Company Selection */}
-                <div className="card" style={{ display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", minHeight: 0 }}>
+                <div className="card" style={{ display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", minHeight: 0, height: isMobile ? '380px' : 'auto' }}>
                     <div style={{ padding: 16, borderBottom: "1px solid var(--color-border)", flexShrink: 0 }}>
                         <div style={{ position: "relative", marginBottom: 12 }}>
                             <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", opacity: 0.5 }} />
@@ -233,7 +246,7 @@ const BulkEmailPage: React.FC = () => {
                                 className="input"
                                 placeholder="Dear Team,&#10;&#10;We wanted to reach out regarding..."
                                 required
-                                style={{ flex: 1, resize: "none", padding: 16, lineHeight: 1.6 }}
+                                style={{ flex: 1, resize: "none", padding: 16, lineHeight: 1.6, minHeight: isMobile ? '240px' : 'auto' }}
                                 value={message}
                                 onChange={e => setMessage(e.target.value)}
                             />

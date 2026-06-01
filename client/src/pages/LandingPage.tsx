@@ -95,7 +95,7 @@ const LandingPage: React.FC = () => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '24px 8%',
+                padding: '16px 5%',
                 background: 'rgba(255, 255, 255, 0.85)',
                 backdropFilter: 'blur(12px)',
                 position: 'sticky',
@@ -148,7 +148,7 @@ const LandingPage: React.FC = () => {
 
             {/* Hero Section */}
             <section className="hero-gradient" style={{
-                padding: '50px 8% 160px',
+                padding: '40px 5% 100px',
                 textAlign: 'center',
                 position: 'relative',
                 overflow: 'hidden'
@@ -199,17 +199,17 @@ const LandingPage: React.FC = () => {
                         FlowDesk is the unified workspace where strategy meets execution. Manage Projects, track tasks, and scale your team with precision.
                     </p>
 
-                    <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' as any }}>
                         <button
                             onClick={() => navigate('/login')}
                             className="btn btn-primary"
-                            style={{ padding: '18px 40px', fontSize: '1.05rem', borderRadius: 14, fontWeight: 700, boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)' }}
+                            style={{ padding: '16px 32px', fontSize: '1rem', borderRadius: 14, fontWeight: 700, boxShadow: '0 12px 32px rgba(99, 102, 241, 0.3)', whiteSpace: 'nowrap' as any }}
                         >
                             Start Building Free <ArrowRight size={20} style={{ marginLeft: 10 }} />
                         </button>
                         <button
                             className="btn btn-secondary"
-                            style={{ padding: '18px 40px', fontSize: '1.05rem', borderRadius: 14, fontWeight: 600 }}
+                            style={{ padding: '16px 32px', fontSize: '1rem', borderRadius: 14, fontWeight: 600, whiteSpace: 'nowrap' as any }}
                         >
                             Explore Features
                         </button>
@@ -241,16 +241,16 @@ const LandingPage: React.FC = () => {
             </section>
 
             {/* Features Grid */}
-            <section id="features" style={{ padding: '120px 8%', background: '#fafafa', position: 'relative' }}>
-                <div style={{ textAlign: 'center', marginBottom: 80 }}>
-                    <h2 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.04em', color: '#171717' }}>Everything you need.</h2>
-                    <p style={{ color: '#525252', fontSize: '1.2rem', marginTop: 16 }}>Powerful tools designed for speed and clarity.</p>
+            <section id="features" style={{ padding: '80px 5%', background: '#fafafa', position: 'relative' }}>
+                <div style={{ textAlign: 'center', marginBottom: 60 }}>
+                    <h2 style={{ fontSize: 'clamp(1.75rem, 5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.04em', color: '#171717' }}>Everything you need.</h2>
+                    <p style={{ color: '#525252', fontSize: '1.1rem', marginTop: 16 }}>Powerful tools designed for speed and clarity.</p>
                 </div>
 
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                    gap: 32,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+                    gap: 24,
                     maxWidth: 1250,
                     margin: '0 auto'
                 }}>
@@ -347,10 +347,10 @@ const LandingPage: React.FC = () => {
             </section> */}
 
             {/* FAQ Section */}
-            <section style={{ padding: '120px 8%', background: 'white' }}>
+            <section style={{ padding: '80px 5%', background: 'white' }}>
                 <div style={{ maxWidth: 800, margin: '0 auto' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 80 }}>
-                        <h2 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>Frequently Asked Questions</h2>
+                    <div style={{ textAlign: 'center', marginBottom: 60 }}>
+                        <h2 style={{ fontSize: 'clamp(1.5rem, 4vw, 2.5rem)', fontWeight: 800, letterSpacing: '-0.03em' }}>Frequently Asked Questions</h2>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -384,14 +384,14 @@ const LandingPage: React.FC = () => {
                 <div style={{
                     background: 'linear-gradient(135deg, #171717, #333)',
                     borderRadius: 32,
-                    padding: '100px 40px',
+                    padding: 'clamp(40px, 8vw, 100px) clamp(20px, 5vw, 40px)',
                     textAlign: 'center',
                     color: 'white',
                     position: 'relative',
                     overflow: 'hidden'
                 }}>
                     <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-                        <h2 style={{ fontSize: '3rem', fontWeight: 800, marginBottom: 24, letterSpacing: '-0.04em' }}>Ready to transform your workflow?</h2>
+                        <h2 style={{ fontSize: 'clamp(1.75rem, 5vw, 3rem)', fontWeight: 800, marginBottom: 24, letterSpacing: '-0.04em' }}>Ready to transform your workflow?</h2>
                         <p style={{ fontSize: '1.25rem', color: '#a3a3a3', marginBottom: 48 }}>Join thousands of high-performance teams already using FlowDesk.</p>
                         <button
                             onClick={() => navigate('/login')}
@@ -409,8 +409,8 @@ const LandingPage: React.FC = () => {
 
             {/* Footer */}
             <footer style={{ padding: '80px 8% 64px', borderTop: '1px solid #f0f0f0', background: 'white' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 64, maxWidth: 1250, margin: '0 auto' }}>
-                    <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 40, maxWidth: 1250, margin: '0 auto' }}>
+                    <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
                             <Zap size={24} color="#6366f1" />
                             <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>FlowDesk</span>
@@ -437,7 +437,7 @@ const LandingPage: React.FC = () => {
 };
 
 const FeatureCard: React.FC<{ icon: React.ReactNode, title: string, description: string }> = ({ icon, title, description }) => (
-    <div className="glass-card" style={{ padding: 48, borderRadius: 32 }}>
+    <div className="glass-card" style={{ padding: 'clamp(24px, 4vw, 48px)', borderRadius: 24 }}>
         <div style={{
             width: 64,
             height: 64,

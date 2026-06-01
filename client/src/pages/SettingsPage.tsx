@@ -136,9 +136,11 @@ const SettingsPage: React.FC = () => {
         }
     };
 
+    const isMobile = window.innerWidth < 768;
+
     return (
-        <div style={{ maxWidth: 800 }}>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 24 }}>Settings</h1>
+        <div style={{ maxWidth: 800, width: '100%' }}>
+            <h1 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: isMobile ? 16 : 24 }}>Settings</h1>
 
             {/* Appearance */}
             <div className="card" style={{ padding: 20, marginBottom: 16 }}>
@@ -160,15 +162,15 @@ const SettingsPage: React.FC = () => {
             {/* Profile */}
             <div className="card" style={{ padding: 24, marginBottom: 16 }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 20 }}>Profile Overview</h3>
-                <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 24, alignItems: isMobile ? 'center' : 'center' }}>
                     <div
                         onClick={() => !uploading && fileInputRef.current?.click()}
-                        style={{ cursor: 'pointer', position: 'relative' }}
+                        style={{ cursor: 'pointer', position: 'relative', flexShrink: 0 }}
                     >
                         <Avatar
                             src={user?.avatar}
                             name={user?.name}
-                            size={80}
+                            size={isMobile ? 64 : 80}
                             style={{
                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                                 border: '3px solid var(--color-surface)'
@@ -199,10 +201,10 @@ const SettingsPage: React.FC = () => {
                         </div>
                     </div>
                     <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarUpload} />
-                    <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: 4 }}>{user?.name}</div>
-                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 8 }}>{user?.email}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', minWidth: 0 }}>
+                        <div style={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600, marginBottom: 4 }}>{user?.name}</div>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: 8, wordBreak: 'break-all' }}>{user?.email}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: isMobile ? 'center' : 'flex-start' }}>
                             <div style={{
                                 padding: '4px 10px',
                                 background: 'var(--color-primary-light)', color: 'var(--color-primary)',
@@ -212,7 +214,7 @@ const SettingsPage: React.FC = () => {
                                 <Shield size={12} strokeWidth={2.5} />
                                 {ROLE_LABELS[user?.role || '']}
                             </div>
-                            {user?._id && (
+                            {user?._id && !isMobile && (
                                 <div style={{
                                     padding: '4px 10px',
                                     background: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)',
@@ -223,13 +225,13 @@ const SettingsPage: React.FC = () => {
                             )}
                         </div>
                     </div>
-                    <div style={{ marginLeft: 'auto', textAlign: 'right', display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, ...(isMobile ? { width: '100%', justifyContent: 'center' } : { marginLeft: 'auto', textAlign: 'right' }) }}>
                         {user?.avatar && (
                             <button
                                 className="btn btn-ghost"
                                 onClick={handleRemoveAvatar}
                                 disabled={uploading}
-                                style={{ color: 'var(--color-error)' }}
+                                style={{ color: 'var(--color-error)', fontSize: isMobile ? '0.8rem' : undefined }}
                             >
                                 Remove Photo
                             </button>
@@ -238,6 +240,7 @@ const SettingsPage: React.FC = () => {
                             className="btn btn-secondary"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploading}
+                            style={{ fontSize: isMobile ? '0.8rem' : undefined }}
                         >
                             {uploading ? 'Updating...' : 'Change Photo'}
                         </button>
@@ -250,7 +253,7 @@ const SettingsPage: React.FC = () => {
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Lock size={18} /> Security
                 </h3>
-                <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 400 }}>
+                <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: isMobile ? '100%' : 400 }}>
                     {passwordError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{passwordError}</div>}
                     {passwordSuccess && <div style={{ color: 'var(--color-success)', fontSize: '0.875rem' }}>{passwordSuccess}</div>}
 
@@ -320,11 +323,11 @@ const SettingsPage: React.FC = () => {
 
                     {showCreateUser && (
                         <form onSubmit={createUser} className="card" style={{ padding: 16, marginBottom: 16, border: '1px solid var(--color-primary)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                 <input className="input" required placeholder="Full name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} />
                                 <input className="input" type="email" required placeholder="Email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                                 <input className="input" type="password" required placeholder="Password" minLength={6} value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
                                 <select className="select" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
                                     {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -344,6 +347,7 @@ const SettingsPage: React.FC = () => {
                                 <div key={u._id} style={{
                                     padding: '10px 14px', borderRadius: 8,
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    flexWrap: isMobile ? 'wrap' as any : 'nowrap' as any, gap: isMobile ? 8 : 0,
                                     background: u.isActive ? 'transparent' : 'var(--color-surface-hover)',
                                     opacity: u.isActive ? 1 : 0.5,
                                 }}>
