@@ -72,7 +72,6 @@ const AssignmentsPage: React.FC = () => {
             }
             return result;
         },
-        staleTime: 1000 * 60 * 5,
     });
     const assignments = assignmentsData || [];
 
@@ -100,7 +99,6 @@ const AssignmentsPage: React.FC = () => {
             };
         },
         enabled: isAdmin,
-        staleTime: 1000 * 60 * 5,
     });
     const filterTeams = adminData?.teams || [];
     const filterUsers = adminData?.users || [];
@@ -163,7 +161,6 @@ const AssignmentsPage: React.FC = () => {
             };
         },
         enabled: showCreate,
-        staleTime: 1000 * 60 * 5,
     });
     const allUsers = createData?.users || [];
     const allTeams = createData?.teams || [];

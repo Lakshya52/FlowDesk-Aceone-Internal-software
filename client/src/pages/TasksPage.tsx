@@ -44,7 +44,6 @@ const TasksPage: React.FC = () => {
             const { data } = await api.get('/companies', { params: { flat: 'true' } });
             return data.companies || [];
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
     });
     const companies = companiesData || [];
 
@@ -54,7 +53,6 @@ const TasksPage: React.FC = () => {
             const { data } = await api.get('/auth/users');
             return data.users || [];
         },
-        staleTime: 1000 * 60 * 5,
     });
     const users = usersData || [];
 
@@ -69,7 +67,6 @@ const TasksPage: React.FC = () => {
             const { data } = await api.get('/tasks', { params });
             return data.tasks || [];
         },
-        staleTime: 1000 * 60 * 2, // 2 minutes for tasks (more dynamic)
     });
     const tasks = tasksData || [];
 

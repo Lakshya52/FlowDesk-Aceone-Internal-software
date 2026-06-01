@@ -52,7 +52,6 @@ const ClientsPage: React.FC = () => {
             flatten(data.companies || []);
             return flatList;
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
     });
 
     const companies = companiesData || [];

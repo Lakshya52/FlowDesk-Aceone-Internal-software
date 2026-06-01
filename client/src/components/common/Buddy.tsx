@@ -17,12 +17,12 @@ interface ChatMessage {
   content: string;
 }
 
-interface OllamaResponseChunk {
-  message?: {
-    content?: string;
-  };
-  done?: boolean;
-}
+// interface OllamaResponseChunk {
+//   message?: {
+//     content?: string;
+//   };
+//   done?: boolean;
+// }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -237,7 +237,9 @@ politely clarify:
    restate the context? I'm happy to help."
 `;
 
-const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+// const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+const OLLAMA_URL =
+  "https://punk-nottingham-floating-trailer.trycloudflare.com/api/buddy/ollama";
 // const DEFAULT_MODEL = "qwen2.5-coder:1.5b-base";
 const DEFAULT_MODEL = "qwen2.5-coder:1.5b-instruct";
 
@@ -385,7 +387,7 @@ const FlowDeskBuddy: FC = () => {
         signal: controller.signal,
         body: JSON.stringify({
           model,
-          stream: true,
+          stream: false,
           // ── Only system prompt + current user message. No history. ──────────
           messages: [
             {
@@ -403,35 +405,43 @@ const FlowDeskBuddy: FC = () => {
       if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
       if (!response.body) throw new Error("No response body from Ollama");
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n").filter(Boolean);
-
-        for (const line of lines) {
-          try {
-            const parsed: OllamaResponseChunk = JSON.parse(line);
-            if (parsed.message?.content) {
-              fullContent += parsed.message.content;
-              setStreamingContent(fullContent);
-            }
-          } catch {
-            // malformed chunk — skip
-          }
-        }
-      }
-
+      const data = (await response.json()) as any;
+      const fullContent = data.message?.content || "";
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: fullContent },
       ]);
       setStreamingContent("");
+
+      // const reader = response.body.getReader();
+      // const decoder = new TextDecoder();
+      // let fullContent = "";
+
+      // while (true) {
+      //   const { done, value } = await reader.read();
+      //   if (done) break;
+
+      //   const chunk = decoder.decode(value, { stream: true });
+      //   const lines = chunk.split("\n").filter(Boolean);
+
+      //   for (const line of lines) {
+      //     try {
+      //       const parsed: OllamaResponseChunk = JSON.parse(line);
+      //       if (parsed.message?.content) {
+      //         fullContent += parsed.message.content;
+      //         setStreamingContent(fullContent);
+      //       }
+      //     } catch {
+      //       // malformed chunk — skip
+      //     }
+      //   }
+      // }
+
+      // setMessages((prev) => [
+      //   ...prev,
+      //   { role: "assistant", content: fullContent },
+      // ]);
+      // setStreamingContent("");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
 
@@ -440,7 +450,7 @@ const FlowDeskBuddy: FC = () => {
 
       setOllamaError(
         message.includes("fetch") || message.includes("Failed")
-          ? "Cannot reach Ollama at 127.0.0.1:11434"
+          ? "Cannot reach FlowDesk Buddy service" // ← change this
           : `Ollama error: ${message}`,
       );
     } finally {

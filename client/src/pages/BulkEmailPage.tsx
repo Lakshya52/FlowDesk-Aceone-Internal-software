@@ -33,7 +33,6 @@ const BulkEmailPage: React.FC = () => {
             flatten(data.companies || []);
             return allCompanies;
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
     });
 
     const companies = companiesData || [];

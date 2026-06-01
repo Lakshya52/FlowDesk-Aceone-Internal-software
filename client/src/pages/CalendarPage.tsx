@@ -132,7 +132,6 @@ const CalendarPage: React.FC = () => {
     const { data: events = [], isLoading: loading } = useQuery<CalendarEvent[]>({
         queryKey: ['calendar', view, cacheKey],
         queryFn: () => fetchCalendarEvents(startDate, endDate),
-        staleTime: 1000 * 60 * 5, // 5 minutes — calendar data doesn't change often
         placeholderData: keepPreviousData, // keep showing previous data while loading new period
     });
 
@@ -143,7 +142,6 @@ const CalendarPage: React.FC = () => {
             queryClient.prefetchQuery({
                 queryKey: ['calendar', view, k],
                 queryFn: () => fetchCalendarEvents(s, e),
-                staleTime: 1000 * 60 * 5,
             });
         };
 

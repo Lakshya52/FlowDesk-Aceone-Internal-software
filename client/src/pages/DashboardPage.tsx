@@ -77,14 +77,12 @@ const DashboardPage: React.FC = () => {
             const { recentActivity, currentPage, totalPages, ...rest } = data;
             return rest;
         },
-        staleTime: 1000 * 60 * 2,
     });
 
     // Paginated activity — only this changes on Prev/Next
     const { data: activityData, isFetching: activityFetching } = useQuery({
         queryKey: ['dashboard-activity', page],
         queryFn: () => activityQueryFn(page),
-        staleTime: 1000 * 60 * 1,
         placeholderData: keepPreviousData,
     });
 
@@ -94,7 +92,6 @@ const DashboardPage: React.FC = () => {
             queryClient.prefetchQuery({
                 queryKey: ['dashboard-activity', page + 1],
                 queryFn: () => activityQueryFn(page + 1),
-                staleTime: 1000 * 60 * 1,
             });
         }
     }, [page, activityData, queryClient]);
@@ -105,7 +102,6 @@ const DashboardPage: React.FC = () => {
             const { data } = await api.get('/teams');
             return data.teams || [];
         },
-        staleTime: 1000 * 60 * 5,
     });
 
     const data = statsData;
