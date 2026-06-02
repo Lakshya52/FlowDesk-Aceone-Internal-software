@@ -29,7 +29,7 @@ const queryClient = new QueryClient({
 
 import LandingPage from "./pages/LandingPage";
 import NotFoundPage from "./pages/NotFoundPage";
-import Buddy from "./components/common/Buddy";
+// import Buddy from "./components/common/Buddy";
 
 const OfflineBanner: React.FC = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -177,7 +177,7 @@ const App: React.FC = () => {
       <OfflineBanner />
       <Toaster position="top-right" />
       <HashRouter>
-        <Buddy />
+        {/* <Buddy /> */}
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />

@@ -33,6 +33,7 @@ export interface IAssignment extends Document {
     canvasData?: any;
     createdAt: Date;
     updatedAt: Date;
+    recurringTime?: string;
 }
 
 const assignmentSchema = new Schema<IAssignment>(
@@ -53,6 +54,7 @@ const assignmentSchema = new Schema<IAssignment>(
         recurringStartDate: { type: Date, default: undefined },
         parentAssignmentId: { type: Schema.Types.ObjectId, ref: 'Assignment', default: null },
         canvasData: { type: Schema.Types.Mixed, default: null },
+        recurringTime: { type: String, default: undefined },
     },
     { timestamps: true }
 );
