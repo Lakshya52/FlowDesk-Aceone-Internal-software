@@ -1,5 +1,5 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middlewares/auth';
+import { Response } from "express";
+import { AuthRequest } from "../middlewares/auth";
 export declare const createAssignment: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const getAssignments: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const getAssignment: (req: AuthRequest, res: Response) => Promise<void>;

@@ -30,6 +30,7 @@ export interface IAssignment extends Document {
     canvasData?: any;
     createdAt: Date;
     updatedAt: Date;
+    recurringTime?: string;
 }
 declare const _default: mongoose.Model<IAssignment, {}, {}, {}, mongoose.Document<unknown, {}, IAssignment, {}, {}> & IAssignment & Required<{
     _id: mongoose.Types.ObjectId;
