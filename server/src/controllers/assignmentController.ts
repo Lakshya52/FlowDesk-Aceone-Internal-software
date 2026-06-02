@@ -1,376 +1,434 @@
-import { Response } from 'express';
-import Assignment from '../models/Assignment';
-import ActivityLog, { EntityType } from '../models/ActivityLog';
-import { AuthRequest } from '../middlewares/auth';
-import { createNotifications, NotificationPayload } from '../services/notificationService';
-import { NotificationType } from '../models/Notification';
+import { Response } from "express";
+import Assignment from "../models/Assignment";
+import ActivityLog, { EntityType } from "../models/ActivityLog";
+import { AuthRequest } from "../middlewares/auth";
+import {
+  createNotifications,
+  NotificationPayload,
+} from "../services/notificationService";
+import { NotificationType } from "../models/Notification";
+import { processRecurringAssignments } from "../services/recurringTaskService";
 
-export const createAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        const { teams: teamIds, team: memberIds = [], ...rest } = req.body;
+export const createAssignment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { teams: teamIds, team: memberIds = [], ...rest } = req.body;
 
-        // Always include the project creator
-        let allMemberIds = new Set([req.user!._id.toString(), ...memberIds.map(String)]);
+    // Always include the project creator
+    let allMemberIds = new Set([
+      req.user!._id.toString(),
+      ...memberIds.map(String),
+    ]);
 
-        if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
-            const Team = (await import('../models/Team')).default;
-            const teams = await Team.find({ _id: { $in: teamIds } });
-            // Include all team members
-            const teamInvites = teams.flatMap(t => t.members.map(m => m.toString()));
-            teamInvites.forEach(id => allMemberIds.add(id));
-            // Collect managers and add them
-            const managerIds = teams.map(t => t.manager?.toString()).filter(Boolean);
-            managerIds.forEach(id => allMemberIds.add(id));
-        }
-
-        const assignment = await Assignment.create({
-            ...rest,
-            teams: teamIds,
-            team: Array.from(allMemberIds),
-            createdBy: req.user!._id,
-        });
-
-        await ActivityLog.create({
-            action: 'Assignment created',
-            user: req.user!._id,
-            entityType: EntityType.ASSIGNMENT,
-            entityId: assignment._id,
-            metadata: { title: assignment.title },
-        });
-
-        const populated = await Assignment.findById(assignment._id)
-            .populate('createdBy', 'name email')
-            .populate('team', 'name email avatar')
-            .populate('companyId', 'name industry')
-            .populate({
-                path: 'teams',
-                populate: [
-                    { path: 'manager', select: 'name email avatar' },
-                    { path: 'members', select: 'name email avatar role' },
-                ],
-            });
-
-        // Notify team members (except creator)
-        const notificationPayloads: NotificationPayload[] = Array.from(allMemberIds)
-            .filter(userId => userId !== req.user!._id.toString())
-            .map(userId => ({
-                user: userId,
-                type: NotificationType.PROJECT_CREATED,
-                title: 'New Project Assigned',
-                message: `You have been assigned to a new project: ${assignment.title}`,
-                link: `/assignments/${assignment._id}?tab=tasks`
-            }));
-
-        if (notificationPayloads.length > 0) {
-            console.log(`📡 Creating ${notificationPayloads.length} notifications for project: ${assignment.title}`);
-            console.log(`👥 Target user IDs: ${notificationPayloads.map(p => p.user).join(', ')}`);
-            await createNotifications(notificationPayloads);
-        } else {
-            console.log('⚠️ No other members to notify for this project.');
-        }
-
-        res.status(201).json({ assignment: populated });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+      const Team = (await import("../models/Team")).default;
+      const teams = await Team.find({ _id: { $in: teamIds } });
+      // Include all team members
+      const teamInvites = teams.flatMap((t) =>
+        t.members.map((m) => m.toString()),
+      );
+      teamInvites.forEach((id) => allMemberIds.add(id));
+      // Collect managers and add them
+      const managerIds = teams
+        .map((t) => t.manager?.toString())
+        .filter(Boolean);
+      managerIds.forEach((id) => allMemberIds.add(id));
     }
+
+    const assignment = await Assignment.create({
+      ...rest,
+      teams: teamIds,
+      team: Array.from(allMemberIds),
+      createdBy: req.user!._id,
+    });
+
+    await ActivityLog.create({
+      action: "Assignment created",
+      user: req.user!._id,
+      entityType: EntityType.ASSIGNMENT,
+      entityId: assignment._id,
+      metadata: { title: assignment.title },
+    });
+
+    const populated = await Assignment.findById(assignment._id)
+      .populate("createdBy", "name email")
+      .populate("team", "name email avatar")
+      .populate("companyId", "name industry")
+      .populate({
+        path: "teams",
+        populate: [
+          { path: "manager", select: "name email avatar" },
+          { path: "members", select: "name email avatar role" },
+        ],
+      });
+
+    // Notify team members (except creator)
+    const notificationPayloads: NotificationPayload[] = Array.from(allMemberIds)
+      .filter((userId) => userId !== req.user!._id.toString())
+      .map((userId) => ({
+        user: userId,
+        type: NotificationType.PROJECT_CREATED,
+        title: "New Project Assigned",
+        message: `You have been assigned to a new project: ${assignment.title}`,
+        link: `/assignments/${assignment._id}?tab=tasks`,
+      }));
+
+    if (notificationPayloads.length > 0) {
+      console.log(
+        `📡 Creating ${notificationPayloads.length} notifications for project: ${assignment.title}`,
+      );
+      console.log(
+        `👥 Target user IDs: ${notificationPayloads.map((p) => p.user).join(", ")}`,
+      );
+      await createNotifications(notificationPayloads);
+    } else {
+      console.log("⚠️ No other members to notify for this project.");
+    }
+
+    // if (assignment.isRecurring) {
+    //   await processRecurringAssignments();
+    // }
+
+    res.status(201).json({ assignment: populated });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-export const getAssignments = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        const { status, priority, search, companyId, isBlueprint } = req.query;
-        const filter: any = {};
+export const getAssignments = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { status, priority, search, companyId, isBlueprint } = req.query;
+    const filter: any = {};
 
-        if (status) filter.status = status;
-        if (priority) filter.priority = priority;
-        if (companyId) filter.companyId = companyId;
-        
-        // Blueprint filtering
-        if (isBlueprint === 'true') {
-            filter.isRecurring = true;
-            filter.parentAssignmentId = null;
-        } else if (isBlueprint === 'false') {
-            // Non-blueprint means: either not recurring OR has a parent assignment
-            filter.$or = [
-                { isRecurring: { $ne: true } },
-                { parentAssignmentId: { $exists: true, $ne: null } }
-            ];
-        }
-        
-        let searchFilter: any = {};
-        if (search) {
-            searchFilter.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { clientName: { $regex: search, $options: 'i' } },
-            ];
-        }
+    if (status) filter.status = status;
+    if (priority) filter.priority = priority;
+    if (companyId) filter.companyId = companyId;
 
-        let roleFilter: any = {};
-        if (req.user!.role === 'member') {
-            roleFilter.$or = [
-                { team: req.user!._id },
-                { createdBy: req.user!._id }
-            ];
-        } else if (req.user!.role === 'manager') {
-            const Team = (await import('../models/Team')).default;
-            const managedTeams = await Team.find({ manager: req.user!._id }).distinct('_id');
-            roleFilter.$or = [
-                { createdBy: req.user!._id },
-                { teams: { $in: managedTeams } },
-                { team: req.user!._id }
-            ];
-        } else {
-            // Admin sees all
-            roleFilter = {};
-        }
-
-        // Combine all filters using $and to avoid overwriting $or
-        const finalFilter: any = { ...filter };
-        const conditions = [];
-        if (Object.keys(searchFilter).length > 0) conditions.push(searchFilter);
-        if (Object.keys(roleFilter).length > 0) conditions.push(roleFilter);
-        
-        if (conditions.length > 0) {
-            finalFilter.$and = conditions;
-        }
-
-        const assignments = await Assignment.find(finalFilter)
-            .populate('createdBy', 'name email')
-            .populate('team', 'name email avatar')
-            .populate('companyId', 'name industry')
-            .populate({
-                path: 'teams',
-                populate: [
-                    { path: 'manager', select: 'name email avatar' },
-                    { path: 'members', select: 'name email avatar role' },
-                ],
-            })
-            .sort({ createdAt: -1 });
-
-        res.json({ assignments });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    // Blueprint filtering
+    if (isBlueprint === "true") {
+      filter.isRecurring = true;
+      filter.parentAssignmentId = null;
+    } else if (isBlueprint === "false") {
+      // Non-blueprint means: either not recurring OR has a parent assignment
+      filter.$or = [
+        { isRecurring: { $ne: true } },
+        { parentAssignmentId: { $exists: true, $ne: null } },
+      ];
     }
+
+    let searchFilter: any = {};
+    if (search) {
+      searchFilter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { clientName: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    let roleFilter: any = {};
+    if (req.user!.role === "member") {
+      roleFilter.$or = [{ team: req.user!._id }, { createdBy: req.user!._id }];
+    } else if (req.user!.role === "manager") {
+      const Team = (await import("../models/Team")).default;
+      const managedTeams = await Team.find({ manager: req.user!._id }).distinct(
+        "_id",
+      );
+      roleFilter.$or = [
+        { createdBy: req.user!._id },
+        { teams: { $in: managedTeams } },
+        { team: req.user!._id },
+      ];
+    } else {
+      // Admin sees all
+      roleFilter = {};
+    }
+
+    // Combine all filters using $and to avoid overwriting $or
+    const finalFilter: any = { ...filter };
+    const conditions = [];
+    if (Object.keys(searchFilter).length > 0) conditions.push(searchFilter);
+    if (Object.keys(roleFilter).length > 0) conditions.push(roleFilter);
+
+    if (conditions.length > 0) {
+      finalFilter.$and = conditions;
+    }
+
+    const assignments = await Assignment.find(finalFilter)
+      .populate("createdBy", "name email")
+      .populate("team", "name email avatar")
+      .populate("companyId", "name industry")
+      .populate({
+        path: "teams",
+        populate: [
+          { path: "manager", select: "name email avatar" },
+          { path: "members", select: "name email avatar role" },
+        ],
+      })
+      .sort({ createdAt: -1 });
+
+    res.json({ assignments });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-export const getAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        const assignment = await Assignment.findById(req.params.id)
-            .populate('createdBy', 'name email')
-            .populate('team', 'name email avatar')
-            .populate('companyId', 'name industry')
-            .populate({
-                path: 'teams',
-                populate: [
-                    { path: 'manager', select: 'name email avatar' },
-                    { path: 'members', select: 'name email avatar role' },
-                ],
-            });
+export const getAssignment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const assignment = await Assignment.findById(req.params.id)
+      .populate("createdBy", "name email")
+      .populate("team", "name email avatar")
+      .populate("companyId", "name industry")
+      .populate({
+        path: "teams",
+        populate: [
+          { path: "manager", select: "name email avatar" },
+          { path: "members", select: "name email avatar role" },
+        ],
+      });
 
-        if (!assignment) {
-            res.status(404).json({ message: 'Assignment not found' });
-            return;
-        }
-
-        res.json({ assignment });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
     }
+
+    res.json({ assignment });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-export const updateAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        const assignment = await Assignment.findById(req.params.id);
+export const updateAssignment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const assignment = await Assignment.findById(req.params.id);
 
-        if (!assignment) {
-            res.status(404).json({ message: 'Assignment not found' });
-            return;
-        }
-
-        // Authorization check: Admin OR In Team OR Creator
-        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
-        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
-        
-        if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
-            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
-            return;
-        }
-
-        // Capture changes for detailed logging
-        const changes: Record<string, { old: any, new: any }> = {};
-        Object.keys(req.body).forEach(key => {
-            const oldValue = (assignment as any)[key];
-            const newValue = req.body[key];
-            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-                changes[key] = { old: oldValue, new: newValue };
-            }
-        });
-
-        // Sanitize ObjectId fields: convert empty strings to null
-        const sanitizedBody: any = { ...req.body };
-        if (sanitizedBody.companyId === '') sanitizedBody.companyId = null;
-
-        Object.assign(assignment, sanitizedBody);
-
-        // Auto-assign Team Members if teams were updated or manual team list changed
-        if (req.body.teams || req.body.team) {
-            const teamIds = req.body.teams || assignment.teams;
-            
-            // Get the list of individual member IDs provided in the request
-            // If not provided, fall back to current list (handle populated vs unpopulated)
-            let manualMemberIds: string[] = [];
-            if (req.body.team) {
-                manualMemberIds = req.body.team.map((id: any) => id.toString());
-            } else {
-                manualMemberIds = (assignment.team || []).map((m: any) => 
-                    (m._id || m).toString()
-                );
-            }
-
-            let allMemberIds = [...manualMemberIds];
-
-            if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
-                const Team = (await import('../models/Team')).default;
-                const teams = await Team.find({ _id: { $in: teamIds } });
-
-                // Include all team members
-                const teamInvites = teams.flatMap(t => t.members.map(m => m.toString()));
-
-                // Merge with manual IDs, but respect the fact that some might have been
-                // explicitly removed from the manual list (optional behavior)
-                // For now, keep the policy: Team members ALWAYS have access.
-                allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
-            }
-            
-            assignment.team = allMemberIds as any;
-            assignment.teams = teamIds as any;
-        }
-
-        await assignment.save();
-
-        const updated = await Assignment.findById(assignment._id)
-            .populate('createdBy', 'name email')
-            .populate('team', 'name email avatar')
-            .populate('companyId', 'name industry')
-            .populate({
-                path: 'teams',
-                populate: [
-                    { path: 'manager', select: 'name email avatar' },
-                    { path: 'members', select: 'name email avatar role' },
-                ],
-            });
-
-        await ActivityLog.create({
-            action: 'Assignment updated',
-            user: req.user!._id,
-            entityType: EntityType.ASSIGNMENT,
-            entityId: updated!._id,
-            metadata: { 
-                title: updated!.title,
-                changes 
-            },
-        });
-
-        // Notify team members if status changed
-        if (changes.status) {
-            const teamIds = updated!.team.map((user: any) => user._id.toString());
-            const notificationPayloads: NotificationPayload[] = teamIds
-                .filter((userId: string) => userId !== req.user!._id.toString())
-                .map((userId: string) => ({
-                    user: userId,
-                    type: NotificationType.STATUS_CHANGED,
-                    title: 'Project Status Updated',
-                    message: `Project "${updated!.title}" status was changed to ${updated!.status}`,
-                    link: `/assignments/${updated!._id}`
-                }));
-
-            if (notificationPayloads.length > 0) {
-                await createNotifications(notificationPayloads);
-            }
-        }
-
-        res.json({ assignment: updated });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
     }
+
+    // Authorization check: Admin OR In Team OR Creator
+    const isCreator =
+      assignment.createdBy.toString() === req.user!._id.toString();
+    const isInTeam = assignment.team?.some(
+      (id: any) => id.toString() === req.user!._id.toString(),
+    );
+
+    if (req.user!.role !== "admin" && !isCreator && !isInTeam) {
+      res.status(403).json({
+        message:
+          "Insufficient permissions: You are not included in this project.",
+      });
+      return;
+    }
+
+    // Capture changes for detailed logging
+    const changes: Record<string, { old: any; new: any }> = {};
+    Object.keys(req.body).forEach((key) => {
+      const oldValue = (assignment as any)[key];
+      const newValue = req.body[key];
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        changes[key] = { old: oldValue, new: newValue };
+      }
+    });
+
+    // Sanitize ObjectId fields: convert empty strings to null
+    const sanitizedBody: any = { ...req.body };
+    if (sanitizedBody.companyId === "") sanitizedBody.companyId = null;
+
+    Object.assign(assignment, sanitizedBody);
+
+    // Auto-assign Team Members if teams were updated or manual team list changed
+    if (req.body.teams || req.body.team) {
+      const teamIds = req.body.teams || assignment.teams;
+
+      // Get the list of individual member IDs provided in the request
+      // If not provided, fall back to current list (handle populated vs unpopulated)
+      let manualMemberIds: string[] = [];
+      if (req.body.team) {
+        manualMemberIds = req.body.team.map((id: any) => id.toString());
+      } else {
+        manualMemberIds = (assignment.team || []).map((m: any) =>
+          (m._id || m).toString(),
+        );
+      }
+
+      let allMemberIds = [...manualMemberIds];
+
+      if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+        const Team = (await import("../models/Team")).default;
+        const teams = await Team.find({ _id: { $in: teamIds } });
+
+        // Include all team members
+        const teamInvites = teams.flatMap((t) =>
+          t.members.map((m) => m.toString()),
+        );
+
+        // Merge with manual IDs, but respect the fact that some might have been
+        // explicitly removed from the manual list (optional behavior)
+        // For now, keep the policy: Team members ALWAYS have access.
+        allMemberIds = Array.from(new Set([...allMemberIds, ...teamInvites]));
+      }
+
+      assignment.team = allMemberIds as any;
+      assignment.teams = teamIds as any;
+    }
+
+    await assignment.save();
+
+    const updated = await Assignment.findById(assignment._id)
+      .populate("createdBy", "name email")
+      .populate("team", "name email avatar")
+      .populate("companyId", "name industry")
+      .populate({
+        path: "teams",
+        populate: [
+          { path: "manager", select: "name email avatar" },
+          { path: "members", select: "name email avatar role" },
+        ],
+      });
+
+    await ActivityLog.create({
+      action: "Assignment updated",
+      user: req.user!._id,
+      entityType: EntityType.ASSIGNMENT,
+      entityId: updated!._id,
+      metadata: {
+        title: updated!.title,
+        changes,
+      },
+    });
+
+    // Notify team members if status changed
+    if (changes.status) {
+      const teamIds = updated!.team.map((user: any) => user._id.toString());
+      const notificationPayloads: NotificationPayload[] = teamIds
+        .filter((userId: string) => userId !== req.user!._id.toString())
+        .map((userId: string) => ({
+          user: userId,
+          type: NotificationType.STATUS_CHANGED,
+          title: "Project Status Updated",
+          message: `Project "${updated!.title}" status was changed to ${updated!.status}`,
+          link: `/assignments/${updated!._id}`,
+        }));
+
+      if (notificationPayloads.length > 0) {
+        await createNotifications(notificationPayloads);
+      }
+    }
+
+    // if (updated!.isRecurring) {
+    //   await processRecurringAssignments();
+    // }
+
+    res.json({ assignment: updated });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-export const deleteAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        console.log(`🗑️ Attempting to delete assignment: ${req.params.id} by user: ${req.user?._id}`);
-        const assignment = await Assignment.findById(req.params.id);
-        if (!assignment) {
-            res.status(404).json({ message: 'Assignment not found' });
-            return;
-        }
-
-        // Authorization check: Admin OR In Team OR Creator
-        const isCreator = assignment.createdBy.toString() === req.user!._id.toString();
-        const isInTeam = assignment.team?.some((id: any) => id.toString() === req.user!._id.toString());
-        
-        if (req.user!.role !== 'admin' && !isCreator && !isInTeam) {
-            res.status(403).json({ message: 'Insufficient permissions: You are not included in this project.' });
-            return;
-        }
-
-        await assignment.deleteOne();
-
-        await ActivityLog.create({
-            action: 'Assignment deleted',
-            user: req.user!._id,
-            entityType: EntityType.ASSIGNMENT,
-            entityId: assignment._id,
-            metadata: { title: assignment.title },
-        });
-
-        res.json({ message: 'Assignment deleted successfully' });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+export const deleteAssignment = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    console.log(
+      `🗑️ Attempting to delete assignment: ${req.params.id} by user: ${req.user?._id}`,
+    );
+    const assignment = await Assignment.findById(req.params.id);
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
     }
+
+    // Authorization check: Admin OR In Team OR Creator
+    const isCreator =
+      assignment.createdBy.toString() === req.user!._id.toString();
+    const isInTeam = assignment.team?.some(
+      (id: any) => id.toString() === req.user!._id.toString(),
+    );
+
+    if (req.user!.role !== "admin" && !isCreator && !isInTeam) {
+      res.status(403).json({
+        message:
+          "Insufficient permissions: You are not included in this project.",
+      });
+      return;
+    }
+
+    await assignment.deleteOne();
+
+    await ActivityLog.create({
+      action: "Assignment deleted",
+      user: req.user!._id,
+      entityType: EntityType.ASSIGNMENT,
+      entityId: assignment._id,
+      metadata: { title: assignment.title },
+    });
+
+    res.json({ message: "Assignment deleted successfully" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
 
-export const updateAssignmentCanvas = async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-        const { id } = req.params;
-        const { canvasData } = req.body;
+export const updateAssignmentCanvas = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { canvasData } = req.body;
 
-        const assignment = await Assignment.findById(id);
+    const assignment = await Assignment.findById(id);
 
-        if (!assignment) {
-            res.status(404).json({ message: 'Assignment not found' });
-            return;
-        }
-
-        // Everyone authorized to update canvas
-        // (Removed role/creator/team check)
-
-        const oldCanvasData = assignment.canvasData || [];
-        const newCanvasData = canvasData || [];
-        
-        let changeSummary = 'Modified canvas';
-        if (Array.isArray(oldCanvasData) && Array.isArray(newCanvasData)) {
-            if (newCanvasData.length > oldCanvasData.length) changeSummary = 'Added note(s) to canvas';
-            else if (newCanvasData.length < oldCanvasData.length) changeSummary = 'Removed note(s) from canvas';
-            else changeSummary = 'Rearranged/Edited notes on canvas';
-        }
-
-        assignment.canvasData = canvasData;
-        assignment.markModified('canvasData');
-        await assignment.save();
-        
-        await ActivityLog.create({
-            action: 'Canvas updated',
-            user: req.user!._id,
-            entityType: EntityType.ASSIGNMENT,
-            entityId: assignment._id,
-            metadata: { 
-                summary: changeSummary,
-                noteCount: newCanvasData.length,
-                previousCount: oldCanvasData.length
-            },
-        });
-
-        res.json({ success: true, message: 'Canvas data updated' });
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
     }
+
+    // Everyone authorized to update canvas
+    // (Removed role/creator/team check)
+
+    const oldCanvasData = assignment.canvasData || [];
+    const newCanvasData = canvasData || [];
+
+    let changeSummary = "Modified canvas";
+    if (Array.isArray(oldCanvasData) && Array.isArray(newCanvasData)) {
+      if (newCanvasData.length > oldCanvasData.length)
+        changeSummary = "Added note(s) to canvas";
+      else if (newCanvasData.length < oldCanvasData.length)
+        changeSummary = "Removed note(s) from canvas";
+      else changeSummary = "Rearranged/Edited notes on canvas";
+    }
+
+    assignment.canvasData = canvasData;
+    assignment.markModified("canvasData");
+    await assignment.save();
+
+    await ActivityLog.create({
+      action: "Canvas updated",
+      user: req.user!._id,
+      entityType: EntityType.ASSIGNMENT,
+      entityId: assignment._id,
+      metadata: {
+        summary: changeSummary,
+        noteCount: newCanvasData.length,
+        previousCount: oldCanvasData.length,
+      },
+    });
+
+    res.json({ success: true, message: "Canvas data updated" });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };
