@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, Plus, Paperclip, MessageSquare, Upload, Download, Trash2, Send, Users, Edit3, FolderKanban, RefreshCw, Eye, Loader2, Reply, Edit2, Calendar, Briefcase, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import ProjectCanvas from '../components/assignments/ProjectCanvas';
+import FilePreviewModal from '../components/common/FilePreviewModal';
 
 const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
 const STATUS_LABELS: Record<string, string> = { not_started: 'Not Started', in_progress: 'In Progress', completed: 'Completed', delayed: 'Delayed' };
@@ -59,6 +60,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
     const [replyTo, setReplyTo] = useState<any>(null);
     const [mentionIndex, setMentionIndex] = useState(0);
     const [canvasUnlocked, setCanvasUnlocked] = useState(false);
+    const [previewFile, setPreviewFile] = useState<{ url: string, type: string, name: string } | null>(null);
 
     // Auto-switch tabs and scroll based on URL params
     useEffect(() => {
@@ -666,6 +668,13 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
 
     return (
         <div style={{ maxWidth: 1000, width: '100%' }}>
+            <FilePreviewModal
+                isOpen={!!previewFile}
+                onClose={() => setPreviewFile(null)}
+                fileUrl={previewFile?.url || ''}
+                fileType={previewFile?.type || ''}
+                fileName={previewFile?.name || ''}
+            />
 
             {comments ? null : null}
             {/* Back button */}
@@ -1454,7 +1463,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                             maxWidth: '100%',
                                                             boxShadow: 'var(--shadow-sm)'
                                                         }}
-                                                        onClick={() => window.open(fileUrl, '_blank')}
+                                                        onClick={() => setPreviewFile({ url: fileUrl, type: att.fileType || att.contentType || '', name: att.originalName || att.fileName || att.filename || '' })}
                                                     >
                                                         {isImage ? (
                                                             <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -1471,7 +1480,7 @@ const AssignmentDetailPage = (): React.JSX.Element | null => {
                                                                 />
                                                                 <button
                                                                     type="button"
-                                                                    onClick={(e) => { e.stopPropagation(); window.open(fileUrl, '_blank'); }}
+                                                                    onClick={(e) => { e.stopPropagation(); setPreviewFile({ url: fileUrl, type: att.fileType || att.contentType || '', name: att.originalName || att.fileName || att.filename || '' }); }}
                                                                     style={{
                                                                         position: 'absolute', bottom: 6, right: 6,
                                                                         background: 'rgba(0,0,0,0.6)', color: 'white',

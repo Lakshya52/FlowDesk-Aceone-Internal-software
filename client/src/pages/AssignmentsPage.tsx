@@ -76,6 +76,7 @@ const AssignmentsPage: React.FC = () => {
     isRecurring: false,
     recurringPattern: "monthly" as any,
     recurringStartDate: "",
+    recurringTime: "00:00",
   });
 
   const [saving, setSaving] = useState(false);
@@ -173,30 +174,42 @@ const AssignmentsPage: React.FC = () => {
     user,
   ]);
 
-  const allCount = baseAssignments.length;
+  const allCount = baseAssignments.filter(
+    (a: any) => !(a.isRecurring && !a.parentAssignmentId),
+  ).length;
   const ongoingCount = baseAssignments.filter(
-    (a: any) => !a.isBlueprint && a.status !== "completed",
+    (a: any) =>
+      !(a.isRecurring && !a.parentAssignmentId) && a.status !== "completed",
   ).length;
   const completedCount = baseAssignments.filter(
-    (a: any) => !a.isBlueprint && a.status === "completed",
+    (a: any) =>
+      !(a.isRecurring && !a.parentAssignmentId) && a.status === "completed",
   ).length;
   const blueprintsCount = baseAssignments.filter(
-    (a: any) => a.isBlueprint,
+    (a: any) => a.isRecurring && !a.parentAssignmentId,
   ).length;
 
   const filteredAssignments = React.useMemo(() => {
     let result = baseAssignments;
 
-    if (activeTab === "ongoing") {
+    if (activeTab === "all") {
       result = result.filter(
-        (a: any) => !a.isBlueprint && a.status !== "completed",
+        (a: any) => !(a.isRecurring && !a.parentAssignmentId),
+      );
+    } else if (activeTab === "ongoing") {
+      result = result.filter(
+        (a: any) =>
+          !(a.isRecurring && !a.parentAssignmentId) && a.status !== "completed",
       );
     } else if (activeTab === "completed") {
       result = result.filter(
-        (a: any) => !a.isBlueprint && a.status === "completed",
+        (a: any) =>
+          !(a.isRecurring && !a.parentAssignmentId) && a.status === "completed",
       );
     } else if (activeTab === "blueprints") {
-      result = result.filter((a: any) => a.isBlueprint);
+      result = result.filter(
+        (a: any) => a.isRecurring && !a.parentAssignmentId,
+      );
     }
 
     if (statusFilter && (activeTab === "ongoing" || activeTab === "all")) {
@@ -347,6 +360,10 @@ const AssignmentsPage: React.FC = () => {
         recurringPattern: projectData.isRecurring
           ? projectData.recurringPattern
           : undefined,
+        recurringTime:
+          projectData.isRecurring && projectData.recurringPattern === "daily"
+            ? projectData.recurringTime
+            : undefined,
       });
       setShowCreate(false);
       setForm({
@@ -364,6 +381,7 @@ const AssignmentsPage: React.FC = () => {
         isRecurring: false,
         recurringPattern: "monthly",
         recurringStartDate: "",
+        recurringTime: "00:00",
       });
       setCompanySearch("");
       if (data.assignment?._id) {
@@ -1455,7 +1473,7 @@ const AssignmentsPage: React.FC = () => {
                 )}
               </div>
 
-              {form.isRecurring && form.recurringPattern !== "daily" && (
+              {form.isRecurring && (
                 <div>
                   <label
                     style={{
@@ -1475,6 +1493,31 @@ const AssignmentsPage: React.FC = () => {
                     value={form.recurringStartDate}
                     onChange={(e) =>
                       setForm({ ...form, recurringStartDate: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              {form.isRecurring && form.recurringPattern === "daily" && (
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      marginBottom: 4,
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    Daily Time *
+                  </label>
+                  <input
+                    className="input"
+                    type="time"
+                    required
+                    value={form.recurringTime}
+                    onChange={(e) =>
+                      setForm({ ...form, recurringTime: e.target.value })
                     }
                   />
                 </div>

@@ -4,6 +4,7 @@ import { useChatStore, MessageSnippet, UserSnippet } from "../store/chatStore";
 import api from "../lib/api";
 import { io, Socket } from "socket.io-client";
 import Avatar from "../components/common/Avatar";
+import FilePreviewModal from "../components/common/FilePreviewModal";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -24,6 +25,7 @@ import {
   Reply,
   ReplyAll,
   PanelLeftOpen,
+  Eye,
 } from "lucide-react";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
@@ -180,6 +182,9 @@ export default function ChatsPage() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionFilter, setMentionFilter] = useState("");
   const [mentionCursorPos, setMentionCursorPos] = useState(0);
+
+  // File Preview State
+  const [previewFile, setPreviewFile] = useState<{ url: string, type: string, name: string } | null>(null);
 
   // Single persistent socket ref — never recreated on chat switch
   const socketRef = useRef<Socket | null>(null);
@@ -883,6 +888,13 @@ export default function ChatsPage() {
 
   return (
     <>
+      <FilePreviewModal
+        isOpen={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        fileUrl={previewFile?.url || ""}
+        fileType={previewFile?.type || ""}
+        fileName={previewFile?.name || ""}
+      />
       <style>{globalStyles}</style>
       <div
         style={{
@@ -2031,9 +2043,15 @@ export default function ChatsPage() {
                                                     display: "block",
                                                   }}
                                                 />
-                                                <a
-                                                  href={fileUrl}
-                                                  download={att.originalName}
+                                                <div
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setPreviewFile({
+                                                          url: fileUrl,
+                                                          type: att.fileType || att.contentType || `image/${ext}`,
+                                                          name: att.originalName || att.fileName || att.filename || ''
+                                                      });
+                                                  }}
                                                   style={{
                                                     position: "absolute",
                                                     inset: 0,
@@ -2043,17 +2061,25 @@ export default function ChatsPage() {
                                                     alignItems: "center",
                                                     justifyContent: "center",
                                                     color: "white",
-                                                    textDecoration: "none",
+                                                    cursor: "pointer",
                                                   }}
                                                 >
-                                                  <Download size={18} />
-                                                </a>
+                                                  <Eye size={18} />
+                                                </div>
                                               </div>
                                             );
                                           }
                                           return (
                                             <div
                                               key={att._id}
+                                              onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setPreviewFile({
+                                                      url: fileUrl,
+                                                      type: att.fileType || att.contentType || '',
+                                                      name: att.originalName || att.fileName || att.filename || ''
+                                                  });
+                                              }}
                                               style={{
                                                 display: "flex",
                                                 alignItems: "center",
@@ -2066,6 +2092,7 @@ export default function ChatsPage() {
                                                 border:
                                                   "1px solid rgba(0,0,0,0.05)",
                                                 color: "inherit",
+                                                cursor: "pointer",
                                               }}
                                             >
                                               <FileText
@@ -2104,16 +2131,29 @@ export default function ChatsPage() {
                                                   KB
                                                 </p>
                                               </div>
-                                              <a
-                                                href={fileUrl}
-                                                download={att.originalName}
+                                              <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // Trigger download
+                                                    const link = document.createElement('a');
+                                                    link.href = fileUrl;
+                                                    link.download = att.originalName;
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    link.remove();
+                                                }}
                                                 style={{
                                                   color: "inherit",
                                                   display: "flex",
+                                                  cursor: "pointer",
+                                                  padding: "4px",
+                                                  borderRadius: "4px"
                                                 }}
+                                                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.1)"}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                                               >
                                                 <Download size={14} />
-                                              </a>
+                                              </div>
                                             </div>
                                           );
                                         })}

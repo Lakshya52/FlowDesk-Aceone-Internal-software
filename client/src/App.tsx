@@ -177,7 +177,7 @@ const App: React.FC = () => {
       <OfflineBanner />
       <Toaster position="top-right" />
       <HashRouter>
-        <Buddy />
+        {/* <Buddy /> */}
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
