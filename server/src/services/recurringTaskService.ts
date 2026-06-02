@@ -1,117 +1,120 @@
 import Assignment from '../models/Assignment';
-import Task, { ITask } from '../models/Task';
+import Task from '../models/Task';
 import mongoose from 'mongoose';
 import { createNotifications, NotificationPayload } from './notificationService';
 import { NotificationType } from '../models/Notification';
 
 export const processRecurringAssignments = async () => {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const now = new Date();
 
-        // Find all root recurring assignments
-        // For simplicity, we assume an assignment with isRecurring: true and parentAssignmentId: null is a template/root
+        // Find all root recurring assignments where recurringStartDate has been reached
         const templates = await Assignment.find({
             isRecurring: true,
             parentAssignmentId: null,
-            recurringStartDate: { $lte: new Date() }
         });
 
         for (const template of templates) {
-            // Check if we already spawned an assignment for the current cycle
-            const lastChild = await Assignment.findOne({
-                parentAssignmentId: template._id
-            }).sort({ startDate: -1 });
-
-            let shouldSpawn = false;
-            let nextStartDate = new Date(template.recurringStartDate!);
-            nextStartDate.setHours(0, 0, 0, 0);
-
-            if (!lastChild) {
-                // Never spawned before, and we are past or at start date
-                if (nextStartDate <= today) {
-                    shouldSpawn = true;
-                }
-            } else {
-                // Calculate next date based on last child
-                const lastDate = new Date(lastChild.startDate);
-                lastDate.setHours(0, 0, 0, 0);
-                nextStartDate = new Date(lastDate);
-
-                if (template.recurringPattern === 'daily') {
-                    nextStartDate.setDate(nextStartDate.getDate() + 1);
-                } else if (template.recurringPattern === 'weekly') {
-                    nextStartDate.setDate(nextStartDate.getDate() + 7);
-                } else if (template.recurringPattern === 'monthly') {
-                    nextStartDate.setMonth(nextStartDate.getMonth() + 1);
-                } else if (template.recurringPattern === 'yearly') {
-                    nextStartDate.setFullYear(nextStartDate.getFullYear() + 1);
-                }
-
-                // If nextStartDate is today or in the past, spawn it
-                if (nextStartDate <= today) {
-                    shouldSpawn = true;
-                }
+            if (template.recurringPattern === 'daily') {
+                await processDailyTemplate(template, now);
             }
-
-            if (shouldSpawn) {
-                // Calculate due date based on the duration of the template
-                let newDueDate = null;
-                if (template.startDate && template.dueDate) {
-                    const templateStart = new Date(template.startDate);
-                    const templateDue = new Date(template.dueDate);
-
-                    // Only calculate if templateDue is valid and after templateStart
-                    if (templateDue.getFullYear() > 1970) {
-                        const durationMs = templateDue.getTime() - templateStart.getTime();
-                        newDueDate = new Date(nextStartDate.getTime() + durationMs);
-                    }
-                }
-
-                // Create new instance
-                const newAssignment = new Assignment({
-                    title: template.title,
-                    clientName: template.clientName,
-                    companyId: template.companyId,
-                    description: template.description,
-                    priority: template.priority,
-                    status: 'not_started',
-                    startDate: nextStartDate,
-                    dueDate: newDueDate,
-                    createdBy: template.createdBy,
-                    team: template.team,
-                    teams: template.teams,
-                    isRecurring: false,
-                    parentAssignmentId: template._id,
-                });
-
-                await newAssignment.save();
-
-                // Clone tasks from template to new instance
-                const templateTasks = await Task.find({ assignment: template._id });
-                if (templateTasks.length > 0) {
-                    const clonedTasks = templateTasks.map(t => ({
-                        title: t.title,
-                        description: t.description,
-                        assignment: newAssignment._id,
-                        assignedTo: t.assignedTo,
-                        createdBy: t.createdBy,
-                        dueDate: newDueDate, // Optionally set task due date to match assignment due date
-                        priority: t.priority,
-                        status: 'todo',
-                        subtasks: t.subtasks.map(s => ({ title: s.title, completed: false })),
-                        dependencies: [], // Reset dependencies for now as they relate to specific task IDs
-                    }));
-                    await Task.insertMany(clonedTasks);
-                    console.log(`[Recurring] Cloned ${templateTasks.length} tasks to "${newAssignment.title}"`);
-                }
-
-                console.log(`[Recurring] Spawned new assignment "${newAssignment.title}" for date ${nextStartDate.toDateString()} from template ${template._id}`);
-            }
+            // weekly, monthly, yearly — coming soon
         }
     } catch (error) {
         console.error('[Recurring] Error processing recurring assignments:', error);
     }
+};
+
+const processDailyTemplate = async (template: any, now: Date) => {
+    // Parse recurringTime (e.g. "09:30"), default to "00:00"
+    const [hours, minutes] = (template.recurringTime || '00:00').split(':').map(Number);
+
+    // Build start-of-day for recurringStartDate
+    const recurringStart = new Date(template.recurringStartDate!);
+    recurringStart.setHours(0, 0, 0, 0);
+
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+
+    // Don't process if recurringStartDate is in the future
+    if (recurringStart > todayMidnight) {
+        console.log(`[Recurring Daily] "${template.title}" starts on ${recurringStart.toDateString()}, skipping.`);
+        return;
+    }
+
+    // Find the last spawned instance
+    const lastChild = await Assignment.findOne({
+        parentAssignmentId: template._id,
+        isRecurring: false,
+    }).sort({ startDate: -1 });
+
+    let shouldSpawn = false;
+    let nextSpawnTime: Date;
+
+    if (!lastChild) {
+        // First instance — scheduled time is recurringStartDate + recurringTime
+        nextSpawnTime = new Date(recurringStart);
+        nextSpawnTime.setHours(hours, minutes, 0, 0);
+
+        if (now >= nextSpawnTime) {
+            shouldSpawn = true;
+        }
+    } else {
+        // Next instance = last spawn date + 24 hours, at the same time
+        const lastSpawnDate = new Date(lastChild.startDate);
+        nextSpawnTime = new Date(lastSpawnDate);
+        nextSpawnTime.setDate(nextSpawnTime.getDate() + 1);
+        nextSpawnTime.setHours(hours, minutes, 0, 0);
+
+        if (now >= nextSpawnTime) {
+            shouldSpawn = true;
+        }
+    }
+
+    if (!shouldSpawn) {
+        console.log(`[Recurring Daily] "${template.title}" next spawn at ${nextSpawnTime!.toISOString()}, not yet.`);
+        return;
+    }
+
+    // Create the new instance
+    const newAssignment = new Assignment({
+        title: template.title,
+        clientName: template.clientName,
+        companyId: template.companyId,
+        description: template.description,
+        priority: template.priority,
+        status: 'not_started',
+        startDate: nextSpawnTime,
+        dueDate: null,
+        createdBy: template.createdBy,
+        team: template.team,
+        teams: template.teams,
+        isRecurring: false,
+        parentAssignmentId: template._id,
+    });
+
+    await newAssignment.save();
+
+    // Clone tasks from template
+    const templateTasks = await Task.find({ assignment: template._id });
+    if (templateTasks.length > 0) {
+        const clonedTasks = templateTasks.map((t: any) => ({
+            title: t.title,
+            description: t.description,
+            assignment: newAssignment._id,
+            assignedTo: t.assignedTo,
+            createdBy: t.createdBy,
+            dueDate: null,
+            priority: t.priority,
+            status: 'todo',
+            subtasks: t.subtasks.map((s: any) => ({ title: s.title, completed: false })),
+            dependencies: [],
+        }));
+        await Task.insertMany(clonedTasks);
+        console.log(`[Recurring Daily] Cloned ${templateTasks.length} tasks to "${newAssignment.title}"`);
+    }
+
+    console.log(`[Recurring Daily] Spawned "${newAssignment.title}" at ${nextSpawnTime.toISOString()}`);
 };
 
 // Process tasks that are near deadline (24 hours)
@@ -119,12 +122,6 @@ export const processTaskDeadlines = async () => {
     try {
         const now = new Date();
         const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        
-        // Find tasks due within the next 24 hours that are NOT completed
-        // Also check if they have already triggered the deadline notification (optional, but to avoid spam, we should probably record it. 
-        // For now, let's keep it simple: just notify anything due between now and 24 hours from now)
-        // A better approach is to check if it's due exactly between 23h and 24h from now to only run once per task.
-        
         const in23Hours = new Date(now.getTime() + 23 * 60 * 60 * 1000);
 
         const soonTasks = await Task.find({
@@ -134,7 +131,7 @@ export const processTaskDeadlines = async () => {
         }).populate('assignment', 'title');
 
         if (soonTasks.length > 0) {
-            const payloads: NotificationPayload[] = soonTasks.map(task => ({
+            const payloads: NotificationPayload[] = soonTasks.map((task: any) => ({
                 user: task.assignedTo.toString(),
                 type: NotificationType.DEADLINE_APPROACHING,
                 title: 'Task Deadline Approaching',
@@ -152,11 +149,12 @@ export const processTaskDeadlines = async () => {
 
 // Start the background job
 export const startRecurringJob = () => {
-    // Run once on start
+    // Run once on server start
     processRecurringAssignments();
     processTaskDeadlines();
-    
-    // Then run every hour
+
+    // Run every hour — fine for daily pattern since we check exact timestamps
+    // For daily: spawns only when `now >= nextSpawnTime`, so no duplicates
     setInterval(() => {
         processRecurringAssignments();
         processTaskDeadlines();
