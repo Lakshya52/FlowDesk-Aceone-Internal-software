@@ -66,6 +66,7 @@ const assignmentSchema = new mongoose_1.Schema({
     recurringStartDate: { type: Date, default: undefined },
     parentAssignmentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Assignment', default: null },
     canvasData: { type: mongoose_1.Schema.Types.Mixed, default: null },
+    recurringTime: { type: String, default: undefined },
 }, { timestamps: true });
 assignmentSchema.index({ status: 1 });
 assignmentSchema.index({ dueDate: 1 });

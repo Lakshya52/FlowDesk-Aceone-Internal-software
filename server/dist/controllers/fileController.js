@@ -44,7 +44,7 @@ const gridfs_1 = require("../utils/gridfs");
 const uploadFile = async (req, res) => {
     try {
         if (!req.file) {
-            res.status(400).json({ message: 'No file provided' });
+            res.status(400).json({ message: "No file provided" });
             return;
         }
         const { assignmentId, taskId } = req.body;
@@ -61,14 +61,13 @@ const uploadFile = async (req, res) => {
             task: taskId,
         });
         await ActivityLog_1.default.create({
-            action: 'File uploaded',
+            action: "File uploaded",
             user: req.user._id,
             entityType: ActivityLog_1.EntityType.ATTACHMENT,
             entityId: attachment._id,
             metadata: { fileName: attachment.originalName, assignmentId, taskId },
         });
-        const populated = await Attachment_1.default.findById(attachment._id)
-            .populate('uploadedBy', 'name email');
+        const populated = await Attachment_1.default.findById(attachment._id).populate("uploadedBy", "name email");
         res.status(201).json({ attachment: populated });
     }
     catch (error) {
@@ -85,7 +84,7 @@ const getFiles = async (req, res) => {
         if (taskId)
             filter.task = taskId;
         const attachments = await Attachment_1.default.find(filter)
-            .populate('uploadedBy', 'name email')
+            .populate("uploadedBy", "name email")
             .sort({ createdAt: -1 });
         res.json({ attachments });
     }
@@ -98,24 +97,28 @@ const downloadFile = async (req, res) => {
     try {
         const attachment = await Attachment_1.default.findById(req.params.id);
         if (!attachment) {
-            res.status(404).json({ message: 'File not found' });
+            res.status(404).json({ message: "File not found" });
             return;
         }
         if (!mongoose_1.default.connection.db) {
-            res.status(500).json({ message: 'Database connection not established' });
+            res.status(500).json({ message: "Database connection not established" });
             return;
         }
         const bucket = new mongoose_1.default.mongo.GridFSBucket(mongoose_1.default.connection.db, {
-            bucketName: 'uploads'
+            bucketName: "uploads",
         });
-        const files = await bucket.find({ filename: attachment.fileName }).toArray();
+        const files = await bucket
+            .find({ filename: attachment.fileName })
+            .toArray();
         if (!files || files.length === 0) {
-            res.status(404).json({ message: 'File no longer exists in database' });
+            res.status(404).json({ message: "File no longer exists in database" });
             return;
         }
         // Set proper Content-Type to preserve original file format
-        res.setHeader('Content-Type', attachment.fileType);
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);
+        // res.setHeader("Content-Type", attachment.fileType);
+        res.setHeader("Content-Type", "application/octet-stream");
+        // res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.originalName)}"`);
+        res.setHeader("Content-Disposition", `attachment; filename="FlowDesk_${attachment.originalName}"; filename*=UTF-8''FlowDesk_${encodeURIComponent(attachment.originalName)}`);
         const downloadStream = bucket.openDownloadStreamByName(attachment.fileName);
         downloadStream.pipe(res);
     }
@@ -128,11 +131,12 @@ const deleteFile = async (req, res) => {
     try {
         const attachment = await Attachment_1.default.findById(req.params.id);
         if (!attachment) {
-            res.status(404).json({ message: 'File not found' });
+            res.status(404).json({ message: "File not found" });
             return;
         }
-        if (req.user.role !== 'admin' && attachment.uploadedBy.toString() !== req.user._id.toString()) {
-            res.status(403).json({ message: 'Not authorized to delete this file' });
+        if (req.user.role !== "admin" &&
+            attachment.uploadedBy.toString() !== req.user._id.toString()) {
+            res.status(403).json({ message: "Not authorized to delete this file" });
             return;
         }
         if (attachment.fileName) {
@@ -140,13 +144,13 @@ const deleteFile = async (req, res) => {
         }
         await Attachment_1.default.findByIdAndDelete(req.params.id);
         await ActivityLog_1.default.create({
-            action: 'File deleted',
+            action: "File deleted",
             user: req.user._id,
             entityType: ActivityLog_1.EntityType.ATTACHMENT,
             entityId: attachment._id,
             metadata: { fileName: attachment.originalName },
         });
-        res.json({ message: 'File deleted successfully' });
+        res.json({ message: "File deleted successfully" });
     }
     catch (error) {
         res.status(500).json({ message: error.message });

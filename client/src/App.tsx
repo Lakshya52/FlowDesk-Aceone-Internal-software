@@ -162,7 +162,7 @@ const App: React.FC = () => {
 
           <button
             onClick={() => window.location.reload()}
-            className="w-full py-4 cursor-pointer bg-gradient-to-r from-[#3b82f6] to-[#8b5cf6] text-white font-semibold rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] active:scale-[0.98]"
+            className="w-full py-4 cursor-pointer bg-linear-to-r from-[#3b82f6] to-[#8b5cf6] text-white font-semibold rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] active:scale-[0.98]"
             style={{ width: "100%", height: "50px" }}
           >
             Retry Connection

@@ -96,6 +96,20 @@ exports.activeUsers = new Set();
 // Security middleware
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            frameSrc: ["'self'", "http://localhost:5000", "http://localhost:5173"],
+            objectSrc: ["'self'", "http://localhost:5000"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:", "http://localhost:5000"],
+            connectSrc: ["'self'", "*"],
+            mediaSrc: ["'self'", "http://localhost:5000", "blob:"],
+            workerSrc: ["'self'", "blob:"],
+        },
+    },
 }));
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
@@ -143,6 +157,11 @@ app.get("/uploads/:filename", async (req, res) => {
             else if (ext === "pdf")
                 res.set("Content-Type", "application/pdf");
         }
+        // Allow inline rendering (critical for PDF preview in iframes)
+        res.set("Content-Disposition", "inline");
+        // Allow embedding from the client origin
+        res.set("X-Frame-Options", "ALLOWALL");
+        res.set("Cross-Origin-Resource-Policy", "cross-origin");
         const downloadStream = bucket.openDownloadStreamByName(filename);
         downloadStream.on("error", () => {
             res.status(404).json({ message: "Error downloading file" });
