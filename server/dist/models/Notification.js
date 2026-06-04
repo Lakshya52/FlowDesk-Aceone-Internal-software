@@ -46,6 +46,9 @@ var NotificationType;
     NotificationType["REPLY"] = "reply";
     NotificationType["DIRECT_MESSAGE"] = "direct_message";
     NotificationType["PROJECT_CREATED"] = "project_created";
+    NotificationType["CALENDAR_REMINDER"] = "calendar_reminder";
+    NotificationType["CALENDAR_SHARED"] = "calendar_shared";
+    NotificationType["EVENT_INVITE"] = "event_invite";
 })(NotificationType || (exports.NotificationType = NotificationType = {}));
 const notificationSchema = new mongoose_1.Schema({
     user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -54,6 +57,7 @@ const notificationSchema = new mongoose_1.Schema({
     message: { type: String, required: true },
     isRead: { type: Boolean, default: false },
     link: { type: String },
+    metadata: { type: mongoose_1.Schema.Types.Mixed },
 }, { timestamps: true });
 notificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 exports.default = mongoose_1.default.model('Notification', notificationSchema);

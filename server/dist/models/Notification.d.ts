@@ -8,7 +8,10 @@ export declare enum NotificationType {
     COMMENT_ADDED = "comment_added",
     REPLY = "reply",
     DIRECT_MESSAGE = "direct_message",
-    PROJECT_CREATED = "project_created"
+    PROJECT_CREATED = "project_created",
+    CALENDAR_REMINDER = "calendar_reminder",
+    CALENDAR_SHARED = "calendar_shared",
+    EVENT_INVITE = "event_invite"
 }
 export interface INotification extends Document {
     user: mongoose.Types.ObjectId;
@@ -17,6 +20,7 @@ export interface INotification extends Document {
     message: string;
     isRead: boolean;
     link?: string;
+    metadata?: any;
     createdAt: Date;
     updatedAt: Date;
 }

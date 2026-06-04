@@ -29,6 +29,8 @@ import reportRoutes from "./routes/reports";
 import companyRoutes from "./routes/companies";
 import canvasRoutes from "./routes/canvas";
 import conversationRoutes from "./routes/conversations";
+import calendarRoutes from "./routes/calendars";
+import calendarEventRoutes from "./routes/calendarEvents";
 import { startRecurringJob } from "./services/recurringTaskService";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
@@ -202,6 +204,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/canvas", canvasRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/calendars", calendarRoutes);
+app.use("/api/calendar-events", calendarEventRoutes);
 
 // Socket.io connection logic
 io.on("connection", (socket) => {

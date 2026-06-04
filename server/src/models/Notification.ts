@@ -10,6 +10,9 @@ export enum NotificationType {
     REPLY = 'reply',
     DIRECT_MESSAGE = 'direct_message',
     PROJECT_CREATED = 'project_created',
+    CALENDAR_REMINDER = 'calendar_reminder',
+    CALENDAR_SHARED = 'calendar_shared',
+    EVENT_INVITE = 'event_invite',
 }
 
 export interface INotification extends Document {
@@ -19,6 +22,7 @@ export interface INotification extends Document {
     message: string;
     isRead: boolean;
     link?: string;
+    metadata?: any;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -31,6 +35,7 @@ const notificationSchema = new Schema<INotification>(
         message: { type: String, required: true },
         isRead: { type: Boolean, default: false },
         link: { type: String },
+        metadata: { type: Schema.Types.Mixed },
     },
     { timestamps: true }
 );

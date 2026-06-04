@@ -49,7 +49,7 @@ const navItems = [
     { to: '/clients', icon: Building2, label: 'Companies & Clients', new: false },
     { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: false },
     { to: '/canvas', icon: Shapes, label: 'Canvas', new: false },
-    { to: '/calendar', icon: CalendarDays, label: 'Calendar' },
+    { to: '/calendar', icon: CalendarDays, label: 'Calendar',new: true },
     { to: '/chat', icon: MessageSquare, label: 'Chat' },
     {
         to: '/reports',
@@ -277,7 +277,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                                 fontWeight: 700,
                                                 textTransform: 'uppercase',
                                                 lineHeight: 1
-                                            }}>New</span>
+                                            }}>New&nbsp;Features</span>
                                         )}
                                     </NavLink>
                                 )}
