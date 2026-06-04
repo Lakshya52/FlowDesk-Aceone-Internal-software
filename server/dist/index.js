@@ -63,6 +63,8 @@ const reports_1 = __importDefault(require("./routes/reports"));
 const companies_1 = __importDefault(require("./routes/companies"));
 const canvas_1 = __importDefault(require("./routes/canvas"));
 const conversations_1 = __importDefault(require("./routes/conversations"));
+const calendars_1 = __importDefault(require("./routes/calendars"));
+const calendarEvents_1 = __importDefault(require("./routes/calendarEvents"));
 const recurringTaskService_1 = require("./services/recurringTaskService");
 const errorHandler_1 = require("./middlewares/errorHandler");
 const app = (0, express_1.default)();
@@ -216,6 +218,8 @@ app.use("/api/reports", reports_1.default);
 app.use("/api/companies", companies_1.default);
 app.use("/api/canvas", canvas_1.default);
 app.use("/api/conversations", conversations_1.default);
+app.use("/api/calendars", calendars_1.default);
+app.use("/api/calendar-events", calendarEvents_1.default);
 // Socket.io connection logic
 io.on("connection", (socket) => {
     socket.on("join_assignment", (assignmentId) => {

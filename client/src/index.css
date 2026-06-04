@@ -602,3 +602,43 @@ input, textarea, select, button, a-button, .btn, [role="button"], a {
     display: none;
   }
 }
+
+/* Hide scrollbar utility for specific containers */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== Calendar Responsiveness ===== */
+.mobile-hamburger {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-hamburger {
+    display: block;
+  }
+  
+  .sidebar-container {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -260px;
+    transition: left 0.3s ease;
+    z-index: 40;
+    width: 256px;
+  }
+  
+  .sidebar-container.open {
+    left: 0;
+  }
+}
+
+@media (min-width: 769px) {
+  .md\:hidden {
+    display: none !important;
+  }
+}

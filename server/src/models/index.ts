@@ -12,3 +12,5 @@ export { default as Company } from './Company';
 export { default as Contact } from './Contact';
 export { default as Conversation } from './Conversation';
 export { default as Message } from './Message';
+export { default as Calendar } from './Calendar';
+export { default as CalendarEvent } from './CalendarEvent';

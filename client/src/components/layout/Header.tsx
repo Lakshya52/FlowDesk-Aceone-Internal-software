@@ -12,9 +12,11 @@ import {
   Menu,
 } from "lucide-react";
 import api from "../../lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import Avatar from "../common/Avatar";
 import { io } from "socket.io-client";
 import { useChatStore } from "../../store/chatStore";
+// import { useCalendarStore } from "../../store/calendarStore";
 
 interface HeaderProps {
   toggleSidebar?: () => void;
@@ -35,6 +37,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const queryClient = useQueryClient();
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
@@ -290,6 +293,57 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
     } catch {}
   };
 
+  // const acceptShare = async (
+  //   calendarId: string,
+  //   notifId: string,
+  //   e: React.MouseEvent,
+  // ) => {
+  //   e.stopPropagation();
+  //   try {
+  //     await api.put(`/calendars/${calendarId}/share/accept`);
+  //     await markAsRead(notifId);
+  //     useCalendarStore.getState().fetchCalendars();
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
+
+  // const rejectShare = async (
+  //   calendarId: string,
+  //   notifId: string,
+  //   e: React.MouseEvent,
+  // ) => {
+  //   e.stopPropagation();
+  //   try {
+  //     await api.put(`/calendars/${calendarId}/share/reject`);
+  //     await markAsRead(notifId);
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
+  // After
+const acceptShare = async (calendarId: string, notifId: string, e: React.MouseEvent) => {
+  e.stopPropagation();
+  try {
+    await api.put(`/calendars/${calendarId}/share/accept`);
+    await markAsRead(notifId);
+    queryClient.invalidateQueries({ queryKey: ['calendars'] });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const rejectShare = async (calendarId: string, notifId: string, e: React.MouseEvent) => {
+  e.stopPropagation();
+  try {
+    await api.put(`/calendars/${calendarId}/share/reject`);
+    await markAsRead(notifId);
+    queryClient.invalidateQueries({ queryKey: ['calendars'] });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
   const roleLabel =
     user?.role === "admin"
       ? "Admin"
@@ -332,8 +386,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           flex: 1,
           maxWidth: 400,
           position: "relative",
-          padding:"5px 10px",
-          borderRadius: "10px"
+          padding: "5px 10px",
+          borderRadius: "10px",
         }}
         className="py-[5px] px-[10px] bg-[#fafafa]/10 text-white"
       >
@@ -601,7 +655,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
       </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", alignItems: "center"}} className="gap-0 sm:gap-2">
+      <div
+        style={{ display: "flex", alignItems: "center" }}
+        className="gap-0 sm:gap-2"
+      >
         {/* Theme toggle */}
         <button
           className="btn btn-ghost btn-sm"
@@ -724,6 +781,52 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                     >
                       {n.message}
                     </div>
+                    {n.type === "calendar_shared" &&
+                      n.metadata?.calendarId &&
+                      !n.isRead && (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            marginTop: "8px",
+                          }}
+                        >
+                          <button
+                            style={{
+                              padding: "4px 12px",
+                              fontSize: "12px",
+                              borderRadius: "4px",
+                              backgroundColor: "var(--color-primary)",
+                              color: "white",
+                              border: "none",
+                              cursor: "pointer",
+                              fontWeight: 500,
+                            }}
+                            onClick={(e) =>
+                              acceptShare(n.metadata.calendarId, n._id, e)
+                            }
+                          >
+                            Accept
+                          </button>
+                          <button
+                            style={{
+                              padding: "4px 12px",
+                              fontSize: "12px",
+                              borderRadius: "4px",
+                              backgroundColor: "var(--color-surface-hover)",
+                              color: "var(--color-text)",
+                              border: "none",
+                              cursor: "pointer",
+                              fontWeight: 500,
+                            }}
+                            onClick={(e) =>
+                              rejectShare(n.metadata.calendarId, n._id, e)
+                            }
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                   </div>
                 ))
               )}

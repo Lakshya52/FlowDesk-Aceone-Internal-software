@@ -1,725 +1,145 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Calendar, Layers, Columns, Clock, ChevronDown } from 'lucide-react';
-import {
-    format,
-    startOfMonth,
-    endOfMonth,
-    startOfWeek,
-    endOfWeek,
-    addDays,
-    addMonths,
-    subMonths,
-    isSameMonth,
-    isSameDay,
-    isToday,
-    addWeeks,
-    subWeeks,
-    addYears,
-    subYears,
-    eachDayOfInterval,
-    eachMonthOfInterval,
-    startOfYear,
-    endOfYear,
-    startOfDay,
-    endOfDay,
-} from 'date-fns';
-
-interface CalendarEvent {
-    _id: string;
-    title: string;
-    dueDate: string;
-    status: string;
-    type: 'task' | 'assignment';
-    assignment?: string;
-    [key: string]: any;
-}
-
-interface Holiday {
-    date: string;
-    name: string;
-    category: 'Festival' | 'National / Gazetted';
-}
-
-const HOLIDAYS: Holiday[] = [
-    { date: '2026-01-01', name: "New Year's Day", category: 'Festival' },
-    { date: '2026-01-14', name: 'Makar Sankranti / Pongal', category: 'Festival' },
-    { date: '2026-01-26', name: 'Republic Day', category: 'National / Gazetted' },
-    { date: '2026-02-15', name: 'Maha Shivaratri', category: 'Festival' },
-    { date: '2026-03-04', name: 'Holi', category: 'Festival' },
-    { date: '2026-03-21', name: 'Eid-ul-Fitr / Ramzan Id*', category: 'Festival' },
-    { date: '2026-03-26', name: 'Rama Navami', category: 'Festival' },
-    { date: '2026-03-31', name: 'Mahavir Jayanti', category: 'Festival' },
-    { date: '2026-04-03', name: 'Good Friday', category: 'Festival' },
-    { date: '2026-04-05', name: 'Easter Sunday', category: 'Festival' },
-    { date: '2026-04-14', name: 'Vaisakhi / Ambedkar Jayanti', category: 'Festival' },
-    { date: '2026-05-27', name: 'Eid-ul-Adha / Bakrid', category: 'Festival' },
-    { date: '2026-06-26', name: 'Muharram / Ashura', category: 'Festival' },
-    { date: '2026-08-15', name: 'Independence Day', category: 'National / Gazetted' },
-    { date: '2026-08-26', name: 'Milad-un-Nabi/Onam', category: 'Festival' },
-    { date: '2026-08-28', name: 'Raksha Bandhan', category: 'Festival' },
-    { date: '2026-09-04', name: 'Janmashtami', category: 'Festival' },
-    { date: '2026-09-14', name: 'Ganesh Chaturthi', category: 'Festival' },
-    { date: '2026-10-02', name: 'Gandhi Jayanti', category: 'National / Gazetted' },
-    { date: '2026-10-19', name: 'Maha Ashtami', category: 'Festival' },
-    { date: '2026-10-20', name: 'Dussehra (Vijayadashami)', category: 'Festival' },
-    { date: '2026-11-08', name: 'Diwali / Deepavali', category: 'National / Gazetted' },
-    { date: '2026-11-09', name: 'Govardhan Puja', category: 'Festival' },
-    { date: '2026-11-11', name: 'Bhai Duj', category: 'Festival' },
-    { date: '2026-11-24', name: 'Guru Nanak Jayanti', category: 'National / Gazetted' },
-    { date: '2026-12-25', name: 'Christmas Day', category: 'Festival' },
-];
-
-const getHolidayColor = (category: string) => {
-    switch (category) {
-        case 'Sunday': return '#ef444494';
-        case 'National / Gazetted': return '#ef4444';
-        case 'Festival': return '#25f85ac4';
-        default: return 'var(--color-text-secondary)';
-    }
-};
-
-// Derive stable start/end dates for a given view + date so the query key is deterministic
-const getDateRange = (view: string, date: Date): { startDate: Date; endDate: Date; cacheKey: string } => {
-    if (view === 'year') {
-        const startDate = startOfWeek(startOfMonth(startOfYear(date)));
-        const endDate = endOfWeek(endOfMonth(endOfYear(date)));
-        return { startDate, endDate, cacheKey: format(date, 'yyyy') };
-    }
-    if (view === 'month') {
-        const startDate = startOfWeek(startOfMonth(date));
-        const endDate = endOfWeek(endOfMonth(date));
-        return { startDate, endDate, cacheKey: format(date, 'yyyy-MM') };
-    }
-    if (view === 'week') {
-        const startDate = startOfWeek(date);
-        const endDate = endOfWeek(date);
-        return { startDate, endDate, cacheKey: `week-${format(startDate, 'yyyy-MM-dd')}` };
-    }
-    // day
-    return {
-        startDate: startOfDay(date),
-        endDate: endOfDay(date),
-        cacheKey: `day-${format(date, 'yyyy-MM-dd')}`,
-    };
-};
-
-const fetchCalendarEvents = async (startDate: Date, endDate: Date): Promise<CalendarEvent[]> => {
-    const { data } = await api.get('/dashboard/calendar', {
-        params: { start: startDate.toISOString(), end: endDate.toISOString() },
-    });
-    return [
-        ...(data.tasks || []).map((t: any) => ({ ...t, type: 'task' as const })),
-        ...(data.assignments || []).map((a: any) => ({ ...a, type: 'assignment' as const })),
-    ];
-};
+import { useCalendarStore } from '../store/calendarStore';
+import CalendarSidebar from '../components/calendar/CalendarSidebar';
+import CalendarToolbar from '../components/calendar/CalendarToolbar';
+import MonthView from '../components/calendar/MonthView';
+import WeekView from '../components/calendar/WeekView';
+import DayView from '../components/calendar/DayView';
+import YearView from '../components/calendar/YearView';
+import AgendaView from '../components/calendar/AgendaView';
+import EventModal from '../components/calendar/EventModal';
+import CalendarModal from '../components/calendar/CalendarModal';
+import CalendarShareModal from '../components/calendar/CalendarShareModal';
+import EventDetailDrawer from '../components/calendar/EventDetailDrawer';
 
 const CalendarPage: React.FC = () => {
-    const navigate = useNavigate();
-    const queryClient = useQueryClient();
+  const { 
+    currentView, 
+    currentDate,
+    setAllCalendarsVisible,
+    visibleCalendarIds,
+    openEventModal,
+    navigateToday,
+    isCalendarSidebarOpen,
+    setCalendarSidebarOpen
+  } = useCalendarStore();
 
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+  // Handle Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) return;
+      
+      if (e.key === 't' || e.key === 'T') navigateToday();
+      if (e.key === 'n' || e.key === 'N') openEventModal();
+    };
 
-    const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [view, setView] = useState<'year' | 'month' | 'week' | 'day'>('month');
-    const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-    const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigateToday, openEventModal]);
 
-    const { startDate, endDate, cacheKey } = getDateRange(view, currentMonth);
+  // Fetch Calendars
+  const { data: calendars = [], isLoading: loadingCalendars } = useQuery({
+    queryKey: ['calendars'],
+    queryFn: async () => {
+      const res = await api.get('/calendars');
+      return res.data;
+    }
+  });
 
-    // Main calendar query — React Query caches by [view, cacheKey] so navigating
-    // back to a period you already visited is instant (no network call).
-    const { data: events = [], isLoading: loading } = useQuery<CalendarEvent[]>({
-        queryKey: ['calendar', view, cacheKey],
-        queryFn: () => fetchCalendarEvents(startDate, endDate),
-        placeholderData: keepPreviousData, // keep showing previous data while loading new period
-    });
+  // Initialize visible calendars only on first load
+  useEffect(() => {
+    if (calendars.length > 0 && visibleCalendarIds.size === 0) {
+      setAllCalendarsVisible(calendars.map((c: any) => c._id));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendars.length]);
 
-    // Prefetch the adjacent period (next AND prev) as soon as current data arrives
-    useEffect(() => {
-        const prefetch = (targetDate: Date) => {
-            const { startDate: s, endDate: e, cacheKey: k } = getDateRange(view, targetDate);
-            queryClient.prefetchQuery({
-                queryKey: ['calendar', view, k],
-                queryFn: () => fetchCalendarEvents(s, e),
-            });
-        };
+  // Determine query range based on view
+  const getQueryRange = () => {
+    const date = new Date(currentDate);
+    const start = new Date(date.getFullYear(), date.getMonth() - 1, 1).toISOString();
+    const end = new Date(date.getFullYear(), date.getMonth() + 2, 0).toISOString();
+    return { start, end };
+  };
 
-        if (view === 'year') {
-            prefetch(addYears(currentMonth, 1));
-            prefetch(subYears(currentMonth, 1));
-        } else if (view === 'month') {
-            prefetch(addMonths(currentMonth, 1));
-            prefetch(subMonths(currentMonth, 1));
-        } else if (view === 'week') {
-            prefetch(addWeeks(currentMonth, 1));
-            prefetch(subWeeks(currentMonth, 1));
-        } else {
-            prefetch(addDays(currentMonth, 1));
-            prefetch(addDays(currentMonth, -1));
+  const { start, end } = getQueryRange();
+
+  // Fetch Events
+  const { data: events = [], isLoading: loadingEvents } = useQuery({
+    queryKey: ['calendar-events', start, end, Array.from(visibleCalendarIds).join(',')],
+    queryFn: async () => {
+      if (visibleCalendarIds.size === 0) return [];
+      
+      const res = await api.get('/calendar-events', {
+        params: {
+          start,
+          end,
+          calendars: Array.from(visibleCalendarIds).join(',')
         }
-    }, [cacheKey, view]); // eslint-disable-line react-hooks/exhaustive-deps
+      });
+      return res.data;
+    },
+    enabled: visibleCalendarIds.size > 0
+  });
 
-    const handlePrev = () => {
-        if (view === 'year') setCurrentMonth(subYears(currentMonth, 1));
-        else if (view === 'month') setCurrentMonth(subMonths(currentMonth, 1));
-        else if (view === 'week') setCurrentMonth(subWeeks(currentMonth, 1));
-        else setCurrentMonth(addDays(currentMonth, -1));
-    };
-
-    const handleNext = () => {
-        if (view === 'year') setCurrentMonth(addYears(currentMonth, 1));
-        else if (view === 'month') setCurrentMonth(addMonths(currentMonth, 1));
-        else if (view === 'week') setCurrentMonth(addWeeks(currentMonth, 1));
-        else setCurrentMonth(addDays(currentMonth, 1));
-    };
-
-    const handleToday = () => setCurrentMonth(new Date());
-
-    const getEventsForDay = (date: Date) =>
-        events.filter(e => {
-            if (!e.dueDate || new Date(e.dueDate).getFullYear() <= 1970) return false;
-            return isSameDay(new Date(e.dueDate), date);
-        });
-
-    const getHolidayForDay = (date: Date) =>
-        HOLIDAYS.find(h => isSameDay(new Date(h.date), date));
-
-    const formatHeaderDate = () => {
-        if (view === 'year') return format(currentMonth, 'yyyy');
-        if (view === 'month') return format(currentMonth, 'MMMM yyyy');
-        if (view === 'week') {
-            const start = startOfWeek(currentMonth);
-            const end = endOfWeek(currentMonth);
-            return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
-        }
-        return format(currentMonth, 'MMMM d, yyyy');
-    };
-
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    const renderMonthView = (targetDate: Date, isMini = false) => {
-        const monthStart = startOfMonth(targetDate);
-        const monthEnd = endOfMonth(targetDate);
-        const calStart = startOfWeek(monthStart);
-        const calEnd = endOfWeek(monthEnd);
-
-        const days: Date[] = [];
-        let day = calStart;
-        while (day <= calEnd) {
-            days.push(day);
-            day = addDays(day, 1);
-        }
-
-        return (
-            <div className={isMini ? '' : 'card'} style={{ overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
-                    {dayNames.map(name => (
-                        <div key={name} style={{
-                            padding: isMini ? '4px' : '10px 12px',
-                            fontSize: isMini ? '0.625rem' : '0.75rem',
-                            fontWeight: 600,
-                            color: name === 'Sun' ? '#ef4444' : 'var(--color-text-secondary)',
-                            textAlign: 'center',
-                            textTransform: 'uppercase',
-                        }}>
-                            {isMini ? name[0] : name}
-                        </div>
-                    ))}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                    {days.map((date, idx) => {
-                        const dayEvents = getEventsForDay(date);
-                        const isCurrentMonth = isSameMonth(date, targetDate);
-                        const today = isToday(date);
-                        const holiday = getHolidayForDay(date);
-                        const isSunday = date.getDay() === 0;
-
-                        return (
-                            <div
-                                key={idx}
-                                className="calendar-day"
-                                style={{
-                                    height: isMini ? 40 : (isMobile ? 70 : 120),
-                                    padding: isMini ? 2 : (isMobile ? 4 : 8),
-                                    borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid var(--color-border)',
-                                    borderBottom: '1px solid var(--color-border)',
-                                    opacity: isCurrentMonth ? 1 : 0.3,
-                                    background: holiday
-                                        ? `${getHolidayColor(holiday.category).slice(0, 7)}1a`
-                                        : (today ? 'var(--color-primary-light)' : (isSunday ? '#ef44440a' : 'transparent')),
-                                    boxShadow: today ? 'inset 0 0 0 2px var(--color-primary)' : 'none',
-                                    cursor: 'pointer',
-                                    position: 'relative',
-                                }}
-                                onClick={() => {
-                                    if (isMini) {
-                                        setCurrentMonth(date);
-                                        setView('month');
-                                    } else {
-                                        setSelectedDay(date);
-                                    }
-                                }}
-                            >
-                                <div style={{
-                                    fontSize: isMini ? '0.6875rem' : '0.8125rem',
-                                    fontWeight: today ? 700 : 400,
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'start',
-                                }}>
-                                    <span>{format(date, 'd')}</span>
-                                    {!isMini && !isMobile && holiday && (
-                                        <span style={{ fontSize: '0.625rem', color: getHolidayColor(holiday.category), textAlign: 'right', maxWidth: '70%', lineHeight: 1.1 }}>
-                                            {holiday.name}
-                                        </span>
-                                    )}
-                                    {(isMini || isMobile) && holiday && <div style={{ width: 4, height: 4, borderRadius: '50%', background: getHolidayColor(holiday.category) }} />}
-                                </div>
-                                {!isMini && (
-                                    isMobile ? (
-                                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4, justifyContent: 'center' }}>
-                                            {dayEvents.slice(0, 3).map((ev, i) => (
-                                                <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' }} />
-                                            ))}
-                                            {dayEvents.length > 3 && <div style={{ fontSize: '0.55rem', color: 'var(--color-text-tertiary)', lineHeight: 1 }}>+</div>}
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
-                                            {dayEvents.slice(0, 2).map((ev, i) => (
-                                                <div key={i} style={{ fontSize: '0.625rem', padding: '1px 4px', borderRadius: 3, background: 'var(--color-surface-hover)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {ev.title}
-                                                </div>
-                                            ))}
-                                            {dayEvents.length > 2 && <div style={{ fontSize: '0.625rem', color: 'var(--color-text-tertiary)' }}>+{dayEvents.length - 2} more</div>}
-                                        </div>
-                                    )
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
-
-    const renderYearView = () => {
-        const months = eachMonthOfInterval({
-            start: startOfYear(currentMonth),
-            end: endOfYear(currentMonth),
-        });
-
-        return (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
-                {months.map((m, i) => (
-                    <div key={i} className="card" style={{ padding: 12 }}>
-                        <div style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: 12, textAlign: 'center', color: 'var(--color-primary)' }}>
-                            {format(m, 'MMMM')}
-                        </div>
-                        {renderMonthView(m, true)}
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderWeekView = () => {
-        const start = startOfWeek(currentMonth);
-        const days = eachDayOfInterval({ start, end: endOfWeek(currentMonth) });
-
-        return (
-            <div className="card" style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(7, 1fr)',
-                height: isMobile ? 'auto' : 'calc(100vh - 280px)',
-                minHeight: 600,
-                overflow: isMobile ? 'visible' : 'hidden',
-            }}>
-                {days.map((date, i) => {
-                    const dayEvents = getEventsForDay(date);
-                    const holiday = getHolidayForDay(date);
-                    const isSunday = date.getDay() === 0;
-                    const today = isToday(date);
-
-                    return (
-                        <div key={i} style={{
-                            borderRight: (!isMobile && i !== 6) ? '1px solid var(--color-border)' : 'none',
-                            borderBottom: (isMobile && i !== 6) ? '1px solid var(--color-border)' : 'none',
-                            background: holiday ? `${getHolidayColor(holiday.category).slice(0, 7)}0d` : (isSunday ? '#ef444405' : 'transparent'),
-                            display: 'flex',
-                            flexDirection: 'column',
-                            height: isMobile ? 'auto' : '100%',
-                            minHeight: isMobile ? 150 : 'auto',
-                            overflow: 'hidden',
-                        }}>
-                            <div style={{ padding: 12, borderBottom: '1px solid var(--color-border)', textAlign: 'center', background: today ? 'var(--color-primary-light)' : 'transparent', flexShrink: 0 }}>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: isSunday ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                                    {format(date, 'EEE')}
-                                </div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: today ? 'var(--color-primary)' : 'inherit' }}>
-                                    {format(date, 'd')}
-                                </div>
-                            </div>
-                            <div style={{ flex: 1, padding: 10, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 40 }}>
-                                {holiday && (
-                                    <div style={{ padding: '6px 10px', borderRadius: 8, background: `${getHolidayColor(holiday.category).slice(0, 7)}1a`, color: getHolidayColor(holiday.category), fontSize: '0.75rem', fontWeight: 600 }}>
-                                        {holiday.name}
-                                    </div>
-                                )}
-                                {dayEvents.map((ev, j) => (
-                                    <div key={j} className="card" style={{ padding: 8, fontSize: '0.75rem', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border)' }}>
-                                        <div style={{ fontWeight: 600 }}>{ev.title}</div>
-                                        <div style={{ fontSize: '0.625rem', color: 'var(--color-text-tertiary)', marginTop: 2 }}>{ev.type === 'task' ? 'Task' : 'Assignment'}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    const renderDayView = () => {
-        const dayEvents = getEventsForDay(currentMonth);
-        const holiday = getHolidayForDay(currentMonth);
-        const isSunday = currentMonth.getDay() === 0;
-        const hours = Array.from({ length: 24 }, (_, i) => i);
-        const now = new Date();
-        const isSelectedDayToday = isToday(currentMonth);
-
-        const getEventsForHour = (hour: number) =>
-            dayEvents.filter(ev => {
-                const date = new Date(ev.dueDate);
-                return date.getHours() === hour && (date.getHours() !== 0 || date.getMinutes() !== 0);
-            });
-
-        const allDayEvents = dayEvents.filter(ev => {
-            const date = new Date(ev.dueDate);
-            return date.getHours() === 0 && date.getMinutes() === 0;
-        });
-
-        return (
-            <div className="card" style={{ maxWidth: 1000, margin: '0 auto', height: isMobile ? 'auto' : 'calc(100vh - 280px)', minHeight: 600, display: 'flex', flexDirection: 'column', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 24, overflow: 'hidden' }}>
-                <div style={{ padding: isMobile ? '16px' : '24px 32px', borderBottom: '1px solid var(--color-border)', background: 'linear-gradient(to right, var(--color-surface), var(--color-bg))', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ width: 64, height: 64, borderRadius: 16, background: isSunday ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-primary-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: isSunday ? '#ef4444' : 'var(--color-primary)' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>{format(currentMonth, 'EEE')}</span>
-                                <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{format(currentMonth, 'd')}</span>
-                            </div>
-                            <div>
-                                <h2 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.03em' }}>{format(currentMonth, 'MMMM yyyy')}</h2>
-                                {holiday && (
-                                    <div style={{ color: getHolidayColor(holiday.category), fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <X size={12} style={{ transform: 'rotate(45deg)' }} />
-                                        {holiday.name}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {(allDayEvents.length > 0 || holiday) && (
-                    <div style={{ padding: isMobile ? '12px 16px' : '12px 32px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'start', gap: 16, flexShrink: 0, flexDirection: isMobile ? 'column' : 'row' }}>
-                        <div style={{ width: isMobile ? 'auto' : 80, fontSize: '0.625rem', fontWeight: 800, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', paddingTop: isMobile ? 0 : 8 }}>All Day</div>
-                        <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {holiday && (
-                                <div style={{ padding: '6px 12px', borderRadius: 10, background: `${getHolidayColor(holiday.category).slice(0, 7)}1a`, color: getHolidayColor(holiday.category), fontWeight: 700, fontSize: '0.8125rem', border: `1px solid ${getHolidayColor(holiday.category).slice(0, 7)}20` }}>
-                                    ✨ {holiday.name}
-                                </div>
-                            )}
-                            {allDayEvents.map((ev, i) => (
-                                <div key={i} style={{ padding: '6px 12px', borderRadius: 10, background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', fontSize: '0.8125rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, boxShadow: 'var(--shadow-sm)' }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' }} />
-                                    {ev.title}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '0 16px' : '0 32px', position: 'relative' }}>
-                    {isSelectedDayToday && (
-                        <div style={{ position: 'absolute', top: `${(now.getHours() * 80) + (now.getMinutes() / 60 * 80)}px`, left: isMobile ? 64 : 112, right: isMobile ? 16 : 32, height: 2, background: '#ef4444', zIndex: 10, pointerEvents: 'none' }}>
-                            <div style={{ position: 'absolute', left: isMobile ? -50 : -80, top: -10, background: '#ef4444', color: 'white', fontSize: '0.625rem', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                                {format(now, 'h:mm aa')}
-                            </div>
-                            <div style={{ position: 'absolute', left: -4, top: -4, width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }} />
-                        </div>
-                    )}
-
-                    {hours.map(hour => {
-                        const hourEvents = getEventsForHour(hour);
-                        return (
-                            <div key={hour} style={{ display: 'flex', height: 80, borderBottom: '1px dashed var(--color-border-light)', position: 'relative' }}>
-                                <div style={{ width: isMobile ? 48 : 80, paddingTop: 12, fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textAlign: 'right', paddingRight: isMobile ? 8 : 16 }}>
-                                    {format(new Date().setHours(hour, 0), 'h aa')}
-                                </div>
-                                <div style={{ flex: 1, padding: '4px 8px', display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
-                                    {hourEvents.map((ev, i) => (
-                                        <div key={i} style={{ flex: 1, padding: '12px', background: ev.type === 'task' ? 'rgba(59, 130, 246, 0.05)' : 'rgba(245, 158, 11, 0.05)', color: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)', borderLeft: `5px solid ${ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)'}`, borderRadius: '0 12px 12px 0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', height: 'fit-content', alignSelf: 'start', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 4 }}>
-                                                <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.7 }}>{ev.type}</span>
-                                                <span style={{ fontSize: '0.625rem', padding: '2px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>{ev.status}</span>
-                                            </div>
-                                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-text)' }}>{ev.title}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })}
-
-                    {dayEvents.length === 0 && !holiday && (
-                        <div style={{ padding: '100px 0', textAlign: 'center' }}>
-                            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: 'var(--color-text-tertiary)' }}>
-                                <Calendar size={32} />
-                            </div>
-                            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--color-text)' }}>Your schedule is clear</div>
-                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>No events or deadlines for this day.</div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-    const renderSkeleton = () => {
-        if (view === 'year') {
-            return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
-                    {Array.from({ length: 12 }).map((_, i) => (
-                        <div key={i} className="card animate-fade-in" style={{ padding: 12, height: 260 }}>
-                            <div className="skeleton" style={{ height: 20, width: '40%', margin: '0 auto 12px', borderRadius: 4 }} />
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, height: 200 }}>
-                                {Array.from({ length: 35 }).map((_, j) => (
-                                    <div key={j} className="skeleton" style={{ height: 28, borderRadius: 4, opacity: j % 7 === 0 || j % 7 === 6 ? 0.4 : 0.8 }} />
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        if (view === 'month') {
-            return (
-                <div className="card animate-fade-in" style={{ overflow: 'hidden', padding: 0 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--color-border)' }}>
-                        {dayNames.map(name => (
-                            <div key={name} style={{ padding: '10px 12px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textAlign: 'center', textTransform: 'uppercase' }}>{name}</div>
-                        ))}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                        {Array.from({ length: 35 }).map((_, idx) => (
-                            <div key={idx} style={{ height: 120, padding: 12, borderRight: (idx + 1) % 7 === 0 ? 'none' : '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div className="skeleton" style={{ width: 20, height: 18, borderRadius: 4 }} />
-                                    {idx % 9 === 0 && <div className="skeleton" style={{ width: 45, height: 12, borderRadius: 3 }} />}
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-                                    {idx % 3 !== 0 && <div className="skeleton" style={{ height: 16, width: '85%', borderRadius: 4 }} />}
-                                    {idx % 5 === 0 && <div className="skeleton" style={{ height: 16, width: '60%', borderRadius: 4 }} />}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-        if (view === 'week') {
-            return (
-                <div className="card animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', height: 'calc(100vh - 280px)', minHeight: 600, overflow: 'hidden', padding: 0 }}>
-                    {Array.from({ length: 7 }).map((_, i) => (
-                        <div key={i} style={{ borderRight: i === 6 ? 'none' : '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                            <div style={{ padding: 16, borderBottom: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                                <div className="skeleton" style={{ width: 32, height: 14, borderRadius: 4 }} />
-                                <div className="skeleton" style={{ width: 24, height: 24, borderRadius: '50%' }} />
-                            </div>
-                            <div style={{ flex: 1, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                {i % 2 === 0 && <div className="card skeleton" style={{ height: 50, borderRadius: 12 }} />}
-                                {i % 3 === 0 && <div className="card skeleton" style={{ height: 64, borderRadius: 12 }} />}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        if (view === 'day') {
-            return (
-                <div className="card animate-fade-in" style={{ maxWidth: 1000, margin: '0 auto', height: 'calc(100vh - 280px)', minHeight: 600, display: 'flex', flexDirection: 'column', borderRadius: 24, overflow: 'hidden', padding: 0 }}>
-                    <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <div className="skeleton" style={{ width: 64, height: 64, borderRadius: 16 }} />
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <div className="skeleton" style={{ width: '30%', height: 24, borderRadius: 6 }} />
-                            <div className="skeleton" style={{ width: '15%', height: 14, borderRadius: 4 }} />
-                        </div>
-                    </div>
-                    <div style={{ flex: 1, padding: '20px 32px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
-                        {Array.from({ length: 6 }).map((_, idx) => (
-                            <div key={idx} style={{ display: 'flex', gap: 16, alignItems: 'center', height: 60 }}>
-                                <div className="skeleton" style={{ width: 60, height: 16, borderRadius: 4 }} />
-                                <div className="skeleton" style={{ flex: 1, height: '100%', borderRadius: 12, opacity: idx % 2 === 0 ? 0.8 : 0 }} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
-
+  if (loadingCalendars) {
     return (
-        <div style={{ maxWidth: 1100 }}>
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Calendar</h1>
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--color-surface)', borderRadius: 12, padding: '4px', border: '1px solid var(--color-border)', height: 40 }} className="flex-1 md:flex-initial justify-between md:justify-start">
-                        <button
-                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32, color: 'var(--color-text-secondary)' }}
-                            onClick={handlePrev}
-                        >
-                            <ChevronLeft size={18} />
-                        </button>
-                        <span style={{ fontSize: '0.8125rem', fontWeight: 700, minWidth: view === 'week' ? 140 : 110, textAlign: 'center', color: 'var(--color-text)' }}>
-                            {formatHeaderDate()}
-                        </span>
-                        <button
-                            className="btn-ghost rounded-lg cursor-pointer w-8 h-8 p-0"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 32, color: 'var(--color-text-secondary)' }}
-                            onClick={handleNext}
-                        >
-                            <ChevronRight size={18} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-1 md:flex-initial" style={{marginBottom:"10px"}}>
-                        <button
-                            className="btn btn-secondary shadow-sm"
-                            style={{ height: 40, minHeight: 40, borderRadius: 12, padding: '0 16px', fontSize: '0.75rem', fontWeight: 800 }}
-                            onClick={handleToday}
-                        >
-                            Today
-                        </button>
-
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)}
-                                className="btn btn-primary shadow-lg shadow-primary/20"
-                                style={{ height: 40, minHeight: 40, borderRadius: 12, padding: '0 16px', fontSize: '0.75rem', fontWeight: 800, gap: 8 }}
-                            >
-                                <Calendar size={16} />
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em' }}>{view} View</span>
-                                <ChevronDown size={16} className={`transition-transform duration-300 ${isViewDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {isViewDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setIsViewDropdownOpen(false)} />
-                                    <div className="absolute right-0 mt-2 w-52 bg-surface rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-50 animate-fade-in p-2 backdrop-blur-xl border border-border/50" style={{ padding: '10px', marginTop: '5px' }}>
-                                        {[
-                                            { id: 'year', label: 'Yearly', icon: <Layers size={16} /> },
-                                            { id: 'month', label: 'Monthly', icon: <Calendar size={16} /> },
-                                            { id: 'week', label: 'Weekly', icon: <Columns size={16} /> },
-                                            { id: 'day', label: 'Daily', icon: <Clock size={16} /> },
-                                        ].map((v) => (
-                                            <button
-                                                key={v.id}
-                                                onClick={() => { setView(v.id as any); setIsViewDropdownOpen(false); }}
-                                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold transition-all rounded-[22px] group/item mb-1 ${view === v.id ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-surface-hover'}`}
-                                            >
-                                                <div className="flex items-center gap-3 cursor-pointer hover:bg-(--color-primary) w-full rounded-xl my-2">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform ${view === v.id ? 'bg-primary/20' : 'bg-surface-hover'}`}>
-                                                        {v.icon}
-                                                    </div>
-                                                    {v.label}
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style={{ minHeight: '60vh' }}>
-                {loading ? renderSkeleton() : (
-                    <>
-                        {view === 'year' && renderYearView()}
-                        {view === 'month' && renderMonthView(currentMonth)}
-                        {view === 'week' && renderWeekView()}
-                        {view === 'day' && renderDayView()}
-                    </>
-                )}
-            </div>
-
-            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--color-surface)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Holiday Categories:</div>
-                {[
-                    { label: 'Sunday', shape: '0%' },
-                    { label: 'National / Gazetted Holiday', shape: '50%' },
-                    { label: 'Festival', shape: '50%' },
-                ].map(({ label, shape }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: shape, background: getHolidayColor(label.includes('National') ? 'National / Gazetted' : label) }} />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>{label}</span>
-                    </div>
-                ))}
-            </div>
-
-            {selectedDay && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedDay(null)}>
-                    <div className="card animate-fade-in" style={{ width: '100%', maxWidth: 450, padding: 24 }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{format(selectedDay, 'MMMM d, yyyy')}</h2>
-                            <button className="btn btn-ghost btn-sm" onClick={() => setSelectedDay(null)}>
-                                <X size={20} style={{ transform: 'rotate(90deg)' }} />
-                            </button>
-                        </div>
-                        <div style={{ marginBottom: 24 }}>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12 }}>Events & Deadlines</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60dvh', overflowY: 'auto', paddingRight: 4 }}>
-                                {getEventsForDay(selectedDay).length === 0 ? (
-                                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-tertiary)', background: 'var(--color-surface-hover)', borderRadius: 12 }}>
-                                        No events for this day
-                                    </div>
-                                ) : (
-                                    getEventsForDay(selectedDay).map((ev, i) => (
-                                        <div key={i} className="card" style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                                            onClick={() => navigate(ev.type === 'task' ? `/assignments/${ev.assignment}?tab=tasks&taskId=${ev._id}` : `/assignments/${ev._id}`)}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: ev.type === 'task' ? 'var(--color-info)' : 'var(--color-warning)' }} />
-                                                <div>
-                                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, textDecoration: ev.status === 'completed' ? 'line-through' : 'none', opacity: ev.status === 'completed' ? 0.6 : 1 }}>{ev.title}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{ev.type === 'task' ? 'Task' : 'Project Assignment'}</div>
-                                                </div>
-                                            </div>
-                                            <div className={`badge badge-${ev.status === 'completed' ? 'success' : 'info'}`} style={{ fontSize: '0.6875rem' }}>{ev.status}</div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => navigate('/assignments')}>Create Project</button>
-                            <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => setSelectedDay(null)}>Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg)' }}>
+        <div style={{ animation: 'spin 1s linear infinite', borderRadius: '50%', height: '48px', width: '48px', borderTop: '2px solid var(--color-primary)', borderBottom: '2px solid var(--color-primary)' }}>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: 'var(--color-surface)', overflow: 'hidden', color: 'var(--color-text)' }}>
+      <CalendarToolbar />
+      
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        
+        {/* Mobile Sidebar Overlay */}
+        {isCalendarSidebarOpen && (
+          <div 
+            onClick={() => setCalendarSidebarOpen(false)}
+            style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 30, display: 'block' }}
+            className="md:hidden"
+          />
+        )}
+        
+        {/* Sidebar Container */}
+        <div 
+          className={`sidebar-container ${isCalendarSidebarOpen ? 'open' : ''}`}
+          style={{ zIndex: 40, height: '100%', display: 'flex' }}
+        >
+          <CalendarSidebar calendars={calendars} />
+        </div>
+        
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--color-surface)' }}>
+          {loadingEvents && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 10, backgroundColor: 'var(--glass-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+              <div style={{ animation: 'spin 1s linear infinite', borderRadius: '50%', height: '32px', width: '32px', borderTop: '2px solid var(--color-primary)', borderBottom: '2px solid var(--color-primary)' }}></div>
+            </div>
+          )}
+          
+          {currentView === 'month' && <MonthView events={events} />}
+          {currentView === 'week' && <WeekView events={events} />}
+          {currentView === 'day' && <DayView events={events} />}
+          {currentView === 'year' && <YearView events={events} />}
+          {currentView === 'agenda' && <AgendaView events={events} />}
+        </main>
+      </div>
+
+      {/* Modals & Drawers */}
+      <EventModal calendars={calendars} />
+      <CalendarModal />
+      <CalendarShareModal />
+      <EventDetailDrawer events={events} />
+    </div>
+  );
 };
 
 export default CalendarPage;

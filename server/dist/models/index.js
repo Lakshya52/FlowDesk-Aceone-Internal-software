@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Message = exports.Conversation = exports.Contact = exports.Company = exports.ChatMessage = exports.Team = exports.ActivityLog = exports.Notification = exports.Attachment = exports.Comment = exports.Task = exports.Assignment = exports.User = void 0;
+exports.CalendarEvent = exports.Calendar = exports.Message = exports.Conversation = exports.Contact = exports.Company = exports.ChatMessage = exports.Team = exports.ActivityLog = exports.Notification = exports.Attachment = exports.Comment = exports.Task = exports.Assignment = exports.User = void 0;
 var User_1 = require("./User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return __importDefault(User_1).default; } });
 var Assignment_1 = require("./Assignment");
@@ -30,4 +30,8 @@ var Conversation_1 = require("./Conversation");
 Object.defineProperty(exports, "Conversation", { enumerable: true, get: function () { return __importDefault(Conversation_1).default; } });
 var Message_1 = require("./Message");
 Object.defineProperty(exports, "Message", { enumerable: true, get: function () { return __importDefault(Message_1).default; } });
+var Calendar_1 = require("./Calendar");
+Object.defineProperty(exports, "Calendar", { enumerable: true, get: function () { return __importDefault(Calendar_1).default; } });
+var CalendarEvent_1 = require("./CalendarEvent");
+Object.defineProperty(exports, "CalendarEvent", { enumerable: true, get: function () { return __importDefault(CalendarEvent_1).default; } });
 //# sourceMappingURL=index.js.map
