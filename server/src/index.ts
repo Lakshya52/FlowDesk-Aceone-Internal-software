@@ -40,7 +40,7 @@ const clientUrls = [
   process.env.CLIENT_URL,
   "https://flowdesk-frontend-g35x.onrender.com",
   "http://localhost:5173",
-  "https://prince-principal-skirts-capture.trycloudflare.com",
+  "https://districts-beside-roughly-reached.trycloudflare.com",
 ].filter(Boolean) as string[];
 
 const io = new Server(server, {
