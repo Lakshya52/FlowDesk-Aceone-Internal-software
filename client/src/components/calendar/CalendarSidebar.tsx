@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   format,
   addMonths,
@@ -18,6 +18,8 @@ import {
   Edit3,
   // UserPlus,
   Share2,
+  Pin,
+  GripVertical,
 } from "lucide-react";
 import { useCalendarStore } from "../../store/calendarStore";
 
@@ -44,6 +46,14 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({ calendars }) => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [miniCalDate, setMiniCalDate] = useState(currentDate);
+  const [orderedCalendars, setOrderedCalendars] = useState(calendars);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [pinnedCalendarIds, setPinnedCalendarIds] = useState<Set<string>>(new Set());
+
+  // Sync orderedCalendars with incoming calendars prop
+  useEffect(() => {
+    setOrderedCalendars(calendars);
+  }, [calendars]);
 
   const pendingInvitations = calendars.filter((c) =>
     c.sharedWith?.some(
@@ -55,16 +65,25 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({ calendars }) => {
   // const myCalendars = calendars.filter(
   //   (c) => c.isSystem || c.owner?._id === user?._id || c.owner === user?._id,
   // );
-  const myCalendars = calendars.filter(
-    (c) =>
-      c.isSystem ||
-      c.owner?._id === user?._id ||
-      c.owner === user?._id ||
-      c.sharedWith?.some(
-        (s: any) =>
-          (s.user?._id || s.user) === user?._id && s.status === "accepted",
-      ),
-  );
+  const myCalendars = orderedCalendars
+    .filter(
+      (c) =>
+        c.isSystem ||
+        c.owner?._id === user?._id ||
+        c.owner === user?._id ||
+        c.sharedWith?.some(
+          (s: any) =>
+            (s.user?._id || s.user) === user?._id && s.status === "accepted",
+        ),
+    )
+    .sort((a, b) => {
+      // Pinned calendars appear first
+      const aPinned = pinnedCalendarIds.has(a._id);
+      const bPinned = pinnedCalendarIds.has(b._id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
 
   const handleAccept = async (calendarId: string) => {
     try {
@@ -82,6 +101,63 @@ const CalendarSidebar: React.FC<CalendarSidebarProps> = ({ calendars }) => {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDragStart = (calendarId: string) => {
+    setDraggedItem(calendarId);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.style.opacity = "0.5";
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.style.opacity = "1";
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetCalendar: any) => {
+    e.preventDefault();
+    e.currentTarget.style.opacity = "1";
+
+    if (!draggedItem || draggedItem === targetCalendar._id) {
+      setDraggedItem(null);
+      return;
+    }
+
+    // Find indices in orderedCalendars
+    const draggedIndex = orderedCalendars.findIndex((c) => c._id === draggedItem);
+    const targetIndex = orderedCalendars.findIndex((c) => c._id === targetCalendar._id);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedItem(null);
+      return;
+    }
+
+    // Swap the items in orderedCalendars
+    const newOrder = [...orderedCalendars];
+    [newOrder[draggedIndex], newOrder[targetIndex]] = [
+      newOrder[targetIndex],
+      newOrder[draggedIndex],
+    ];
+
+    setOrderedCalendars(newOrder);
+    setDraggedItem(null);
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.style.opacity = "1";
+    setDraggedItem(null);
+  };
+
+  const togglePinCalendar = (calendarId: string) => {
+    const newPinned = new Set(pinnedCalendarIds);
+    if (newPinned.has(calendarId)) {
+      newPinned.delete(calendarId);
+    } else {
+      newPinned.add(calendarId);
+    }
+    setPinnedCalendarIds(newPinned);
   };
 
   // const myCalendars = calendars.filter(
@@ -348,22 +424,33 @@ const miniCalBg = visibleCalendars.length === 0
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             {myCalendars.map((cal) => (
               <div
+              className="group"
                 key={cal._id}
+                draggable
+                onDragStart={() => handleDragStart(cal._id)}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, cal)}
+                onDragEnd={handleDragEnd}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "12px",
                   padding: "6px",
                   borderRadius: "4px",
-                  cursor: "pointer",
+                  cursor: draggedItem === cal._id ? "grabbing" : "grab",
                   backgroundColor: `${cal.color}25`,
                   transition: "all 0.2s ease",
+                  opacity: draggedItem === cal._id ? 0.5 : 1,
+                  border: draggedItem === cal._id ? `2px dashed ${cal.color}` : "none",
 
                   // borderLeft: `3px solid ${cal.color}`,
                 }}
                 
                 onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = `${cal.color}40`;
+                  if (draggedItem !== cal._id) {
+                    e.currentTarget.style.backgroundColor = `${cal.color}40`;
+                  }
                   // e.currentTarget.style.backgroundColor =
                   //   "var(--color-surface-hover)";
                   const editBtns =
@@ -371,7 +458,9 @@ const miniCalBg = visibleCalendars.length === 0
                   editBtns.forEach((btn: any) => (btn.style.opacity = "1"));
                 }}
                 onMouseOut={(e) => {
-                   e.currentTarget.style.backgroundColor = `${cal.color}25`;
+                  if (draggedItem !== cal._id) {
+                    e.currentTarget.style.backgroundColor = `${cal.color}25`;
+                  }
                   // e.currentTarget.style.backgroundColor = "transparent";
                   const editBtns =
                     e.currentTarget.querySelectorAll(".edit-btn");
@@ -389,6 +478,7 @@ const miniCalBg = visibleCalendars.length === 0
                   checked={visibleCalendarIds.has(cal._id)}
                   onChange={() => toggleCalendarVisibility(cal._id)}
                 />
+                <GripVertical size={14} opacity={50} className="hidden group-hover:block" />
                 <span
                   style={{
                     fontSize: "14px",
@@ -420,6 +510,41 @@ const miniCalBg = visibleCalendars.length === 0
                     )}
                 </span>
                 <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePinCalendar(cal._id);
+                    }}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      color: pinnedCalendarIds.has(cal._id)
+                        ? "var(--color-primary)"
+                        : "var(--color-text-tertiary)",
+                      padding: "2px",
+                      opacity: 0,
+                      transition: "opacity 0.2s, color 0.2s",
+                    }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.color = "var(--color-primary)")
+                    }
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.color = pinnedCalendarIds.has(
+                        cal._id
+                      )
+                        ? "var(--color-primary)"
+                        : "var(--color-text-tertiary)";
+                    }}
+                    title={
+                      pinnedCalendarIds.has(cal._id)
+                        ? "Unpin Calendar"
+                        : "Pin Calendar"
+                    }
+                  >
+                    <Pin size={13} fill={pinnedCalendarIds.has(cal._id) ? "currentColor" : "none"} />
+                  </button>
                   {/* <button
                     className="edit-btn"style={{
     display: "flex",

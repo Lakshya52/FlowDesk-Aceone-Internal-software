@@ -73,9 +73,10 @@ const getConversations = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .populate('sender', 'name email avatar')
                 .populate('attachments');
+            let lastMessageObj = lastMessage ? lastMessage.toObject() : null;
             // Decrypt last message content for sidebar preview
-            if (lastMessage)
-                decryptMessage(lastMessage);
+            if (lastMessageObj)
+                decryptMessage(lastMessageObj);
             // Count unread messages (current user is not in readBy)
             const unreadCount = await Message_1.default.countDocuments({
                 conversation: conv._id,
@@ -95,8 +96,8 @@ const getConversations = async (req, res) => {
                 }
             }
             // Decrypt lastMessage content for sidebar preview
-            if (lastMessage && lastMessage.content && !lastMessage.isDeleted) {
-                lastMessage.content = (0, encryption_1.decrypt)(lastMessage.content);
+            if (lastMessageObj && lastMessageObj.content && !lastMessageObj.isDeleted) {
+                lastMessageObj.content = (0, encryption_1.decrypt)(lastMessageObj.content);
             }
             return {
                 _id: conv._id,
@@ -108,7 +109,7 @@ const getConversations = async (req, res) => {
                 admins: conv.admins,
                 createdAt: conv.createdAt,
                 updatedAt: conv.updatedAt,
-                lastMessage,
+                lastMessage: lastMessageObj,
                 unreadCount,
                 isOnline
             };
@@ -167,15 +168,17 @@ const getMessages = async (req, res) => {
             populate: { path: 'sender', select: 'name' }
         });
         // Decrypt message content before sending to client
-        // Decrypt all message content before sending to client
-        messages.forEach((msg) => decryptMessage(msg));
+        const decryptedMessages = messages.map((msg) => {
+            const msgObj = msg.toObject ? msg.toObject() : msg;
+            return decryptMessage(msgObj);
+        });
         // Notify other participants in the conversation that messages were read
         index_1.io.to(`conversation_${conversationId}`).emit('messages_read', {
             conversationId,
             readerId: userId.toString(),
             readAt: new Date().toISOString(),
         });
-        res.json({ messages });
+        res.json({ messages: decryptedMessages });
     }
     catch (error) {
         res.status(500).json({ message: error.message });
