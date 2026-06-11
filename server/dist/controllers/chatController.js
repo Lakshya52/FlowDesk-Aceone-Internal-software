@@ -42,7 +42,6 @@ const Attachment_1 = __importDefault(require("../models/Attachment"));
 const index_1 = require("../index");
 const notificationService_1 = require("../services/notificationService");
 const Notification_1 = require("../models/Notification");
-const encryption_1 = require("../utils/encryption");
 const gridfs_1 = require("../utils/gridfs");
 const sendMessage = async (req, res) => {
     try {
@@ -84,10 +83,9 @@ const sendMessage = async (req, res) => {
                 }
             }
         }
-        // Encrypt message content before storing in DB
-        const encryptedContent = content ? (0, encryption_1.encrypt)(content) : '';
+        // Create chat message
         const message = await ChatMessage_1.default.create({
-            content: encryptedContent,
+            content: content || '',
             sender: req.user._id,
             assignment: assignmentId,
             attachments: attachmentIds,
@@ -105,11 +103,8 @@ const sendMessage = async (req, res) => {
             path: 'parentMessage',
             populate: { path: 'sender', select: 'name' }
         });
-        // Decrypt content before sending to clients (HTTP response + socket)
+        // Convert to plain object for response
         const populatedObj = populated ? populated.toObject() : null;
-        if (populatedObj && populatedObj.content) {
-            populatedObj.content = (0, encryption_1.decrypt)(populatedObj.content);
-        }
         // Emit to all users in the assignment room
         index_1.io.to(`assignment_${assignmentId}`).emit('new_message', populatedObj);
         // Notify mentioned users
@@ -177,12 +172,9 @@ const getMessages = async (req, res) => {
             .sort({ createdAt: 1 })
             .skip(skip)
             .limit(limitNum);
-        // Decrypt message content before sending to client
+        // Convert messages to plain objects
         const decryptedMessages = messages.map(msg => {
             const msgObj = msg.toObject();
-            if (msgObj.content) {
-                msgObj.content = (0, encryption_1.decrypt)(msgObj.content);
-            }
             return msgObj;
         });
         res.json({ messages: decryptedMessages, total, page: pageNum, totalPages: Math.ceil(total / limitNum) });

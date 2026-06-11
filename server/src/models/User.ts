@@ -18,6 +18,7 @@ export interface IUser extends Document {
     lastLogin?: Date;
     resetPasswordOtp?: string;
     resetPasswordExpires?: Date;
+    googleRefreshToken?: string;
     pushSubscriptions?: {
         endpoint: string;
         expirationTime?: number | null;
@@ -53,6 +54,7 @@ const userSchema = new Schema<IUser>(
         lastLogin: { type: Date },
         resetPasswordOtp: { type: String },
         resetPasswordExpires: { type: Date },
+        googleRefreshToken : { type: String, default: null}
     },
     { timestamps: true }
 );

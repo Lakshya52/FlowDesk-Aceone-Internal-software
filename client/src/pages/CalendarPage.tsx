@@ -12,6 +12,7 @@ import AgendaView from '../components/calendar/AgendaView';
 import EventModal from '../components/calendar/EventModal';
 import CalendarModal from '../components/calendar/CalendarModal';
 import CalendarShareModal from '../components/calendar/CalendarShareModal';
+import ImportModal from '../components/calendar/ImportModal';
 import EventDetailDrawer from '../components/calendar/EventDetailDrawer';
 
 const CalendarPage: React.FC = () => {
@@ -23,7 +24,8 @@ const CalendarPage: React.FC = () => {
     openEventModal,
     navigateToday,
     isCalendarSidebarOpen,
-    setCalendarSidebarOpen
+    setCalendarSidebarOpen,
+    searchQuery,
   } = useCalendarStore();
 
   // Handle Keyboard Shortcuts
@@ -67,8 +69,8 @@ const CalendarPage: React.FC = () => {
 
   const { start, end } = getQueryRange();
 
-  // Fetch Events
-  const { data: events = [], isLoading: loadingEvents } = useQuery({
+  // Filter events by search query
+  const { data: rawEvents = [], isLoading: loadingEvents } = useQuery({
     queryKey: ['calendar-events', start, end, Array.from(visibleCalendarIds).join(',')],
     queryFn: async () => {
       if (visibleCalendarIds.size === 0) return [];
@@ -85,6 +87,18 @@ const CalendarPage: React.FC = () => {
     enabled: visibleCalendarIds.size > 0
   });
 
+  const events = searchQuery.trim()
+    ? rawEvents.filter((e: any) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          e.title?.toLowerCase().includes(q) ||
+          e.description?.toLowerCase().includes(q) ||
+          e.location?.toLowerCase().includes(q) ||
+          e.calendar?.name?.toLowerCase().includes(q)
+        );
+      })
+    : rawEvents;
+
   if (loadingCalendars) {
     return (
       <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-bg)' }}>
@@ -96,7 +110,7 @@ const CalendarPage: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: 'var(--color-surface)', overflow: 'hidden', color: 'var(--color-text)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 130px)', width: '100%', backgroundColor: 'var(--color-surface)', overflow: 'hidden', color: 'var(--color-text)' }}>
       <CalendarToolbar />
       
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
@@ -137,6 +151,7 @@ const CalendarPage: React.FC = () => {
       <EventModal calendars={calendars} />
       <CalendarModal />
       <CalendarShareModal />
+      <ImportModal />
       <EventDetailDrawer events={events} />
     </div>
   );

@@ -31,6 +31,7 @@ import canvasRoutes from "./routes/canvas";
 import conversationRoutes from "./routes/conversations";
 import calendarRoutes from "./routes/calendars";
 import calendarEventRoutes from "./routes/calendarEvents";
+import googleCalendarImport from "./routes/googleCalendarImport";
 import { startRecurringJob } from "./services/recurringTaskService";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
@@ -206,6 +207,7 @@ app.use("/api/canvas", canvasRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/calendars", calendarRoutes);
 app.use("/api/calendar-events", calendarEventRoutes);
+app.use("/api/import/google-calendar", googleCalendarImport);
 
 // Socket.io connection logic
 io.on("connection", (socket) => {

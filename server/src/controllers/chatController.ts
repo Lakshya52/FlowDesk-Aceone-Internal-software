@@ -5,7 +5,6 @@ import { AuthRequest } from '../middlewares/auth';
 import { io } from '../index';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../models/Notification';
-import { encrypt, decrypt } from '../utils/encryption';
 
 import { uploadToGridFS } from '../utils/gridfs';
 
@@ -54,11 +53,9 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             }
         }
 
-        // Encrypt message content before storing in DB
-        const encryptedContent = content ? encrypt(content) : '';
-
+        // Create chat message
         const message = await ChatMessage.create({
-            content: encryptedContent,
+            content: content || '',
             sender: req.user!._id,
             assignment: assignmentId,
             attachments: attachmentIds,
@@ -78,11 +75,8 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
                 populate: { path: 'sender', select: 'name' }
             });
 
-        // Decrypt content before sending to clients (HTTP response + socket)
+        // Convert to plain object for response
         const populatedObj = populated ? (populated as any).toObject() : null;
-        if (populatedObj && populatedObj.content) {
-            populatedObj.content = decrypt(populatedObj.content);
-        }
 
         // Emit to all users in the assignment room
         io.to(`assignment_${assignmentId}`).emit('new_message', populatedObj);
@@ -157,12 +151,9 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
             .skip(skip)
             .limit(limitNum);
 
-        // Decrypt message content before sending to client
+        // Convert messages to plain objects
         const decryptedMessages = messages.map(msg => {
             const msgObj = (msg as any).toObject();
-            if (msgObj.content) {
-                msgObj.content = decrypt(msgObj.content);
-            }
             return msgObj;
         });
 

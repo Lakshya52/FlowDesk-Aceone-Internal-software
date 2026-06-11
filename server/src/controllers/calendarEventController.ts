@@ -6,6 +6,21 @@ import Calendar from '../models/Calendar';
 import Task from '../models/Task';
 import Assignment from '../models/Assignment';
 
+export const getEventById = async (req: AuthRequest, res: Response) => {
+  try {
+    const event = await CalendarEvent.findById(req.params.id)
+      .populate('calendar', 'name color isSystem')
+      .populate('createdBy', 'name email avatar')
+      .populate('attendees.user', 'name email avatar');
+
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching event', error });
+  }
+};
+
 export const getEvents = async (req: AuthRequest, res: Response) => {
   try {
     const { start, end, calendars } = req.query;

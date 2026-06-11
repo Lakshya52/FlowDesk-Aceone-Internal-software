@@ -14,10 +14,32 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// api.interceptors.response.use(
+//     (response) => response,
+//     (error) => {
+//         if (error.response?.status === 401) {
+//             localStorage.removeItem('flowdesk_token');
+//             localStorage.removeItem('flowdesk_user');
+//             const currentPath = window.location.hash ? window.location.hash.replace('#', '') : window.location.pathname;
+//             if (!currentPath.includes('/login')) {
+//                 if (window.location.hash) {
+//                     window.location.href = '/#/login';
+//                 } else {
+//                     window.location.href = '/login';
+//                 }
+//             }
+//         }
+//         return Promise.reject(error);
+//     }
+// );
+
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const url = error.config?.url || '';
+        const isImportRoute = url.includes('/import/');
+
+        if (error.response?.status === 401 && !isImportRoute) {
             localStorage.removeItem('flowdesk_token');
             localStorage.removeItem('flowdesk_user');
             const currentPath = window.location.hash ? window.location.hash.replace('#', '') : window.location.pathname;

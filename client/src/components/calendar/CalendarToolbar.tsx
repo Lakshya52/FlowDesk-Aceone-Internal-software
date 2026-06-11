@@ -6,6 +6,8 @@ import {
   Plus,
   Menu,
   CalendarIcon,
+  X,
+  Import,
   // ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -23,6 +25,7 @@ const CalendarToolbar: React.FC = () => {
     setSearchQuery,
     openEventModal,
     openCalendarModal,
+    openImportModal,
     toggleCalendarSidebar,
   } = useCalendarStore();
 
@@ -208,6 +211,37 @@ const CalendarToolbar: React.FC = () => {
                 <CalendarIcon size={16} color="var(--color-primary)" />
                 New Calendar
               </button>
+              <button
+                onClick={() => {
+                  openImportModal();
+                  setShowCreateMenu(false);
+                }}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 16px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "var(--color-text)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor =
+                    "var(--color-surface-hover)")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "transparent")
+                }
+              >
+                <Import  size={16} color="var(--color-primary)" />
+                {/* <CalendarIcon /> */}
+                Import
+              </button>
             </div>
           )}
         </div>
@@ -311,6 +345,8 @@ const CalendarToolbar: React.FC = () => {
           flexWrap: "wrap",
         }}
       >
+        {currentView === "agenda" && (
+          
         <div style={{ position: "relative", width: "256px" }}>
           <Search
             size={18}
@@ -320,6 +356,7 @@ const CalendarToolbar: React.FC = () => {
               top: "50%",
               transform: "translateY(-50%)",
               color: "var(--color-text-tertiary)",
+              pointerEvents: 'none',
             }}
           />
           <input
@@ -349,7 +386,31 @@ const CalendarToolbar: React.FC = () => {
               e.currentTarget.style.boxShadow = "none";
             }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-text-tertiary)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+                borderRadius: '50%',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
+              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
+            >
+              <X />
+            </button>
+          )}
         </div>
+        )}
 
         <div
           style={{

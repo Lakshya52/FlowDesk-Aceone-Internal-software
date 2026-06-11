@@ -1,5 +1,5 @@
-import React from 'react';
-import { format, isSameDay } from 'date-fns';
+import React, {useState } from 'react';
+import { format, isSameDay, addDays, startOfDay } from 'date-fns';
 import { Clock, MapPin, AlignLeft } from 'lucide-react';
 import { useCalendarStore } from '../../store/calendarStore';
 
@@ -7,14 +7,30 @@ interface AgendaViewProps {
   events: any[];
 }
 
+const RANGE_OPTIONS = [
+  { label: 'Next 7 days', days: 7 },
+  { label: 'Next 30 days', days: 30 },
+  { label: 'Next 90 days', days: 90 },
+  { label: 'All events', days: null },
+];
+
 const AgendaView: React.FC<AgendaViewProps> = ({ events }) => {
   const { currentDate, openEventDrawer } = useCalendarStore();
-  
+  const [rangeDays, setRangeDays] = useState<number | null>(30);
+
+  const rangeEnd = rangeDays ? addDays(startOfDay(new Date()), rangeDays) : null;
+
   // Sort events chronologically
   const sortedEvents = [...events].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
   
-  // Filter events from current date onwards
-  const upcomingEvents = sortedEvents.filter(e => new Date(e.endDate) >= currentDate);
+  // Filter: from currentDate, up to rangeEnd if set
+  const upcomingEvents = sortedEvents.filter(e => {
+    const end = new Date(e.endDate);
+    const start = new Date(e.startDate);
+    if (end < startOfDay(new Date(currentDate))) return false;
+    if (rangeEnd && start > rangeEnd) return false;
+    return true;
+  });
 
   // Group by day
   const groupedEvents: { [key: string]: any[] } = {};
@@ -42,6 +58,30 @@ const AgendaView: React.FC<AgendaViewProps> = ({ events }) => {
 
   return (
     <div style={{ flex: 1, backgroundColor: 'var(--color-surface)', overflowY: 'auto', padding: '16px', paddingBottom: '48px' }}>
+      
+      {/* Range Filter */}
+      <div style={{ maxWidth: '768px', margin: '0 auto 24px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {RANGE_OPTIONS.map(opt => (
+          <button
+            key={opt.label}
+            onClick={() => setRangeDays(opt.days)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              border: '1px solid var(--color-border)',
+              backgroundColor: rangeDays === opt.days ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: rangeDays === opt.days ? '#fff' : 'var(--color-text)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ maxWidth: '768px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {days.map(dayKey => {
           const date = new Date(dayKey);

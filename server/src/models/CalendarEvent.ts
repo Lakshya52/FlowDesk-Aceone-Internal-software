@@ -44,6 +44,7 @@ export interface ICalendarEvent extends Document {
 
   linkedTask?: mongoose.Types.ObjectId;
   linkedAssignment?: mongoose.Types.ObjectId;
+  googleEventId?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -112,6 +113,7 @@ const calendarEventSchema = new Schema<ICalendarEvent>(
 
     linkedTask: { type: Schema.Types.ObjectId, ref: 'Task' },
     linkedAssignment: { type: Schema.Types.ObjectId, ref: 'Assignment' },
+    googleEventId: { type: String, default: null },
   },
   { timestamps: true }
 );
@@ -121,5 +123,6 @@ calendarEventSchema.index({ startDate: 1, endDate: 1 });
 calendarEventSchema.index({ createdBy: 1 });
 calendarEventSchema.index({ eventType: 1 });
 calendarEventSchema.index({ recurringParentId: 1 });
+calendarEventSchema.index({ googleEventId: 1 }, { sparse: true });
 
 export default mongoose.model<ICalendarEvent>('CalendarEvent', calendarEventSchema);

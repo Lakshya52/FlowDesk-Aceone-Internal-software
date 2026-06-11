@@ -66,6 +66,7 @@ const userSchema = new mongoose_1.Schema({
     lastLogin: { type: Date },
     resetPasswordOtp: { type: String },
     resetPasswordExpires: { type: Date },
+    googleRefreshToken: { type: String, default: null }
 }, { timestamps: true });
 const Counter_1 = __importDefault(require("./Counter"));
 userSchema.pre('save', async function (next) {

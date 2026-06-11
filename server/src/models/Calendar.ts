@@ -16,6 +16,7 @@ export interface ICalendar extends Document {
     status: 'pending' | 'accepted' | 'rejected';
   }[];
   teamId?: mongoose.Types.ObjectId;
+  googleCalendarId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,7 @@ const calendarSchema = new Schema<ICalendar>(
       }
     ],
     teamId: { type: Schema.Types.ObjectId, ref: 'Team' },
+    googleCalendarId: { type: String, default: null },
   },
   { timestamps: true }
 );

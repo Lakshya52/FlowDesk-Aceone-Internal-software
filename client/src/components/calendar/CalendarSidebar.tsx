@@ -264,6 +264,8 @@ const miniCalBg = visibleCalendars.length === 0
   ? `${visibleCalendars[0].color}25`
   : `linear-gradient(135deg, ${visibleCalendars.map((c, i) => `${c.color}25 ${(i / (visibleCalendars.length - 1)) * 100}%`).join(', ')})`;
 
+  const isDraggBool = myCalendars.length > 1;
+
   return (
     <div
       style={{
@@ -426,7 +428,7 @@ const miniCalBg = visibleCalendars.length === 0
               <div
               className="group"
                 key={cal._id}
-                draggable
+                draggable={isDraggBool}
                 onDragStart={() => handleDragStart(cal._id)}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -478,7 +480,7 @@ const miniCalBg = visibleCalendars.length === 0
                   checked={visibleCalendarIds.has(cal._id)}
                   onChange={() => toggleCalendarVisibility(cal._id)}
                 />
-                <GripVertical size={14} opacity={50} className="hidden group-hover:block" />
+                <GripVertical size={14} opacity={50} className={`${myCalendars.length == 1 ? "hidden" : "hidden group-hover:block"}`} />
                 <span
                   style={{
                     fontSize: "14px",

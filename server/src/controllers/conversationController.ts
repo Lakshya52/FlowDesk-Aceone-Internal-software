@@ -8,20 +8,6 @@ import { io, activeUsers } from '../index';
 import { uploadToGridFS, deleteFromGridFS } from '../utils/gridfs';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../models/Notification';
-import { encrypt, decrypt } from '../utils/encryption';
-
-/**
- * Decrypt message content fields in-place (content + parentMessage.content).
- * Returns the same object for chaining.
- */
-function decryptMessage(msg: any): any {
-    if (!msg) return msg;
-    if (msg.content) msg.content = decrypt(msg.content);
-    if (msg.parentMessage && msg.parentMessage.content) {
-        msg.parentMessage.content = decrypt(msg.parentMessage.content);
-    }
-    return msg;
-}
 
 export const getConversations = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -41,9 +27,6 @@ export const getConversations = async (req: AuthRequest, res: Response): Promise
                 .populate('attachments');
 
             let lastMessageObj = lastMessage ? (lastMessage as any).toObject() : null;
-
-            // Decrypt last message content for sidebar preview
-            if (lastMessageObj) decryptMessage(lastMessageObj);
 
             // Count unread messages (current user is not in readBy)
             const unreadCount = await Message.countDocuments({
@@ -66,10 +49,7 @@ export const getConversations = async (req: AuthRequest, res: Response): Promise
                 }
             }
 
-            // Decrypt lastMessage content for sidebar preview
-            if (lastMessageObj && lastMessageObj.content && !lastMessageObj.isDeleted) {
-                lastMessageObj.content = decrypt(lastMessageObj.content);
-            }
+
 
             return {
                 _id: conv._id,
@@ -149,10 +129,10 @@ export const getMessages = async (req: AuthRequest, res: Response): Promise<void
                 populate: { path: 'sender', select: 'name' }
             });
 
-        // Decrypt message content before sending to client
+        // Convert messages to plain objects
         const decryptedMessages = messages.map((msg: any) => {
             const msgObj = msg.toObject ? (msg as any).toObject() : msg;
-            return decryptMessage(msgObj);
+            return msgObj;
         });
 
         // Notify other participants in the conversation that messages were read
@@ -202,8 +182,7 @@ export const createConversation = async (req: AuthRequest, res: Response): Promi
                     .populate('sender', 'name email avatar')
                     .populate('attachments');
 
-                // Decrypt last message content for response
-                if (lastMessage) decryptMessage(lastMessage);
+
 
                 const unreadCount = await Message.countDocuments({
                     conversation: existing._id,
@@ -326,11 +305,11 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             attachmentIds.push(attachment._id.toString());
         }
 
-        // Create the message (encrypt content before storage)
+        // Create the message
         const message = await Message.create({
             conversation: conversationId,
             sender: senderId,
-            content: encrypt(content || ''),
+            content: content || '',
             attachments: attachmentIds,
             parentMessage: parentMessageId || undefined,
             mentions: mentions || [],
@@ -354,9 +333,6 @@ export const sendMessage = async (req: AuthRequest, res: Response): Promise<void
             res.status(500).json({ message: 'Failed to populate message' });
             return;
         }
-
-        // Decrypt content before emitting/responding
-        decryptMessage(populated);
 
         // Emit new message event to all participants' personal rooms
         conversation.participants.forEach(pId => {
@@ -612,10 +588,10 @@ export const forwardMessage = async (req: AuthRequest, res: Response): Promise<v
             return;
         }
 
-        // Clone the original attachments (or copy their references)
+        // Clone the original attachments
         const attachmentIds = originalMessage.attachments.map(att => (att as any)._id.toString());
 
-        // Forward the message — content is already encrypted in DB, so copy as-is
+        // Forward the message
         const forwarded = await Message.create({
             conversation: targetConversationId,
             sender: senderId,
@@ -640,9 +616,6 @@ export const forwardMessage = async (req: AuthRequest, res: Response): Promise<v
             res.status(500).json({ message: 'Failed to populate forwarded message' });
             return;
         }
-
-        // Decrypt forwarded message content before emitting/responding
-        decryptMessage(populated);
 
         // Emit new message event to all participants of target conversation
         targetConversation.participants.forEach(pId => {
@@ -682,8 +655,8 @@ export const editMessage = async (req: AuthRequest, res: Response): Promise<void
             return;
         }
 
-        // Encrypt the updated content before saving
-        message.content = encrypt(content.trim());
+        // Update message content
+        message.content = content.trim();
         message.isEdited = true;
         await message.save();
 
@@ -699,9 +672,6 @@ export const editMessage = async (req: AuthRequest, res: Response): Promise<void
             res.status(500).json({ message: 'Failed to populate edited message' });
             return;
         }
-
-        // Decrypt edited message before emitting/responding
-        decryptMessage(populated);
 
         // Notify all participants of the conversation
         const conversation = await Conversation.findById(message.conversation);

@@ -15,6 +15,7 @@ export interface IUser extends Document {
     lastLogin?: Date;
     resetPasswordOtp?: string;
     resetPasswordExpires?: Date;
+    googleRefreshToken?: string;
     pushSubscriptions?: {
         endpoint: string;
         expirationTime?: number | null;

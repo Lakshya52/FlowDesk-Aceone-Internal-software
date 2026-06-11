@@ -122,7 +122,7 @@ const AppLayout: React.FC = () => {
                     onMouseLeave={(e) => { if(!isResizing) e.currentTarget.style.background = 'transparent'; }}
                 />
             )}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%', height: '100%' }}>
                 <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
                 <main id="main-content-scroll" style={{
                     flex: 1,
