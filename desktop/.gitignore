@@ -15,11 +15,11 @@ pnpm-debug.log*
 .env.*
 
 # Desktop release artifacts
-release/
-release/win-unpacked/
-release/*.exe
-release/*.blockmap
-release/*.yml
+# release/
+# release/win-unpacked/
+# release/*.exe
+# release/*.blockmap
+# release/*.yml
 
 # Editor / OS files
 .vscode/
