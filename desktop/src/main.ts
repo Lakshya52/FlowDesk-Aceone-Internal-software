@@ -18,8 +18,10 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 // const FRONTEND_URL =
 //   process.env.FRONTEND_URL || "https://flowdesk-frontend-g35x.onrender.com";
+// const FRONTEND_URL =
+  // process.env.FRONTEND_URL || "https://prince-principal-skirts-capture.trycloudflare.com/";
 const FRONTEND_URL =
-  process.env.FRONTEND_URL || "https://prince-principal-skirts-capture.trycloudflare.com/";
+  process.env.FRONTEND_URL || "https://flowdesk.raksco.in";
 const IS_DEV = process.env.NODE_ENV === "development";
 
 let mainWindow: BrowserWindow | null = null;

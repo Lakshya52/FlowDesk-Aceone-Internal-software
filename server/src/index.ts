@@ -42,6 +42,7 @@ const clientUrls = [
   "https://flowdesk-frontend-g35x.onrender.com",
   "http://localhost:5173",
   "https://districts-beside-roughly-reached.trycloudflare.com",
+  "https://flowdesk.raksco.in",
 ].filter(Boolean) as string[];
 
 const io = new Server(server, {
@@ -78,16 +79,16 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        frameSrc: ["'self'", "http://localhost:5000", "http://localhost:5173"],
-        objectSrc: ["'self'", "http://localhost:5000"],
+        frameSrc: ["'self'", "http://localhost:5000", "http://localhost:5173", "https://flowdesk.raksco.in", "https://flowdesk-api.raksco.in"],
+        objectSrc: ["'self'", "http://localhost:5000", "https://flowdesk-api.raksco.in"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "blob:", "http://localhost:5000"],
+        imgSrc: ["'self'", "data:", "blob:", "http://localhost:5000", "https://flowdesk-api.raksco.in"],
         connectSrc: ["'self'", "*"],
-        mediaSrc: ["'self'", "http://localhost:5000", "blob:"],
+        mediaSrc: ["'self'", "http://localhost:5000", "blob:", "https://flowdesk-api.raksco.in"],
         workerSrc: ["'self'", "blob:"],
       },
-    },
+    },  
   }),
 );
 
