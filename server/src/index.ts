@@ -81,14 +81,15 @@ app.use(
         defaultSrc: ["'self'"],
         frameSrc: ["'self'", "http://localhost:5000", "http://localhost:5173", "https://flowdesk.raksco.in", "https://flowdesk-api.raksco.in"],
         objectSrc: ["'self'", "http://localhost:5000", "https://flowdesk-api.raksco.in"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"],
+        scriptSrcElem: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:", "http://localhost:5000", "https://flowdesk-api.raksco.in"],
         connectSrc: ["'self'", "*"],
         mediaSrc: ["'self'", "http://localhost:5000", "blob:", "https://flowdesk-api.raksco.in"],
         workerSrc: ["'self'", "blob:"],
       },
-    },  
+    },
   }),
 );
 

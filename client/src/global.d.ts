@@ -23,6 +23,8 @@ declare global {
       focusApp: () => void;
       showNotification: (data: any) => void;
       onNavigate: (callback: (link: string) => void) => void;
+      onGoogleAuthSuccess: (callback: () => void) => void;
+      removeGoogleAuthListener: () => void;
     };
   }
 }

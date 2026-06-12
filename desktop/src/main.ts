@@ -36,8 +36,12 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, _commandLine, _workingDirectory) => {
-    // Someone tried to run a second instance, we should focus our window.
+  app.on("second-instance", (_event, commandLine, _workingDirectory) => {
+    // Handle deep link on Windows
+    const url = commandLine.find(arg => arg.startsWith("flowdesk://"));
+    if (url?.startsWith("flowdesk://google-auth-success")) {
+      mainWindow?.webContents.send("google-auth-success");
+    }
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
@@ -294,6 +298,14 @@ function setupAutoUpdater() {
 app.on("ready", () => {
   if (process.platform === "win32") {
     app.setAppUserModelId("FlowDesk");
+  }
+  // Register custom protocol for OAuth deep link
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient("flowdesk", process.execPath, [path.resolve(process.argv[1])]);
+    }
+  } else {
+    app.setAsDefaultProtocolClient("flowdesk");
   }
   Menu.setApplicationMenu(null);
   createLoadingWindow();

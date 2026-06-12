@@ -3,6 +3,14 @@ import { X, Chrome, CheckCircle, Loader, Check } from 'lucide-react';
 import { useCalendarStore } from '../../store/calendarStore';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+// declare global {
+//   interface Window {
+//     electronAPI?: {
+//       onGoogleAuthSuccess?: (callback: () => void) => void;
+//       removeGoogleAuthListener?: () => void;
+//     };
+//   }
+// }
 
 type ImportStep = 'idle' | 'connecting' | 'selecting' | 'importing' | 'success' | 'error';
 
@@ -24,38 +32,48 @@ const ImportModal: React.FC = () => {
 
   if (!isImportModalOpen) return null;
 
-  const handleGoogleConnect = async () => {
-    setStep('connecting');
-    setErrorMsg('');
-    try {
-      const res = await api.get('/import/google-calendar/auth-url');
-      const { authUrl } = res.data;
+ const handleGoogleConnect = async () => {
+  setStep('connecting');
+  setErrorMsg('');
+  try {
+    const res = await api.get('/import/google-calendar/auth-url');
+    const { authUrl } = res.data;
 
-      window.open(authUrl, 'google-oauth', 'width=500,height=600');
+    // Open in external browser (Electron uses shell.openExternal via setWindowOpenHandler)
+    window.open(authUrl, '_blank');
 
+    const fetchCalendars = async () => {
+      try {
+        const listRes = await api.get('/import/google-calendar/list');
+        setGoogleCalendars(listRes.data.calendars);
+        setSelectedIds(new Set(listRes.data.calendars.map((c: GoogleCalendar) => c.id)));
+        setStep('selecting');
+      } catch {
+        setStep('error');
+        setErrorMsg('Failed to fetch your Google calendars.');
+      }
+    };
+
+    // Listen for deep link callback from Electron main process
+    if (window.electronAPI?.onGoogleAuthSuccess) {
+      window.electronAPI.onGoogleAuthSuccess(async () => {
+        window.electronAPI?.removeGoogleAuthListener?.();
+        await fetchCalendars();
+      });
+    } else {
+      // Fallback for browser (dev mode) — use postMessage
       const handleMessage = async (event: MessageEvent) => {
         if (event.data !== 'google-oauth-success') return;
         window.removeEventListener('message', handleMessage);
-
-        // Fetch calendar list for user to select
-        try {
-          const listRes = await api.get('/import/google-calendar/list');
-          setGoogleCalendars(listRes.data.calendars);
-          // Pre-select all by default
-          setSelectedIds(new Set(listRes.data.calendars.map((c: GoogleCalendar) => c.id)));
-          setStep('selecting');
-        } catch {
-          setStep('error');
-          setErrorMsg('Failed to fetch your Google calendars.');
-        }
+        await fetchCalendars();
       };
-
       window.addEventListener('message', handleMessage);
-    } catch {
-      setStep('error');
-      setErrorMsg('Could not initiate Google sign-in. Please try again.');
     }
-  };
+  } catch {
+    setStep('error');
+    setErrorMsg('Could not initiate Google sign-in. Please try again.');
+  }
+};
 
   const toggleCalendar = (id: string) => {
     setSelectedIds(prev => {

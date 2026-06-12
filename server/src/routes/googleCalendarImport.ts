@@ -44,19 +44,25 @@ router.get("/callback", async (req, res) => {
     });
 
     // Close the popup — frontend is polling for this
-    res.send(`<script>
-    if (window.opener) {
-        window.opener.postMessage('google-oauth-success', '*');
-    }
-    window.close();
-    </script>`);
+    res.send(`<!DOCTYPE html>
+<html>
+<body>
+<p>Authorization complete. Returning to FlowDesk...</p>
+<script>
+  window.location.href = 'flowdesk://google-auth-success';
+</script>
+</body>
+</html>`);
   } catch (err) {
-    res.send(`<script>
-    if (window.opener) {
-        window.opener.postMessage('google-oauth-success', '*');
-    }
-    window.close();
-    </script>`);
+    res.send(`<!DOCTYPE html>
+<html>
+<body>
+<p>Authorization complete. Returning to FlowDesk...</p>
+<script>
+  window.location.href = 'flowdesk://google-auth-success';
+</script>
+</body>
+</html>`);
     console.log(err);
   }
 });

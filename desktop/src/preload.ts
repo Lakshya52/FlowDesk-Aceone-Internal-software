@@ -32,6 +32,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onNavigate: (callback: (link: string) => void) => {
     ipcRenderer.on('navigate-requested', (_event, link) => callback(link));
   },
+
+  onGoogleAuthSuccess: (callback: () => void) => {
+    ipcRenderer.on('google-auth-success', () => callback());
+  },
+
+  removeGoogleAuthListener: () => {
+    ipcRenderer.removeAllListeners('google-auth-success');
+  },
 });
 
 console.log('FlowDesk Preload Bridge Initialized');
