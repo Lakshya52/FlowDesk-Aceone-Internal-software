@@ -192,7 +192,8 @@ const App: React.FC = () => {
 const AppInner: React.FC = () => {
   const location = useLocation();
   const showNavbar = ["/", "/release", "/404"].includes(location.pathname);
-  const showFooter = location.pathname !== "/documentation" && !location.pathname.startsWith("/documentation/"); 
+  const showFooter = ["/", "/release", "/login", "/register"].includes(location.pathname);
+  // const showFooter = location.pathname !== "/documentation" && !location.pathname.startsWith("/documentation/"); 
 
   return (
     <>
