@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
 	Search,
-	Sun,
+	// Sun,
 	Menu,
 	X,
 	ChevronRight,
@@ -10,7 +10,7 @@ import {
 	ArrowLeft,
 	Clipboard,
 	Check,
-	BookOpen,
+	// BookOpen,
 } from "lucide-react";
 import type { Section } from "../docs/content";
 import pages, { linkSlugs } from "../docs/content";

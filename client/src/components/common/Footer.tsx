@@ -1,4 +1,5 @@
-import { Download, ShieldCheck } from "lucide-react"
+// import { Download, ShieldCheck } from "lucide-react"
+import { Download } from "lucide-react"
 import { Link } from "react-router-dom"
 
 const linkGroups = [

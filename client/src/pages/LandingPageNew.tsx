@@ -1,5 +1,5 @@
-import React from "react";
-import { ArrowUpRight } from "lucide-react";
+// import React from "react";
+// import { ArrowUpRight } from "lucide-react";
 
 const topClouds = [15, 12.5, 16, 18, 12, 15, 15, 15, 12.5, 16, 18, 12, 15, 15];
 const bottomClouds = [
