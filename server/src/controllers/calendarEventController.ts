@@ -37,12 +37,11 @@ export const getEvents = async (req: AuthRequest, res: Response) => {
     } else {
       // Get user's visible calendars
       const userCalendars = await Calendar.find({
-        $or: [
-          { owner: userId },
-          { 'sharedWith.user': userId },
-          { isSystem: true }
-        ]
-      });
+  $or: [
+    { owner: userId },
+    { 'sharedWith': { $elemMatch: { user: userId, status: 'accepted' } } },
+  ]
+});
       query.calendar = { $in: userCalendars.map(c => c._id) };
     }
 
@@ -219,12 +218,11 @@ export const searchEvents = async (req: AuthRequest, res: Response) => {
 
     const userId = req.user?._id;
     const userCalendars = await Calendar.find({
-      $or: [
-        { owner: userId },
-        { 'sharedWith.user': userId },
-        { isSystem: true }
-      ]
-    });
+  $or: [
+    { owner: userId },
+    { 'sharedWith': { $elemMatch: { user: userId, status: 'accepted' } } },
+  ]
+});
     
     const calendarIds = userCalendars.map(c => c._id);
 

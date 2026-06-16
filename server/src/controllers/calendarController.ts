@@ -13,7 +13,6 @@ export const getCalendars = async (req: AuthRequest, res: Response) => {
       $or: [
         { owner: userId },
         { "sharedWith": { $elemMatch: { user: userId, status: { $in: ["accepted", "pending"] } } } },
-        { isSystem: true },
       ],
     })
       .populate("sharedWith.user", "name email avatar")

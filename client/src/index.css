@@ -1,6 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
 @import "tailwindcss";
 
 /* ===== CSS Variables (Design Tokens) ===== */
+
+.font-manrope-light {
+  font-family: "Manrope", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 200;
+  font-style: normal;
+}
+.font-manrope {
+  font-family: "Manrope", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+.font-manrope-bold {
+  font-family: "Manrope", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal;
+}
+
 :root {
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
@@ -73,8 +94,8 @@
 
 /* ===== Base ===== */
 * {
-  margin: 0;
-  padding: 0;
+  /* margin: 0;
+  padding: 0; */
   box-sizing: border-box;
 }
 
@@ -641,4 +662,4 @@ input, textarea, select, button, a-button, .btn, [role="button"], a {
   .md\:hidden {
     display: none !important;
   }
-}
+}

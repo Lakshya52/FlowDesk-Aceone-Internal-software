@@ -28,7 +28,6 @@
   "build": {
     "appId": "com.flowdesk.app",
     "productName": "FlowDesk",
-    "artifactName": "${productName}-${version}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -48,10 +47,7 @@
       }
     ],
     "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
+      "target": ["nsis", "portable"],
       "icon": "assets/icon.ico",
       "executableName": "FlowDesk"
     },
@@ -71,7 +67,8 @@
       "shortcutName": "FlowDesk",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico"
+      "installerHeaderIcon": "assets/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "publish": [
       {
