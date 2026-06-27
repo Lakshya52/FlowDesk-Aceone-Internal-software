@@ -3,7 +3,8 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import api from '../lib/api';
 import Avatar from '../components/common/Avatar';
-import { Sun, Moon, Shield, Users, UserPlus, Trash2, Eye, EyeOff, Lock } from 'lucide-react';
+import { Sun, Moon, Shield, Users, UserPlus, Trash2, Eye, EyeOff, Lock, Pencil, X as XIcon } from 'lucide-react';
+import { navItems } from '../components/layout/Sidebar';
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Admin', manager: 'Manager', member: 'Team Member' };
 
@@ -12,7 +13,17 @@ const SettingsPage: React.FC = () => {
     const { isDark, toggle } = useThemeStore();
     const [users, setUsers] = useState<any[]>([]);
     const [showCreateUser, setShowCreateUser] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'member' });
+    // const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'member' });
+    const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'member',
+    permissions: { allowedTabs: navItems.map(n => n.to) }, // all selected by default
+});
+    const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState({ role: 'member', permissions: { allowedTabs: navItems.map(n => n.to) } });
+    const [savingEdit, setSavingEdit] = useState(false);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -35,17 +46,40 @@ const SettingsPage: React.FC = () => {
         e.preventDefault();
         setSaving(true);
         try {
-            await api.post('/auth/register', newUser);
+            await api.post('/auth/users/create', newUser);
             const { data } = await api.get('/auth/users');
             setUsers(data.users || []);
             setShowCreateUser(false);
-            setNewUser({ name: '', email: '', password: '', role: 'member' });
+            setNewUser({ name: '', email: '', password: '', role: 'member', permissions: { allowedTabs: navItems.map(n => n.to) } });
         } catch (e: any) {
             alert(e.response?.data?.message || 'Failed to create user');
         } finally {
             setSaving(false);
         }
     };
+    // ADD:
+const startEditUser = (u: any) => {
+    setEditingUserId(u._id);
+    setEditForm({
+        role: u.role,
+        permissions: { allowedTabs: u.permissions?.allowedTabs ?? navItems.map(n => n.to) },
+    });
+};
+
+const updateUserPermissions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUserId) return;
+    setSavingEdit(true);
+    try {
+        const { data } = await api.put(`/auth/users/${editingUserId}`, editForm);
+        setUsers(prev => prev.map(u => u._id === editingUserId ? data.user : u));
+        setEditingUserId(null);
+    } catch (e: any) {
+        alert(e.response?.data?.message || 'Failed to update user');
+    } finally {
+        setSavingEdit(false);
+    }
+};
 
     const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -333,6 +367,52 @@ const SettingsPage: React.FC = () => {
                                     {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                 </select>
                             </div>
+                            {/* Tab Permissions */}
+                            <div>
+                                <label style={{ fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, display: 'block', color: 'var(--color-text-secondary)' }}>
+                                    Module Access
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8 }}>
+                                    {navItems.map(item => {
+                                        const isChecked = newUser.permissions.allowedTabs.includes(item.to);
+                                        return (
+                                            <label
+                                                key={item.to}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    padding: '6px 10px',
+                                                    borderRadius: 6,
+                                                    border: `1px solid ${isChecked ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                                    background: isChecked ? 'var(--color-primary-light)' : 'transparent',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.8125rem',
+                                                    fontWeight: 500,
+                                                    color: isChecked ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                                    transition: 'all 0.15s',
+                                                    userSelect: 'none',
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        const current = newUser.permissions.allowedTabs;
+                                                        const updated = isChecked
+                                                            ? current.filter(t => t !== item.to)
+                                                            : [...current, item.to];
+                                                        setNewUser({ ...newUser, permissions: { allowedTabs: updated } });
+                                                    }}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <item.icon size={14} />
+                                                {item.label}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreateUser(false)}>Cancel</button>
                                 <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>{saving ? 'Creating...' : 'Create User'}</button>
@@ -341,7 +421,7 @@ const SettingsPage: React.FC = () => {
                     )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {users
+                        {/* {users
                             .filter(u => u._id !== user?._id)
                             .map(u => (
                                 <div key={u._id} style={{
@@ -362,6 +442,9 @@ const SettingsPage: React.FC = () => {
                                         <span className="badge" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
                                             {ROLE_LABELS[u.role]}
                                         </span>
+                                        <button className="btn btn-ghost btn-sm" onClick={() => startEditUser(u)} style={{ color: 'var(--color-text-secondary)' }} title="Edit permissions">
+                                            <Pencil size={16} />
+                                        </button>
                                         {u.isActive && u._id !== user?._id && (
                                             <button className="btn btn-ghost btn-sm" onClick={() => deactivateUser(u._id)} style={{ color: 'var(--color-warning)' }} title="Deactivate">
                                                 <Shield size={16} />
@@ -374,10 +457,115 @@ const SettingsPage: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
-                            ))}
-                    </div>
-                </div>
-            )}
+                            ))} */}
+                            {users
+                                .filter(u => u._id !== user?._id)
+                                .map(u => (
+                                    <div key={u._id}>
+                                        <div style={{
+                                            padding: '10px 14px', borderRadius: 8,
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            flexWrap: isMobile ? 'wrap' as any : 'nowrap' as any, gap: isMobile ? 8 : 0,
+                                            background: u.isActive ? 'transparent' : 'var(--color-surface-hover)',
+                                            opacity: u.isActive ? 1 : 0.5,
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <Avatar src={u.avatar} name={u.name} size={32} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.8125rem', fontWeight: 500 }}>{u.name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{u.email}</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span className="badge" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-text-secondary)' }}>
+                                                    {ROLE_LABELS[u.role]}
+                                                </span>
+                                                <button className="btn btn-ghost btn-sm" onClick={() => startEditUser(u)} style={{ color: 'var(--color-text-secondary)' }} title="Edit permissions">
+                                                    <Pencil size={16} />
+                                                </button>
+                                                {u.isActive && u._id !== user?._id && (
+                                                    <button className="btn btn-ghost btn-sm" onClick={() => deactivateUser(u._id)} style={{ color: 'var(--color-warning)' }} title="Deactivate">
+                                                        <Shield size={16} />
+                                                    </button>
+                                                )}
+                                                {u._id !== user?._id && (
+                                                    <button className="btn btn-ghost btn-sm" onClick={() => permanentDeleteUser(u._id)} style={{ color: 'var(--color-error)' }} title="Delete Permanently">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {editingUserId === u._id && (
+                                            <form onSubmit={updateUserPermissions} className="card" style={{ padding: 16, marginTop: 6, marginBottom: 10, border: '1px solid var(--color-primary)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>Editing: {u.name}</span>
+                                                    <button type="button" onClick={() => setEditingUserId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+                                                        <XIcon size={16} />
+                                                    </button>
+                                                </div>
+
+                                                <select className="select" value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })}>
+                                                    {Object.entries(ROLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                </select>
+
+                                                <div>
+                                                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, marginBottom: 8, display: 'block', color: 'var(--color-text-secondary)' }}>
+                                                        Module Access
+                                                    </label>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8 }}>
+                                                        {navItems.map(item => {
+                                                            const isChecked = editForm.permissions.allowedTabs.includes(item.to);
+                                                            return (
+                                                                <label
+                                                                    key={item.to}
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 8,
+                                                                        padding: '6px 10px',
+                                                                        borderRadius: 6,
+                                                                        border: `1px solid ${isChecked ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                                                        background: isChecked ? 'var(--color-primary-light)' : 'transparent',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: '0.8125rem',
+                                                                        fontWeight: 500,
+                                                                        color: isChecked ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                                                        transition: 'all 0.15s',
+                                                                        userSelect: 'none',
+                                                                    }}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isChecked}
+                                                                        onChange={() => {
+                                                                            const current = editForm.permissions.allowedTabs;
+                                                                            const updated = isChecked
+                                                                                ? current.filter(t => t !== item.to)
+                                                                                : [...current, item.to];
+                                                                            setEditForm({ ...editForm, permissions: { allowedTabs: updated } });
+                                                                        }}
+                                                                        style={{ display: 'none' }}
+                                                                    />
+                                                                    <item.icon size={14} />
+                                                                    {item.label}
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingUserId(null)}>Cancel</button>
+                                                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</button>
+                                                </div>
+                                            </form>
+                                        )}
+                                    </div>
+                                ))}
+                                </div>
+                            </div>
+                        )}
         </div >
     );
 };

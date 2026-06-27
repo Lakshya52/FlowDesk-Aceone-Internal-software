@@ -8,6 +8,7 @@ import { Toaster } from "react-hot-toast";
 // import api from "./lib/api";
 import AppLayout from "./components/layout/AppLayout";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AssignmentDetailPage from "./pages/AssignmentDetailPage";
@@ -203,6 +204,7 @@ const AppInner: React.FC = () => {
         <Route path="/release" element={<Release />} />
         <Route path="/documentation/:slug?" element={<Documentation />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/assignments" element={<AssignmentsPage />} />

@@ -45,6 +45,53 @@ export const sendOtpEmail = async (to: string, otp: string) => {
     }
 };
 
+export const sendRegistrationOtpEmail = async (to: string, otp: string, companyName: string) => {
+    try {
+        console.log(`[EMAIL] Sending registration OTP to: ${to}`);
+
+        const brevo = getBrevoClient();
+
+        const result = await brevo.transactionalEmails.sendTransacEmail({
+            subject: `Welcome to FlowDesk! - Please verify your email address to complete registration for ${companyName}`,
+            htmlContent: `
+                <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 32px; text-align: center; border-radius: 12px 12px 0 0;">
+                        <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to FlowDesk!</h1>
+                    </div>
+                    <div style="padding: 32px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+                        <p style="font-size: 16px; margin: 0 0 16px 0;">Hello,</p>
+                        <p style="font-size: 15px; line-height: 1.6; color: #4b5563;">
+                            You're one step away from setting up <strong>${companyName}</strong> on FlowDesk. 
+                            Please use the verification code below to confirm your email address.
+                        </p>
+                        <div style="background-color: #f3f4f6; padding: 24px; text-align: center; border-radius: 8px; margin: 24px 0;">
+                            <span style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #1f2937;">${otp}</span>
+                        </div>
+                        <p style="font-size: 14px; color: #6b7280;">This code expires in 15 minutes.</p>
+                        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+                        <p style="font-size: 14px; color: #9ca3af; text-align: center;">
+                            If you did not request this, you can safely ignore this email.
+                        </p>
+                        <p style="font-size: 14px; color: #9ca3af; text-align: center;">
+                            Best regards,<br/>The FlowDesk Team
+                        </p>
+                    </div>
+                </div>
+            `,
+            sender: {
+                name: 'FlowDesk Team',
+                email: process.env.BREVO_SENDER_EMAIL || 'support.aceone@gmail.com'
+            },
+            to: [{ email: to }]
+        });
+
+        console.log(`[EMAIL] ✅ Registration OTP sent successfully. ID: ${result.messageId}`);
+    } catch (error) {
+        console.error(`[EMAIL] ❌ Failed to send registration OTP to ${to}:`, error);
+        throw error;
+    }
+};
+
 export const sendGenericEmail = async (to: string[], subject: string, message: string): Promise<Brevo.SendTransacEmailResponse> => {
     try {
         console.log(`[EMAIL] Sending bulk email to ${to.length} recipients`);
@@ -81,4 +128,4 @@ export const sendGenericEmail = async (to: string[], subject: string, message: s
         console.error('[EMAIL] ❌ Failed to send bulk email:', error);
         throw new Error('Failed to send bulk email');
     }
-};
+};

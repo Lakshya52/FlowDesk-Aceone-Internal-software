@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ICompany extends Document {
     name: string;
+    slug: string;
     parentCompanyId?: mongoose.Types.ObjectId | null;
     industry?: string;
     description?: string;
@@ -17,6 +18,10 @@ export interface ICompany extends Document {
         postalCode?: string;
     };
     status: 'active' | 'inactive';
+    plan: 'free' | 'starter' | 'business' | 'enterprise';
+    subscriptionStartDate?: Date;
+    subscriptionEndDate?: Date;
+    ownerId?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -24,6 +29,7 @@ export interface ICompany extends Document {
 const companySchema = new Schema<ICompany>(
     {
         name: { type: String, required: true, trim: true },
+        slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
         parentCompanyId: { type: Schema.Types.ObjectId, ref: 'Company', default: null },
         industry: { type: String, trim: true },
         description: { type: String, trim: true },
@@ -39,11 +45,15 @@ const companySchema = new Schema<ICompany>(
             postalCode: { type: String, trim: true },
         },
         status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+        plan: { type: String, enum: ['free', 'starter', 'business', 'enterprise'], default: 'free' },
+        subscriptionStartDate: { type: Date },
+        subscriptionEndDate: { type: Date },
+        ownerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     },
     { timestamps: true }
 );
 
-// Index for efficient parent-child queries
+companySchema.index({ slug: 1 });
 companySchema.index({ parentCompanyId: 1 });
 companySchema.index({ name: 1 });
 companySchema.index({ status: 1 });

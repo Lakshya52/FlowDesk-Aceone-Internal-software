@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import packageJson from '../../../package.json';
 import { useChatStore } from '../../store/chatStore';
+import { useAuthStore } from '../../store/authStore';
 import {
     LayoutDashboard,
     FolderKanban,
@@ -32,7 +33,7 @@ interface SidebarProps {
     width?: number;
 }
 
-const navItems = [
+export const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/teams', icon: Users, label: 'Our Teams' },
     {
@@ -67,6 +68,13 @@ const navItems = [
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
     const { totalUnreadCount } = useChatStore();
     const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+    const { user } = useAuthStore();
+
+    const visibleNavItems = user?.role === 'admin'
+        ? navItems
+        : navItems.filter(item =>
+            (user?.permissions?.allowedTabs ?? navItems.map(n => n.to)).includes(item.to)
+        );
 
     const toggleExpand = (to: string) => {
         setExpandedItems(prev => ({
@@ -154,7 +162,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
             {/* Navigation */}
             <nav style={{ flex: 1, padding: isOpen ? '12px' : '12px 8px', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {navItems.map((item) => {
+                    {visibleNavItems.map((item) => {
                         const hasSubItems = !!item.subItems && item.subItems.length > 0;
                         const isExpanded = expandedItems[item.to] ?? false;
 

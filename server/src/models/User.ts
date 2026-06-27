@@ -9,6 +9,8 @@ export enum UserRole {
 
 export interface IUser extends Document {
     name: string;
+    // companyId: string;
+    tenantId: mongoose.Types.ObjectId;
     email: string;
     password: string;
     role: UserRole;
@@ -27,6 +29,9 @@ export interface IUser extends Document {
             auth: string;
         };
     }[];
+    permissions: {
+        allowedTabs: string[];
+    };
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;
@@ -35,10 +40,12 @@ export interface IUser extends Document {
 const userSchema = new Schema<IUser>(
     {
         name: { type: String, required: true, trim: true },
-        email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+        email: { type: String, required: true, lowercase: true, trim: true },
         password: { type: String, required: true, minlength: 6 },
         role: { type: String, enum: Object.values(UserRole), default: UserRole.MEMBER },
         employeeId: { type: String, unique: true, sparse: true },
+        // companyId: { type: String, required: true, index: true },
+        tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
         avatar: { type: String },
         isActive: { type: Boolean, default: true },
         pushSubscriptions: [
@@ -54,10 +61,31 @@ const userSchema = new Schema<IUser>(
         lastLogin: { type: Date },
         resetPasswordOtp: { type: String },
         resetPasswordExpires: { type: Date },
-        googleRefreshToken : { type: String, default: null}
+        googleRefreshToken : { type: String, default: null},
+        permissions: {
+            allowedTabs: {
+                type: [String],
+                default: [
+                    '/dashboard',
+                    '/teams',
+                    '/assignments',
+                    '/tasks',
+                    '/clients',
+                    '/bulk-email',
+                    '/canvas',
+                    '/calendar',
+                    '/chat',
+                    '/reports',
+                    '/settings',
+                ],
+            },
+        },
     },
     { timestamps: true }
 );
+
+// userSchema.index({ email: 1, companyId: 1 }, { unique: true });
+userSchema.index({ email: 1, tenantId: 1 }, { unique: true });
 
 import Counter from './Counter';
 

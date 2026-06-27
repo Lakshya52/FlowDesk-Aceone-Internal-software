@@ -14,3 +14,5 @@ export { default as Conversation } from './Conversation';
 export { default as Message } from './Message';
 export { default as Calendar } from './Calendar';
 export { default as CalendarEvent } from './CalendarEvent';
+export { default as Tenant } from './Tenant';
+export { default as RegistrationOtp } from './RegistrationOtp';
