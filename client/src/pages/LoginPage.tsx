@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { getFirstAllowedRoute } from "../components/layout/Sidebar";
 import { Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react";
 
 type ViewState =
@@ -34,8 +35,8 @@ const LoginPage: React.FC = () => {
 		e.preventDefault();
 		setError("");
 		try {
-			await login(email, password);
-			navigate("/dashboard");
+			const loggedInUser = await login(email, password);
+			navigate(getFirstAllowedRoute(loggedInUser));
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -91,7 +92,7 @@ const LoginPage: React.FC = () => {
 		setError("");
 		try {
 			await changePassword(newPassword);
-			navigate("/dashboard");
+			navigate(getFirstAllowedRoute(useAuthStore.getState().user));
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -521,7 +522,7 @@ const LoginPage: React.FC = () => {
 								}}
 							>
 								<button
-									onClick={() => navigate("/dashboard")}
+									onClick={() => navigate(getFirstAllowedRoute(useAuthStore.getState().user))}
 									className="btn btn-primary"
 									style={{
 										width: "100%",

@@ -24,7 +24,8 @@ import {
     MessageSquare,
     PanelRightClose,
     PanelLeftClose,
-    X
+    X,
+    Headset,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,8 +63,19 @@ export const navItems = [
             { to: '/reports/activity', label: 'User Activity' }
         ]
     },
+    { to: '/crm', icon: Headset, label: 'CRM' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
+
+export const getFirstAllowedRoute = (user: any): string => {
+    if (!user) return '/dashboard';
+    if (user.role === 'admin') return '/dashboard';
+
+    const allowed = user.permissions?.allowedTabs ?? navItems.map(n => n.to);
+    const firstMatch = navItems.find(item => allowed.includes(item.to));
+
+    return firstMatch ? firstMatch.to : '/dashboard';
+};
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
     const { totalUnreadCount } = useChatStore();

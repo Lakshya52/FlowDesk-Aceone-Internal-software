@@ -24,7 +24,7 @@ interface AuthState {
     user: User | null;
     token: string | null;
     isLoading: boolean;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<User>;
     register: (data: { name: string; email: string; password: string; companyName: string; website?: string; phone?: string; industry?: string }) => Promise<void>;
     verifyRegistrationOtp: (email: string, otp: string) => Promise<void>;
     resendRegistrationOtp: (email: string) => Promise<void>;
@@ -47,6 +47,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             localStorage.setItem('flowdesk_token', data.token);
             localStorage.setItem('flowdesk_user', JSON.stringify(data.user));
             set({ user: data.user, token: data.token, isLoading: false });
+            return data.user;
         } catch (error: any) {
             set({ isLoading: false });
             throw new Error(error.response?.data?.message || 'Login failed');

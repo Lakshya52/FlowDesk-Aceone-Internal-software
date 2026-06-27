@@ -3,6 +3,8 @@ import React from "react";
 import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
+import { getFirstAllowedRoute } from "./components/layout/Sidebar";
+import { useAuthStore } from "./store/authStore";
 // import { WifiOff } from "lucide-react";
 // import axios from 'axios';
 // import api from "./lib/api";
@@ -23,6 +25,7 @@ import CanvasPage from "./pages/CanvasPage";
 import BulkEmailPage from "./pages/BulkEmailPage";
 import ChatsPage from "./pages/ChatsPage";
 
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, refetchOnWindowFocus: false },
@@ -36,6 +39,7 @@ import Navbar from "./components/common/Navbar";
 import Footer from "./components/common/Footer";
 import Release from "./pages/Releases";
 import Documentation from "./pages/Documentation";
+import CrmPage from "./pages/CrmPage";
 // import Buddy from "./components/common/Buddy";
 
 // const OfflineBanner: React.FC = () => {
@@ -190,6 +194,26 @@ const App: React.FC = () => {
   );
 };
 
+// ADD:
+const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user } = useAuthStore();
+    const location = useLocation();
+
+    if (!user) return <Navigate to="/login" replace />;
+    if (user.role === 'admin') return <>{children}</>;
+
+    const allowed = user.permissions?.allowedTabs ?? [];
+    // Match the parent tab (handles /reports/:reportType, /assignments/:id, etc.)
+    const currentTopLevel = '/' + location.pathname.split('/')[1];
+    const isAllowed = allowed.includes(currentTopLevel) || allowed.includes(location.pathname);
+
+    if (!isAllowed) {
+        return <Navigate to={getFirstAllowedRoute(user)} replace />;
+    }
+
+    return <>{children}</>;
+};
+
 const AppInner: React.FC = () => {
   const location = useLocation();
   const showNavbar = ["/", "/release", "/404"].includes(location.pathname);
@@ -206,23 +230,25 @@ const AppInner: React.FC = () => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/assignments" element={<AssignmentsPage />} />
-          <Route path="/assignments/:id" element={<AssignmentDetailPage />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/dashboard" element={<RouteGuard><DashboardPage /></RouteGuard>} />
+          <Route path="/assignments" element={<RouteGuard><AssignmentsPage /></RouteGuard>} />
+          <Route path="/assignments/:id" element={<RouteGuard><AssignmentDetailPage /></RouteGuard>} />
+          <Route path="/tasks" element={<RouteGuard><TasksPage /></RouteGuard>} />
+          <Route path="/clients" element={<RouteGuard><ClientsPage /></RouteGuard>} />
+          <Route path="/calendar" element={<RouteGuard><CalendarPage /></RouteGuard>} />
           <Route
             path="/reports"
             element={<Navigate to="/reports/employee" replace />}
           />
-          <Route path="/reports/:reportType" element={<ReportsPage />} />
-          <Route path="/files" element={<FilesPage />} />
-          <Route path="/teams" element={<TeamsPage />} />
-          <Route path="/canvas" element={<CanvasPage />} />
-          <Route path="/bulk-email" element={<BulkEmailPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/chat" element={<ChatsPage />} />
+          <Route path="/reports/:reportType" element={<RouteGuard><ReportsPage /></RouteGuard>} />
+          {/* this following feature is discontinued - it is a common files sharing page in which user can able to share the files to each other in the application */}
+          {/* <Route path="/files" element={<RouteGuard><FilesPage /></RouteGuard>} /> */} 
+          <Route path="/teams" element={<RouteGuard><TeamsPage /></RouteGuard>} />
+          <Route path="/canvas" element={<RouteGuard><CanvasPage /></RouteGuard>} />
+          <Route path="/bulk-email" element={<RouteGuard><BulkEmailPage /></RouteGuard>} />
+          <Route path="/settings" element={<RouteGuard><SettingsPage /></RouteGuard>} />
+          <Route path="/chat" element={<RouteGuard><ChatsPage /></RouteGuard>} />
+          <Route path="/crm" element={<RouteGuard><CrmPage /></RouteGuard>} />
         </Route>
         <Route path="*" element={<ProtectedNotFound />} />
       </Routes>
