@@ -1,1 +1,14 @@
-C:/Users/ACEONE/.gemini/config/projects/a4dc5077-293d-4800-afc0-dbed4b597953.json
+{
+  "id":  "a4dc5077-293d-4800-afc0-dbed4b597953",
+  "name":  "C:\\Users\\ACEONE\\Desktop\\flowdesk\\FlowDesk-Password-reset=problem-fixed\\FlowDesk-Aceone-Internal-software",
+  "projectResources":  {
+    "resources":  [
+      {
+        "gitFolder":  {
+          "folderUri":  "file://C:/Users/ACEONE/Desktop/flowdesk/FlowDesk-Password-reset=problem-fixed/FlowDesk-Aceone-Internal-software",
+          "allowWrite":  true
+        }
+      }
+    ]
+  }
+}
