@@ -1,6 +1,6 @@
 "use client"
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import packageJson from '../../../package.json';
 import { useChatStore } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
@@ -26,6 +26,7 @@ import {
     PanelLeftClose,
     X,
     Headset,
+    ScrollText,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +37,19 @@ interface SidebarProps {
 
 export const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    {   
+        to: '/crm', 
+        icon: Headset, 
+        label: 'CRM', 
+        subItems: [
+            { to: '/crm/dashboard', label: 'Dashboard' },
+            { to: '/crm/campaigns', label: 'Campaigns' },
+            { to: '/crm/dial', label: 'Dial Queue' },
+            { to: '/crm/schedule', label: 'Schedule' },
+            { to: '/crm/plan', label: 'Plan' },
+            { to: '/crm/logs', label: 'Logs' },
+        ] 
+    },
     { to: '/teams', icon: Users, label: 'Our Teams' },
     {
         to: '/assignments',
@@ -51,7 +65,7 @@ export const navItems = [
     { to: '/clients', icon: Building2, label: 'Companies & Clients', new: false },
     { to: '/bulk-email', icon: Mail, label: 'Bulk Messaging', new: false },
     { to: '/canvas', icon: Shapes, label: 'Canvas', new: false },
-    { to: '/calendar', icon: CalendarDays, label: 'Calendar',new: true },
+    { to: '/calendar', icon: CalendarDays, label: 'Calendar', new: false },
     { to: '/chat', icon: MessageSquare, label: 'Chat' },
     {
         to: '/reports',
@@ -63,7 +77,6 @@ export const navItems = [
             { to: '/reports/activity', label: 'User Activity' }
         ]
     },
-    { to: '/crm', icon: Headset, label: 'CRM' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -72,15 +85,27 @@ export const getFirstAllowedRoute = (user: any): string => {
     if (user.role === 'admin') return '/dashboard';
 
     const allowed = user.permissions?.allowedTabs ?? navItems.map(n => n.to);
-    const firstMatch = navItems.find(item => allowed.includes(item.to));
 
-    return firstMatch ? firstMatch.to : '/dashboard';
+    // Check parent items first
+    const firstParentMatch = navItems.find(item => allowed.includes(item.to));
+    if (firstParentMatch) return firstParentMatch.to;
+
+    // If no parent matches, check subItems (e.g. /tasks)
+    for (const item of navItems) {
+        if (item.subItems) {
+            const firstSubMatch = item.subItems.find(sub => allowed.includes(sub.to));
+            if (firstSubMatch) return firstSubMatch.to;
+        }
+    }
+
+    return '/dashboard';
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 }) => {
     const { totalUnreadCount } = useChatStore();
     const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
     const { user } = useAuthStore();
+    const location = useLocation();
 
     const visibleNavItems = user?.role === 'admin'
         ? navItems
@@ -176,7 +201,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {visibleNavItems.map((item) => {
                         const hasSubItems = !!item.subItems && item.subItems.length > 0;
-                        const isExpanded = expandedItems[item.to] ?? false;
+                        const isActiveParent = hasSubItems && item.subItems.some(sub =>
+                            location.pathname === sub.to || location.pathname.startsWith(sub.to + '/')
+                        );
+                        const isExpanded = expandedItems[item.to] ?? isActiveParent;
 
                         return (
                             <div key={item.to} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -192,18 +220,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, width = 260 })
                                             padding: isOpen ? '10px 12px' : '12px',
                                             borderRadius: '8px',
                                             fontSize: '0.875rem',
-                                            fontWeight: 400,
-                                            color: 'var(--color-text-secondary)',
-                                            background: 'transparent',
+                                            fontWeight: isActiveParent ? 600 : 400,
+                                            color: isActiveParent ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                                            background: isActiveParent ? 'var(--color-primary-light)' : 'transparent',
                                             cursor: 'pointer',
                                             transition: 'all 0.15s ease',
                                             textDecoration: 'none',
                                         }}
                                         onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'var(--color-surface-hover)';
+                                            if (!isActiveParent) {
+                                                e.currentTarget.style.background = 'var(--color-surface-hover)';
+                                            }
                                         }}
                                         onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'transparent';
+                                            if (!isActiveParent) {
+                                                e.currentTarget.style.background = 'transparent';
+                                            }
                                         }}
                                     >
                                         <item.icon size={20} style={{ flexShrink: 0 }} />

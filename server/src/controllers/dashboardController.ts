@@ -4,6 +4,7 @@ import Task from '../models/Task';
 import Team from '../models/Team';
 import User from '../models/User';
 import ActivityLog from '../models/ActivityLog';
+import Lead from '../models/Lead';
 import { AuthRequest } from '../middlewares/auth';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -82,6 +83,14 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
 
         // Total tasks
         const totalTasks = await Task.countDocuments(taskFilter);
+
+        // Total call duration across all leads
+        const tenantId = (req.user!.tenantId?._id || req.user!.tenantId).toString();
+        const callDurationResult = await Lead.aggregate([
+            { $match: { tenantId: tenantId as any } },
+            { $group: { _id: null, total: { $sum: '$callDuration' } } },
+        ]);
+        const totalCallDuration = callDurationResult[0]?.total || 0;
 
         // Task status breakdown
         const tasksByStatus = await Task.aggregate([
@@ -166,6 +175,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
                 overdueTasks,
                 completedThisWeek,
                 totalTasks,
+                totalCallDuration,
             },
             tasksByStatus,
             recentActivity,

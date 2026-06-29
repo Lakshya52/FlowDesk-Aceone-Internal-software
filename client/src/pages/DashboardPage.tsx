@@ -195,14 +195,14 @@ const DashboardPage: React.FC = () => {
       bg: "var(--color-danger-light)",
       action: () => navigate("/tasks"),
     },
-    {
-      label: "Completed This Week",
-      value: data.stats?.completedThisWeek,
-      icon: CheckCircle2,
-      color: "#22c55e",
-      bg: "var(--color-success-light)",
-      action: () => navigate("/tasks"),
-    },
+	{
+		label: "Completed This Week",
+		value: data.stats?.completedThisWeek,
+		icon: CheckCircle2,
+		color: "#22c55e",
+		bg: "var(--color-success-light)",
+		action: () => navigate("/tasks"),
+	},
   ];
 
   const pieData = data.tasksByStatus.map((s: any) => ({

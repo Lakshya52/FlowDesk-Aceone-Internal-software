@@ -3,7 +3,7 @@ import React from "react";
 import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
-import { getFirstAllowedRoute } from "./components/layout/Sidebar";
+import { getFirstAllowedRoute, navItems } from "./components/layout/Sidebar";
 import { useAuthStore } from "./store/authStore";
 // import { WifiOff } from "lucide-react";
 // import axios from 'axios';
@@ -205,9 +205,14 @@ const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const allowed = user.permissions?.allowedTabs ?? [];
     // Match the parent tab (handles /reports/:reportType, /assignments/:id, etc.)
     const currentTopLevel = '/' + location.pathname.split('/')[1];
-    const isAllowed = allowed.includes(currentTopLevel) || allowed.includes(location.pathname);
+    const isExactOrParentMatch = allowed.includes(currentTopLevel) || allowed.includes(location.pathname);
 
-    if (!isAllowed) {
+    // Also check if the path is a subItem of an already-allowed parent (e.g. /tasks under /assignments)
+    const isSubItemOfAllowedParent = !isExactOrParentMatch && navItems.some(item =>
+        allowed.includes(item.to) && item.subItems?.some(sub => sub.to === location.pathname)
+    );
+
+    if (!isExactOrParentMatch && !isSubItemOfAllowedParent) {
         return <Navigate to={getFirstAllowedRoute(user)} replace />;
     }
 
@@ -248,7 +253,11 @@ const AppInner: React.FC = () => {
           <Route path="/bulk-email" element={<RouteGuard><BulkEmailPage /></RouteGuard>} />
           <Route path="/settings" element={<RouteGuard><SettingsPage /></RouteGuard>} />
           <Route path="/chat" element={<RouteGuard><ChatsPage /></RouteGuard>} />
-          <Route path="/crm" element={<RouteGuard><CrmPage /></RouteGuard>} />
+          <Route
+            path="/crm"
+            element={<Navigate to="/crm/dashboard" replace />}
+          />
+          <Route path="/crm/:section" element={<RouteGuard><CrmPage /></RouteGuard>} />
         </Route>
         <Route path="*" element={<ProtectedNotFound />} />
       </Routes>

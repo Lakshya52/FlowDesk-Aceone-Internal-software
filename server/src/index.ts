@@ -32,6 +32,10 @@ import conversationRoutes from "./routes/conversations";
 import calendarRoutes from "./routes/calendars";
 import calendarEventRoutes from "./routes/calendarEvents";
 import googleCalendarImport from "./routes/googleCalendarImport";
+import campaignRoutes from "./routes/campaigns";
+import leadRoutes from "./routes/leads";
+import userRoutes from "./routes/users";
+import activityLogRoutes from "./routes/activityLogs";
 import { startRecurringJob } from "./services/recurringTaskService";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
@@ -210,6 +214,10 @@ app.use("/api/conversations", conversationRoutes);
 app.use("/api/calendars", calendarRoutes);
 app.use("/api/calendar-events", calendarEventRoutes);
 app.use("/api/import/google-calendar", googleCalendarImport);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/leads", leadRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/activity-logs", activityLogRoutes);
 
 // Socket.io connection logic
 io.on("connection", (socket) => {
