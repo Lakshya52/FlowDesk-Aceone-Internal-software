@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CalendarEvent = exports.Calendar = exports.Message = exports.Conversation = exports.Contact = exports.Company = exports.ChatMessage = exports.Team = exports.ActivityLog = exports.Notification = exports.Attachment = exports.Comment = exports.Task = exports.Assignment = exports.User = void 0;
+exports.Lead = exports.Campaign = exports.RegistrationOtp = exports.Tenant = exports.CalendarEvent = exports.Calendar = exports.Message = exports.Conversation = exports.Contact = exports.Company = exports.ChatMessage = exports.Team = exports.ActivityLog = exports.Notification = exports.Attachment = exports.Comment = exports.Task = exports.Assignment = exports.User = void 0;
 var User_1 = require("./User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return __importDefault(User_1).default; } });
 var Assignment_1 = require("./Assignment");
@@ -34,4 +34,12 @@ var Calendar_1 = require("./Calendar");
 Object.defineProperty(exports, "Calendar", { enumerable: true, get: function () { return __importDefault(Calendar_1).default; } });
 var CalendarEvent_1 = require("./CalendarEvent");
 Object.defineProperty(exports, "CalendarEvent", { enumerable: true, get: function () { return __importDefault(CalendarEvent_1).default; } });
+var Tenant_1 = require("./Tenant");
+Object.defineProperty(exports, "Tenant", { enumerable: true, get: function () { return __importDefault(Tenant_1).default; } });
+var RegistrationOtp_1 = require("./RegistrationOtp");
+Object.defineProperty(exports, "RegistrationOtp", { enumerable: true, get: function () { return __importDefault(RegistrationOtp_1).default; } });
+var Campaign_1 = require("./Campaign");
+Object.defineProperty(exports, "Campaign", { enumerable: true, get: function () { return __importDefault(Campaign_1).default; } });
+var Lead_1 = require("./Lead");
+Object.defineProperty(exports, "Lead", { enumerable: true, get: function () { return __importDefault(Lead_1).default; } });
 //# sourceMappingURL=index.js.map

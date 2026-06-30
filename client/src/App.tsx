@@ -17,7 +17,6 @@ import AssignmentDetailPage from "./pages/AssignmentDetailPage";
 import TasksPage from "./pages/TasksPage";
 import CalendarPage from "./pages/CalendarPage";
 import ReportsPage from "./pages/ReportsPage";
-import FilesPage from "./pages/FilesPage";
 import SettingsPage from "./pages/SettingsPage";
 import TeamsPage from "./pages/TeamsPage";
 import ClientsPage from "./pages/ClientsPage";

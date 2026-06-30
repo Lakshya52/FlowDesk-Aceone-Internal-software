@@ -57,7 +57,7 @@ const createComment = async (req, res) => {
             const payloads = mentions.map((m) => ({
                 user: m.user,
                 type: Notification_1.NotificationType.MENTION,
-                title: 'New Mention',
+                title: "New Mention",
                 message: `${req.user.name} mentioned you in a comment`,
                 link: taskId
                     ? `/assignments/${assignmentId}?taskId=${taskId}`
@@ -66,15 +66,15 @@ const createComment = async (req, res) => {
             await (0, notificationService_1.createNotifications)(payloads);
         }
         await ActivityLog_1.default.create({
-            action: 'Comment added',
+            action: "Comment added",
             user: req.user._id,
             entityType: ActivityLog_1.EntityType.COMMENT,
             entityId: comment._id,
             metadata: { assignmentId, taskId },
         });
         const populated = await Comment_1.default.findById(comment._id)
-            .populate('author', 'name email avatar')
-            .populate('mentions.user', 'name email');
+            .populate("author", "name email avatar")
+            .populate("mentions.user", "name email");
         res.status(201).json({ comment: populated });
     }
     catch (error) {
@@ -91,8 +91,8 @@ const getComments = async (req, res) => {
         if (taskId)
             filter.task = taskId;
         const comments = await Comment_1.default.find(filter)
-            .populate('author', 'name email avatar')
-            .populate('mentions.user', 'name email')
+            .populate("author", "name email avatar")
+            .populate("mentions.user", "name email")
             .sort({ createdAt: -1 });
         res.json({ comments });
     }
@@ -105,16 +105,19 @@ const deleteComment = async (req, res) => {
     try {
         const comment = await Comment_1.default.findById(req.params.id);
         if (!comment) {
-            res.status(404).json({ message: 'Comment not found' });
+            res.status(404).json({ message: "Comment not found" });
             return;
         }
         // Only author or admin can delete
-        if (comment.author.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-            res.status(403).json({ message: 'Not authorized to delete this comment' });
+        if (comment.author.toString() !== req.user._id.toString() &&
+            req.user.role !== "admin") {
+            res.status(403).json({
+                message: "Not authorized to delete this comment",
+            });
             return;
         }
         await Comment_1.default.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Comment deleted' });
+        res.json({ message: "Comment deleted" });
     }
     catch (error) {
         res.status(500).json({ message: error.message });
@@ -128,13 +131,23 @@ const searchUsers = async (req, res) => {
             res.json({ users: [] });
             return;
         }
+        // const users = await User.find({
+        //     $or: [
+        //         { name: { $regex: q, $options: 'i' } },
+        //         { email: { $regex: q, $options: 'i' } },
+        //     ],
+        //     isActive: true,
+        // } as any).select('name email avatar').limit(10);
         const users = await User_1.default.find({
+            tenantId: req.user.tenantId,
             $or: [
-                { name: { $regex: q, $options: 'i' } },
-                { email: { $regex: q, $options: 'i' } },
+                { name: { $regex: q, $options: "i" } },
+                { email: { $regex: q, $options: "i" } },
             ],
             isActive: true,
-        }).select('name email avatar').limit(10);
+        })
+            .select("name email avatar")
+            .limit(10);
         res.json({ users });
     }
     catch (error) {

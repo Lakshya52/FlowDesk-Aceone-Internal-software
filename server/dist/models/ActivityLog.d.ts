@@ -7,7 +7,9 @@ export declare enum EntityType {
     USER = "user",
     COMPANY = "company",
     CONTACT = "contact",
-    TEAM = "team"
+    TEAM = "team",
+    CAMPAIGN = "campaign",
+    LEAD = "lead"
 }
 export interface IActivityLog extends Document {
     action: string;

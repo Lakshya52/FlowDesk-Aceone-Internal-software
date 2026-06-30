@@ -9,6 +9,7 @@ const Task_1 = __importDefault(require("../models/Task"));
 const Team_1 = __importDefault(require("../models/Team"));
 const User_1 = __importDefault(require("../models/User"));
 const ActivityLog_1 = __importDefault(require("../models/ActivityLog"));
+const Lead_1 = __importDefault(require("../models/Lead"));
 const getDashboardStats = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -75,6 +76,13 @@ const getDashboardStats = async (req, res) => {
         });
         // Total tasks
         const totalTasks = await Task_1.default.countDocuments(taskFilter);
+        // Total call duration across all leads
+        const tenantId = (req.user.tenantId?._id || req.user.tenantId).toString();
+        const callDurationResult = await Lead_1.default.aggregate([
+            { $match: { tenantId: tenantId } },
+            { $group: { _id: null, total: { $sum: '$callDuration' } } },
+        ]);
+        const totalCallDuration = callDurationResult[0]?.total || 0;
         // Task status breakdown
         const tasksByStatus = await Task_1.default.aggregate([
             { $match: taskFilter },
@@ -151,6 +159,7 @@ const getDashboardStats = async (req, res) => {
                 overdueTasks,
                 completedThisWeek,
                 totalTasks,
+                totalCallDuration,
             },
             tasksByStatus,
             recentActivity,

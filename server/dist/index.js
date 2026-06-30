@@ -66,6 +66,11 @@ const conversations_1 = __importDefault(require("./routes/conversations"));
 const calendars_1 = __importDefault(require("./routes/calendars"));
 const calendarEvents_1 = __importDefault(require("./routes/calendarEvents"));
 const googleCalendarImport_1 = __importDefault(require("./routes/googleCalendarImport"));
+const campaigns_1 = __importDefault(require("./routes/campaigns"));
+const leads_1 = __importDefault(require("./routes/leads"));
+const users_1 = __importDefault(require("./routes/users"));
+const activityLogs_1 = __importDefault(require("./routes/activityLogs"));
+const crmSummary_1 = __importDefault(require("./routes/crmSummary"));
 const recurringTaskService_1 = require("./services/recurringTaskService");
 const errorHandler_1 = require("./middlewares/errorHandler");
 const app = (0, express_1.default)();
@@ -224,6 +229,11 @@ app.use("/api/conversations", conversations_1.default);
 app.use("/api/calendars", calendars_1.default);
 app.use("/api/calendar-events", calendarEvents_1.default);
 app.use("/api/import/google-calendar", googleCalendarImport_1.default);
+app.use("/api/campaigns", campaigns_1.default);
+app.use("/api/leads", leads_1.default);
+app.use("/api/users", users_1.default);
+app.use("/api/activity-logs", activityLogs_1.default);
+app.use("/api/crm-summary", crmSummary_1.default);
 // Socket.io connection logic
 io.on("connection", (socket) => {
     socket.on("join_assignment", (assignmentId) => {
@@ -233,6 +243,12 @@ io.on("connection", (socket) => {
     socket.on("join_conversation", (conversationId) => {
         socket.join(`conversation_${conversationId}`);
         console.log(`User joined conversation room: conversation_${conversationId}`);
+    });
+    socket.on("join_tenant", (tenantId) => {
+        if (!tenantId)
+            return;
+        socket.join(`tenant_${tenantId}`);
+        console.log(`User joined tenant room: tenant_${tenantId}`);
     });
     socket.on("join_user", (userId) => {
         if (!userId)

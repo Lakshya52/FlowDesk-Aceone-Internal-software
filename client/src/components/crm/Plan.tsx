@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, CheckCircle2, Phone, Target, Clock, AlertTriangle, Inbox, PhoneCall, CalendarCheck, MessageSquare, Loader2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, CheckCircle2, Phone, Target, Clock, Inbox, PhoneCall, CalendarCheck, MessageSquare, Loader2 } from 'lucide-react';
 import { format, addDays, isSameDay, parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
@@ -296,7 +296,7 @@ const Plan = () => {
           {/* Priority Leads Queue */}
           <div className="card animate-fade-in" style={{ padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <AlertTriangle size={20} style={{ color: 'var(--color-danger)' }} />
+              <Phone size={20} style={{ color: 'var(--color-primary)' }} />
               <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Leads to Contact</h3>
               {loadingPriority && <Loader2 size={14} className="animate-spin" />}
             </div>

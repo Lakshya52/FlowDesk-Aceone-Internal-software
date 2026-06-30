@@ -6,6 +6,7 @@ export declare enum UserRole {
 }
 export interface IUser extends Document {
     name: string;
+    tenantId: mongoose.Types.ObjectId;
     email: string;
     password: string;
     role: UserRole;
@@ -24,6 +25,9 @@ export interface IUser extends Document {
             auth: string;
         };
     }[];
+    permissions: {
+        allowedTabs: string[];
+    };
     createdAt: Date;
     updatedAt: Date;
     comparePassword(candidatePassword: string): Promise<boolean>;

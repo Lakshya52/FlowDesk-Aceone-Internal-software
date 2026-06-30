@@ -50,8 +50,17 @@ exports.upload = upload;
 const createCompany = async (req, res) => {
     try {
         const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
+        let slug = name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        const existing = await Company_1.default.findOne({ slug });
+        if (existing) {
+            slug = `${slug}-${Date.now()}`;
+        }
         const companyData = {
             name,
+            slug,
             parentCompanyId: parentCompanyId || null,
             industry,
             description,

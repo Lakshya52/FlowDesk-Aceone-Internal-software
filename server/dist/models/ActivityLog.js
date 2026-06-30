@@ -45,6 +45,8 @@ var EntityType;
     EntityType["COMPANY"] = "company";
     EntityType["CONTACT"] = "contact";
     EntityType["TEAM"] = "team";
+    EntityType["CAMPAIGN"] = "campaign";
+    EntityType["LEAD"] = "lead";
 })(EntityType || (exports.EntityType = EntityType = {}));
 const activityLogSchema = new mongoose_1.Schema({
     action: { type: String, required: true },

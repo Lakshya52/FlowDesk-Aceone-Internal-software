@@ -853,7 +853,7 @@ const DialQueue = () => {
 						<option value="">All Industries</option>
 						{[
 							...new Set(
-								leads.map((l:any) => l.industry).filter(Boolean),
+								(leads.map((l:any) => l.industry).filter(Boolean) as string[]),
 							),
 						].map((ind) => (
 							<option key={ind} value={ind}>
@@ -874,7 +874,7 @@ const DialQueue = () => {
 						<option value="">All Sources</option>
 						{[
 							...new Set(
-								leads.map((l:any) => l.source).filter(Boolean),
+								(leads.map((l:any) => l.source).filter(Boolean) as string[]),
 							),
 						].map((src) => (
 							<option key={src} value={src}>

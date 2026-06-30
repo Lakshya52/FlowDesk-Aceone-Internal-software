@@ -1,6 +1,7 @@
 import mongoose, { Document } from 'mongoose';
 export interface ICompany extends Document {
     name: string;
+    slug: string;
     parentCompanyId?: mongoose.Types.ObjectId | null;
     industry?: string;
     description?: string;
@@ -16,6 +17,10 @@ export interface ICompany extends Document {
         postalCode?: string;
     };
     status: 'active' | 'inactive';
+    plan: 'free' | 'starter' | 'business' | 'enterprise';
+    subscriptionStartDate?: Date;
+    subscriptionEndDate?: Date;
+    ownerId?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }

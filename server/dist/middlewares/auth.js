@@ -9,33 +9,37 @@ const User_1 = __importDefault(require("../models/User"));
 const authenticate = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ message: 'Authentication required' });
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            res.status(401).json({ message: "Authentication required" });
             return;
         }
-        const token = authHeader.split(' ')[1];
-        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-        const user = await User_1.default.findById(decoded.userId).select('-password');
+        const token = authHeader.split(" ")[1];
+        // const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as { userId: string };
+        // const user = await User.findById(decoded.userId).select('-password');
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || "fallback_secret");
+        const user = await User_1.default.findById(decoded.userId)
+            .select("-password")
+            .populate("tenantId");
         if (!user || !user.isActive) {
-            res.status(401).json({ message: 'Invalid or expired token' });
+            res.status(401).json({ message: "Invalid or expired token" });
             return;
         }
         req.user = user;
         next();
     }
     catch (error) {
-        res.status(401).json({ message: 'Invalid or expired token' });
+        res.status(401).json({ message: "Invalid or expired token" });
     }
 };
 exports.authenticate = authenticate;
 const authorize = (...roles) => {
     return (req, res, next) => {
         if (!req.user) {
-            res.status(401).json({ message: 'Authentication required' });
+            res.status(401).json({ message: "Authentication required" });
             return;
         }
         if (roles.length > 0 && !roles.includes(req.user.role)) {
-            res.status(403).json({ message: 'Insufficient permissions' });
+            res.status(403).json({ message: "Insufficient permissions" });
             return;
         }
         next();

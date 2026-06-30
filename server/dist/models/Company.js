@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const companySchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     parentCompanyId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Company', default: null },
     industry: { type: String, trim: true },
     description: { type: String, trim: true },
@@ -51,8 +52,12 @@ const companySchema = new mongoose_1.Schema({
         postalCode: { type: String, trim: true },
     },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    plan: { type: String, enum: ['free', 'starter', 'business', 'enterprise'], default: 'free' },
+    subscriptionStartDate: { type: Date },
+    subscriptionEndDate: { type: Date },
+    ownerId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
-// Index for efficient parent-child queries
+companySchema.index({ slug: 1 });
 companySchema.index({ parentCompanyId: 1 });
 companySchema.index({ name: 1 });
 companySchema.index({ status: 1 });

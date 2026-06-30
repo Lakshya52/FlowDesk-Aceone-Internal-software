@@ -18,7 +18,7 @@ export interface ISubtask {
 export interface ITask extends Document {
     title: string;
     description: string;
-    assignment: mongoose.Types.ObjectId;
+    assignment?: mongoose.Types.ObjectId;
     assignedTo: mongoose.Types.ObjectId;
     createdBy: mongoose.Types.ObjectId;
     dueDate: Date;

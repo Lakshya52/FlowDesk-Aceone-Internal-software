@@ -1,6 +1,8 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middlewares/auth';
+import { Response } from "express";
+import { AuthRequest } from "../middlewares/auth";
 export declare const register: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const resendRegistrationOtp: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const verifyRegistrationOtp: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const login: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const getMe: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const getUsers: (req: AuthRequest, res: Response) => Promise<void>;
@@ -12,4 +14,5 @@ export declare const removeAvatar: (req: AuthRequest, res: Response) => Promise<
 export declare const changePassword: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const forgotPassword: (req: AuthRequest, res: Response) => Promise<void>;
 export declare const verifyForgotPasswordOtp: (req: AuthRequest, res: Response) => Promise<void>;
+export declare const createUser: (req: AuthRequest, res: Response) => Promise<void>;
 //# sourceMappingURL=authController.d.ts.map

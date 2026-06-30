@@ -1,6 +1,6 @@
 {
   "name": "flowdesk-desktop",
-  "version": "2.0.4",
+  "version": "3.0.0",
   "description": "Desktop wrapper for FlowDesk SaaS",
   "main": "dist/main.js",
   "author": "FlowDesk Team",
@@ -47,7 +47,10 @@
       }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "assets/icon.ico",
       "executableName": "FlowDesk"
     },
