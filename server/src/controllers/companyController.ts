@@ -15,8 +15,18 @@ export const createCompany = async (req: AuthRequest, res: Response) => {
     try {
         const { name, parentCompanyId, industry, description, website, email, phone, phoneCountryCode, address, status } = req.body;
         
+        let slug = name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        const existing = await Company.findOne({ slug });
+        if (existing) {
+            slug = `${slug}-${Date.now()}`;
+        }
+
         const companyData: any = {
             name,
+            slug,
             parentCompanyId: parentCompanyId || null,
             industry,
             description,

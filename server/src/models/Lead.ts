@@ -6,6 +6,17 @@ export interface ILeadNote {
     createdAt: Date;
 }
 
+export interface IFollowUpLog {
+    scheduledAt: Date;
+    createdAt: Date;
+}
+
+export interface IMeetingLog {
+    scheduledAt: Date;
+    createdAt: Date;
+    status: 'scheduled' | 'done' | 'canceled';
+}
+
 export interface ILead extends Document {
     campaignId: mongoose.Types.ObjectId;
     tenantId: mongoose.Types.ObjectId;
@@ -23,13 +34,20 @@ export interface ILead extends Document {
     industry?: string;
     email?: string;
     website?: string;
-    priority: 'very high' | 'high' | 'med' | 'low';
+    priority: 'very_high' | 'high' | 'medium' | 'low';
     source: string;
     status: 'new' | 'attempted' | 'connected' | 'interested' | 'callback_scheduled' | 'meeting_scheduled' | 'not_interested' | 'not_reachable' | 'do_not_call' | 'closed_won' | 'closed_lost';
     callCount: number;
     lastCallAt?: Date;
     callDuration: number;
     nextFollowupAt?: Date;
+    scheduleType?: 'follow_up' | 'meeting';
+    meetingStatus?: 'scheduled' | 'done' | 'canceled';
+    meetingAt?: Date;
+    followUpCount: number;
+    meetingCount: number;
+    followUpLogs: IFollowUpLog[];
+    meetingLogs: IMeetingLog[];
     notes: ILeadNote[];
     createdAt: Date;
     updatedAt: Date;
@@ -55,8 +73,8 @@ const leadSchema = new Schema<ILead>(
         website: { type: String, trim: true },
         priority: {
             type: String,
-            enum: ['very high', 'high', 'med', 'low'],
-            default: 'med',
+            enum: ['very high', 'high', 'medium', 'low'],
+            default: 'medium',
         },
         source: {
             type: String,
@@ -83,6 +101,24 @@ const leadSchema = new Schema<ILead>(
         lastCallAt: { type: Date },
         callDuration: { type: Number, default: 0 },
         nextFollowupAt: { type: Date },
+        scheduleType: { type: String, enum: ['follow_up', 'meeting'] },
+        meetingStatus: { type: String, enum: ['scheduled', 'done', 'canceled'], default: 'scheduled' },
+        meetingAt: { type: Date },
+        followUpCount: { type: Number, default: 0 },
+        meetingCount: { type: Number, default: 0 },
+        followUpLogs: [
+            {
+                scheduledAt: { type: Date, required: true },
+                createdAt: { type: Date, default: Date.now },
+            },
+        ],
+        meetingLogs: [
+            {
+                scheduledAt: { type: Date, required: true },
+                createdAt: { type: Date, default: Date.now },
+                status: { type: String, enum: ['scheduled', 'done', 'canceled'], default: 'scheduled' },
+            },
+        ],
         notes: [
             {
                 text: { type: String, required: true },
@@ -96,8 +132,18 @@ const leadSchema = new Schema<ILead>(
 
 leadSchema.index({ campaignId: 1 });
 leadSchema.index({ tenantId: 1 });
+leadSchema.index({ tenantId: 1, name: 1 });
+leadSchema.index({ tenantId: 1, phone: 1 });
+leadSchema.index({ tenantId: 1, companyName: 1 });
+leadSchema.index({ tenantId: 1, email: 1 });
 leadSchema.index({ email: 1 });
 leadSchema.index({ phone: 1 });
+leadSchema.index({ alternatePhone: 1 });
+leadSchema.index({ companyName: 1 });
+leadSchema.index({ companyPan: 1 });
+leadSchema.index({ companyGst: 1 });
+leadSchema.index({ designation: 1 });
+leadSchema.index({ name: 1 });
 leadSchema.index({ status: 1 });
 
 export default mongoose.model<ILead>('Lead', leadSchema);

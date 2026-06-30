@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, X, Users, Target, Calendar, Loader2, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
+import { useCrmSocket } from '../../hooks/useCrmSocket';
 
 interface Campaign {
     _id: string;
@@ -26,44 +28,43 @@ const AVATAR_COLORS = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#
 
 const Campaigns = () => {
     const { user: currentUser } = useAuthStore();
-    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-    const [users, setUsers] = useState<TeamUser[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
+    const queryClient = useQueryClient();
+    useCrmSocket();
 
     const [showCreateModal, setShowCreateModal] = useState(false);
-
     const [form, setForm] = useState({ name: '', purpose: '', description: '' });
     const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
-    const fetchCampaigns = async () => {
-        try {
-            const { data } = await api.get('/campaigns');
-            if (data.success) {
-                setCampaigns(data.campaigns);
-            }
-        } catch (err) {
-            console.error('Failed to load campaigns', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { data: campaigns = [], isLoading } = useQuery({
+        queryKey: ["campaigns"],
+        queryFn: async () => {
+            const res = await api.get('/campaigns');
+            return (res.data.success ? res.data.campaigns : []) as Campaign[];
+        },
+    });
 
-    const fetchUsers = async () => {
-        try {
-            const { data } = await api.get('/users');
-            if (data.success) {
-                setUsers(data.users);
-            }
-        } catch (err) {
-            console.error('Failed to load users', err);
-        }
-    };
+    const { data: users = [] } = useQuery({
+        queryKey: ["users"],
+        queryFn: async () => {
+            const res = await api.get('/users');
+            return (res.data.success ? res.data.users : []) as TeamUser[];
+        },
+    });
 
-    useEffect(() => {
-        fetchCampaigns();
-        fetchUsers();
-    }, []);
+    const createMutation = useMutation({
+        mutationFn: (data: { name: string; purpose: string; description: string; people: string[] }) =>
+            api.post('/campaigns', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (campaignId: string) => api.delete(`/campaigns/${campaignId}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+        },
+    });
 
     const resetForm = () => {
         setForm({ name: '', purpose: '', description: '' });
@@ -72,25 +73,18 @@ const Campaigns = () => {
 
     const handleCreate = async () => {
         if (!form.name.trim() || !form.purpose.trim()) return;
-        setSubmitting(true);
-        try {
-            const { data } = await api.post('/campaigns', {
-                name: form.name.trim(),
-                purpose: form.purpose.trim(),
-                description: form.description.trim(),
-                people: selectedMembers,
-            });
-            if (data.success) {
-                setCampaigns(prev => [data.campaign, ...prev]);
-                resetForm();
-                setShowCreateModal(false);
+        createMutation.mutate(
+            { name: form.name.trim(), purpose: form.purpose.trim(), description: form.description.trim(), people: selectedMembers },
+            {
+                onSuccess: () => {
+                    resetForm();
+                    setShowCreateModal(false);
+                },
+                onError: (err: any) => {
+                    alert(err.response?.data?.message || 'Failed to create campaign');
+                },
             }
-        } catch (err: any) {
-            console.error('Failed to create campaign', err);
-            alert(err.response?.data?.message || 'Failed to create campaign');
-        } finally {
-            setSubmitting(false);
-        }
+        );
     };
 
     const toggleMember = (userId: string) => {
@@ -99,17 +93,13 @@ const Campaigns = () => {
         );
     };
 
-    const handleDelete = async (campaignId: string) => {
+    const handleDelete = (campaignId: string) => {
         if (!confirm('Delete this campaign? This cannot be undone.')) return;
-        try {
-            const { data } = await api.delete(`/campaigns/${campaignId}`);
-            if (data.success) {
-                setCampaigns(prev => prev.filter(c => c._id !== campaignId));
-            }
-        } catch (err: any) {
-            console.error('Failed to delete campaign', err);
-            alert(err.response?.data?.message || 'Failed to delete campaign');
-        }
+        deleteMutation.mutate(campaignId, {
+            onError: (err: any) => {
+                alert(err.response?.data?.message || 'Failed to delete campaign');
+            },
+        });
     };
 
     // const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,7 +140,7 @@ const Campaigns = () => {
         return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
                 <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
@@ -455,11 +445,11 @@ const Campaigns = () => {
                             <button
                                 className="btn btn-primary"
                                 style={{ width: '100%', marginTop: 4, padding: '10px' }}
-                                disabled={!form.name.trim() || !form.purpose.trim() || submitting}
-                                onClick={handleCreate}
-                            >
-                                {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
-                                {submitting ? 'Creating...' : 'Create Campaign'}
+                                                    disabled={!form.name.trim() || !form.purpose.trim() || createMutation.isPending}
+                                                    onClick={handleCreate}
+                                                >
+                                                    {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                                                    {createMutation.isPending ? 'Creating...' : 'Create Campaign'}
                             </button>
                         </div>
                     </div>

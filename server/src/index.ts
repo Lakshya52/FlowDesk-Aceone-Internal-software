@@ -36,6 +36,7 @@ import campaignRoutes from "./routes/campaigns";
 import leadRoutes from "./routes/leads";
 import userRoutes from "./routes/users";
 import activityLogRoutes from "./routes/activityLogs";
+import crmSummaryRoutes from "./routes/crmSummary";
 import { startRecurringJob } from "./services/recurringTaskService";
 import { errorHandler, notFound } from "./middlewares/errorHandler";
 
@@ -218,6 +219,7 @@ app.use("/api/campaigns", campaignRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/activity-logs", activityLogRoutes);
+app.use("/api/crm-summary", crmSummaryRoutes);
 
 // Socket.io connection logic
 io.on("connection", (socket) => {
@@ -231,6 +233,12 @@ io.on("connection", (socket) => {
     console.log(
       `User joined conversation room: conversation_${conversationId}`,
     );
+  });
+
+  socket.on("join_tenant", (tenantId) => {
+    if (!tenantId) return;
+    socket.join(`tenant_${tenantId}`);
+    console.log(`User joined tenant room: tenant_${tenantId}`);
   });
 
   socket.on("join_user", (userId) => {

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Phone, Building, Loader2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Phone, Building, Loader2, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip } from 'recharts';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { useCrmSocket } from '../../hooks/useCrmSocket';
 
 interface Lead {
     _id: string;
@@ -23,13 +25,13 @@ const STATUS_LABELS: Record<string, string> = {
     attempted: 'Attempted',
     connected: 'Connected',
     interested: 'Interested',
-    callback_scheduled: 'Callback Scheduled',
-    meeting_scheduled: 'Meeting Scheduled',
+    callback_scheduled: 'Callback',
+    meeting_scheduled: 'Meeting',
     not_interested: 'Not Interested',
     not_reachable: 'Not Reachable',
     do_not_call: 'Do Not Call',
-    closed_won: 'Closed / Won',
-    closed_lost: 'Closed / Lost',
+    closed_won: 'Won',
+    closed_lost: 'Lost',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -46,10 +48,10 @@ const STATUS_COLORS: Record<string, string> = {
     closed_lost: '#0ea5e9',
 };
 
-const AVATAR_COLORS = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6'];
+// const AVATAR_COLORS = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6'];
 
-const getInitials = (name: string) =>
-    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+// const getInitials = (name: string) =>
+//     name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
 const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -72,36 +74,30 @@ const formatDateShort = (d?: string) => {
 };
 
 const CrmDashboard = () => {
-    const [leads, setLeads] = useState<Lead[]>([]);
-    const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+    useCrmSocket();
 
-    useEffect(() => {
-        const fetch = async () => {
-            try {
-                const { data } = await api.get('/leads', { params: { limit: 10000 } });
-                if (data.success) setLeads(data.leads);
-            } catch (err) {
-                console.error('Failed to load leads', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetch();
-    }, []);
-
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-                <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
-            </div>
-        );
-    }
+    const { data: leads = [], isLoading } = useQuery({
+        queryKey: ["leads", "dashboard"],
+        queryFn: async () => {
+            const res = await api.get('/leads', { params: { limit: 10000 } });
+            return (res.data.success ? res.data.leads : []) as Lead[];
+        },
+    });
 
     const total = leads.length;
     const won = leads.filter(l => l.status === 'closed_won').length;
     const lost = leads.filter(l => l.status === 'closed_lost').length;
     const activeLeads = leads.filter(l => !['closed_won', 'closed_lost', 'do_not_call', 'not_interested'].includes(l.status)).length;
     const successRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : 0;
+
+    if (isLoading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+                <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
+            </div>
+        );
+    }
 
     const kpis = [
         {
@@ -151,8 +147,6 @@ const CrmDashboard = () => {
         statusKey: s,
     }));
 
-    const recentLeads = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
-
     return (
         <div style={{ maxWidth: 1200 }}>
             <div className="flex flex-col sm:flex-row items-start sm:items-end sm:justify-between gap-4" style={{ marginBottom: 20 }}>
@@ -196,14 +190,22 @@ const CrmDashboard = () => {
                 <h3 style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: 16 }}>Leads Lifecycle</h3>
                 <div style={{ height: 260, marginBottom: 24 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={lifecycleData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
-                            <XAxis dataKey="name" hide />
-                            <YAxis axisLine tickLine tick={false} stroke="var(--color-border)" />
+                        <BarChart data={lifecycleData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                            <XAxis
+                                dataKey="name"
+                                tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }}
+                                angle={-20}
+                                textAnchor="end"
+                            />
+                            <YAxis
+                                tick={{ fontSize: 12, fill: "var(--color-text-secondary)" }}
+                                allowDecimals={false}
+                            />
                             <Tooltip
                                 contentStyle={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: "0.8125rem" }}
                             />
-                            <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                 {lifecycleData.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                 ))}
@@ -223,27 +225,24 @@ const CrmDashboard = () => {
 
             <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 32 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
-                    <h3 style={{ fontSize: "0.875rem", fontWeight: 600 }}>Recent Leads</h3>
+                    <h3 style={{ fontSize: "0.875rem", fontWeight: 600 }}>Very High Priority Leads</h3>
+                    <Link className='text-[0.8rem] flex items-center justify-center gap-2' to="/crm/dial">View All <ArrowRight size={18} /></Link>
                 </div>
                 <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {recentLeads.length === 0 ? (
+                    {leads.filter(l => l.priority === 'very high').length === 0 ? (
                         <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: '0.875rem' }}>
-                            No leads yet
+                            No very high priority leads
                         </div>
                     ) : (
-                        recentLeads.map((lead, idx) => (
+                        leads.filter(l => l.priority === 'very high').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5).map((lead) => (
                             <div
                                 key={lead._id}
-                                style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                onClick={() => navigate(`/crm/dial?leadId=${lead._id}`)}
+                                style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = 'none'; }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    {/* <div style={{
-                                        width: 34, height: 34, borderRadius: '50%', background: AVATAR_COLORS[idx % AVATAR_COLORS.length],
-                                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.7rem', fontWeight: 600, flexShrink: 0,
-                                    }}>
-                                        {getInitials(lead.name)}
-                                    </div> */}
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>{lead.name}</span>
@@ -267,11 +266,7 @@ const CrmDashboard = () => {
                                         </div>
                                     </div>
                                 </div>
-                                {lead.campaignId && typeof lead.campaignId === 'object' && (
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', background: 'var(--color-surface)', padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
-                                        {lead.campaignId.name}
-                                    </div>
-                                )}
+                                <ArrowRight size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
                             </div>
                         ))
                     )}

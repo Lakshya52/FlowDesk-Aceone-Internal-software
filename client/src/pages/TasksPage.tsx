@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../lib/api";
 import Avatar from "../components/common/Avatar";
 import { useAuthStore } from "../store/authStore";
-import { Search, Edit3, Trash2, X, Check } from "lucide-react";
+import { Search, Edit3, Trash2, X, Check, Plus, Loader2 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 const PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
@@ -42,7 +43,19 @@ const TasksPage: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<"all" | "my" | "review">("all");
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const navigate = useNavigate();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    description: "",
+    assignedTo: user?._id || "",
+    dueDate: "",
+    noDueDate: false,
+    priority: "medium",
+    assignment: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
@@ -69,6 +82,15 @@ const TasksPage: React.FC = () => {
     },
   });
   const users = usersData || [];
+
+  const { data: assignmentsData } = useQuery({
+    queryKey: ["assignments"],
+    queryFn: async () => {
+      const { data } = await api.get("/assignments");
+      return data.assignments || [];
+    },
+  });
+  const assignments = assignmentsData || [];
 
   const { data: tasksData, isLoading: loading } = useQuery({
     queryKey: ["tasks", search, selectedCompany, currentTab, user?._id],
@@ -154,6 +176,38 @@ const TasksPage: React.FC = () => {
     }
   };
 
+  const handleCreateTask = async () => {
+    if (!createForm.title.trim() || !createForm.assignedTo) return;
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        title: createForm.title,
+        description: createForm.description,
+        assignedTo: createForm.assignedTo,
+        priority: createForm.priority,
+      };
+      if (createForm.dueDate) payload.dueDate = createForm.dueDate;
+      if (createForm.assignment) payload.assignment = createForm.assignment;
+
+      await api.post("/tasks", payload);
+      setShowCreateModal(false);
+      setCreateForm({
+        title: "",
+        description: "",
+        assignedTo: user?._id || "",
+        dueDate: "",
+        noDueDate: false,
+        priority: "medium",
+        assignment: "",
+      });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (e: any) {
+      alert(e.response?.data?.message || "Failed to create task");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const getDeadlineStyle = (dueDate: string, status: string) => {
     if (!dueDate || new Date(dueDate).getFullYear() <= 1970)
       return { color: "var(--color-text-tertiary)" };
@@ -199,6 +253,7 @@ const TasksPage: React.FC = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          width: "100%",
         }}
       >
         <div>
@@ -221,6 +276,13 @@ const TasksPage: React.FC = () => {
             {tasks.length} total tasks
           </p>
         </div>
+        <button
+          className="btn btn-primary w-full sm:w-auto"
+          onClick={() => setShowCreateModal(true)}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <Plus size={16} /> Create Task
+        </button>
       </div>
 
       {/* Tabs */}
@@ -487,7 +549,7 @@ const TasksPage: React.FC = () => {
                                 className="input"
                                 type="date"
                                 style={{ fontSize: "0.75rem" }}
-                                value={editForm.dueDate?.split("T")[0]}
+                                value={editForm.dueDate?.split("T")[0] || ""}
                                 onChange={(e) =>
                                   setEditForm({
                                     ...editForm,
@@ -495,6 +557,22 @@ const TasksPage: React.FC = () => {
                                   })
                                 }
                               />
+                              <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.7rem", color: "var(--color-text-tertiary)" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={!editForm.dueDate}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditForm({ ...editForm, dueDate: "" });
+                                    } else {
+                                      // Re-set to a default date if unchecked
+                                      const today = new Date().toISOString().split("T")[0];
+                                      setEditForm({ ...editForm, dueDate: today });
+                                    }
+                                  }}
+                                />
+                                No Due Date
+                              </label>
                               <select
                                 className="select"
                                 style={{ fontSize: "0.75rem" }}
@@ -551,9 +629,19 @@ const TasksPage: React.FC = () => {
                                     textTransform: "uppercase",
                                     color: "var(--color-primary)",
                                     fontWeight: 600,
+                                    cursor: t.assignment ? "pointer" : "default",
+                                    textDecoration: t.assignment ? "underline" : "none",
+                                    textUnderlineOffset: 2,
+                                  }}
+                                  onClick={() => {
+                                    if (t.assignment?._id) {
+                                      navigate(`/assignments/${t.assignment._id}`);
+                                    } else {
+                                      alert("This is a standalone task and not linked to any specific project");
+                                    }
                                   }}
                                 >
-                                  {t.assignment?.title}
+                                  {t.assignment?.title || "General"}
                                 </div>
                                 <span
                                   className={`badge badge-${t.priority}`}
@@ -765,6 +853,168 @@ const TasksPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Create Task Modal */}
+      {showCreateModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)",
+            zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+          }}
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            className="card animate-fade-in"
+            style={{ maxWidth: 500, width: "100%", padding: 0, overflow: "hidden", borderRadius: 16 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              padding: "20px 24px", borderBottom: "1px solid var(--color-border)",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: "var(--color-surface)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Plus size={18} style={{ color: "var(--color-primary)" }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>Create Task</h3>
+                  <p style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
+                    Add a new task to the board
+                  </p>
+                </div>
+              </div>
+              <button
+                style={{
+                  background: "var(--color-surface-hover)", border: "none", cursor: "pointer",
+                  color: "var(--color-text-tertiary)", width: 32, height: 32, borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+                onClick={() => setShowCreateModal(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                  Title <span style={{ color: "var(--color-danger)" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="e.g. Design landing page"
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                  Description <span style={{ color: "var(--color-danger)" }}>*</span>
+                </label>
+                <textarea
+                  className="input"
+                  style={{ minHeight: 70, resize: "vertical" }}
+                  placeholder="Task details..."
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                  Assign To <span style={{ color: "var(--color-danger)" }}>*</span>
+                </label>
+                <select
+                  className="select"
+                  value={createForm.assignedTo}
+                  onChange={(e) => setCreateForm({ ...createForm, assignedTo: e.target.value })}
+                  style={{ width: "100%" }}
+                >
+                  <option value="">Select a user</option>
+                  {users.map((u: any) => (
+                    <option key={u._id} value={u._id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={createForm.dueDate}
+                    onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value, noDueDate: false })}
+                    disabled={createForm.noDueDate}
+                    style={{ width: "100%", marginBottom: 4 }}
+                  />
+                  <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: "0.7rem", color: "var(--color-text-tertiary)" }}>
+                    <input
+                      type="checkbox"
+                      checked={createForm.noDueDate}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          dueDate: e.target.checked ? "" : createForm.dueDate,
+                          noDueDate: e.target.checked,
+                        })
+                      }
+                    />
+                    No Due Date
+                  </label>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                    Priority
+                  </label>
+                  <select
+                    className="select"
+                    value={createForm.priority}
+                    onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
+                    style={{ width: "100%" }}
+                  >
+                    {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: 6 }}>
+                  Project <span style={{ fontSize: "0.7rem", color: "var(--color-text-tertiary)" }}>(optional)</span>
+                </label>
+                <select
+                  className="select"
+                  value={createForm.assignment}
+                  onChange={(e) => setCreateForm({ ...createForm, assignment: e.target.value })}
+                  style={{ width: "100%" }}
+                >
+                  <option value="">Standalone task (no project)</option>
+                  {assignments.map((a: any) => (
+                    <option key={a._id} value={a._id}>{a.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ width: "100%", marginTop: 4, padding: "10px" }}
+                disabled={!createForm.title.trim() || !createForm.assignedTo || submitting}
+                onClick={handleCreateTask}
+              >
+                {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
+                {submitting ? "Creating..." : "Create Task"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

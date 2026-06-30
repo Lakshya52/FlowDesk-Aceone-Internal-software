@@ -5,6 +5,7 @@ import Lead from '../models/Lead';
 import ActivityLog, { EntityType } from '../models/ActivityLog';
 import { AuthRequest } from '../middlewares/auth';
 import XLSX from 'xlsx';
+import { emitCampaignCreated, emitCampaignUpdated, emitCampaignDeleted } from '../services/crmSocketService';
 
 export const createCampaign = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -29,6 +30,9 @@ export const createCampaign = async (req: AuthRequest, res: Response): Promise<v
         });
 
         const populated = await Campaign.findById(campaign._id).populate('people', 'name email avatar').populate('createdBy', 'name email avatar');
+
+        const tenantId2 = (req.user as any).tenantId?._id || (req.user as any).tenantId;
+        emitCampaignCreated(tenantId2, populated);
 
         res.status(201).json({ success: true, campaign: populated });
     } catch (error: any) {
@@ -93,6 +97,9 @@ export const updateCampaign = async (req: AuthRequest, res: Response): Promise<v
 
         const populated = await Campaign.findById(campaign._id).populate('people', 'name email avatar');
 
+        const tenantId = (req.user as any).tenantId?._id || (req.user as any).tenantId;
+        emitCampaignUpdated(tenantId, populated);
+
         await ActivityLog.create({
             action: 'Campaign updated',
             user: req.user!._id,
@@ -155,6 +162,8 @@ export const importCampaignExcel = async (req: AuthRequest, res: Response): Prom
             }
         }
 
+        if (campaigns.length > 0) emitCampaignCreated(tenantId, campaigns[0]);
+
         res.status(201).json({
             success: true,
             imported: campaigns.length,
@@ -204,6 +213,9 @@ export const deleteCampaign = async (req: AuthRequest, res: Response): Promise<v
             res.status(404).json({ success: false, message: 'Campaign not found' });
             return;
         }
+
+        const tenantId3 = (req.user as any).tenantId?._id || (req.user as any).tenantId;
+        emitCampaignDeleted(tenantId3, req.params.id as string);
 
         await ActivityLog.create({
             action: 'Campaign deleted',

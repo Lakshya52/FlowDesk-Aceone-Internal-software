@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
 	Phone,
 	Building,
@@ -20,8 +20,10 @@ import {
 	Trash2,
 	Calendar,
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../lib/api";
 import { useAuthStore } from "../../store/authStore";
+import { useCrmSocket } from "../../hooks/useCrmSocket";
 
 interface Campaign {
 	_id: string;
@@ -33,6 +35,17 @@ interface LeadNote {
 	text: string;
 	createdBy: { _id: string; name: string; email: string; avatar?: string };
 	createdAt: string;
+}
+
+interface FollowUpLog {
+	scheduledAt: string;
+	createdAt: string;
+}
+
+interface MeetingLog {
+	scheduledAt: string;
+	createdAt: string;
+	status: "scheduled" | "done" | "canceled";
 }
 
 interface Lead {
@@ -53,7 +66,7 @@ interface Lead {
 	industry?: string;
 	email?: string;
 	website?: string;
-	priority: "very high" | "high" | "med" | "low";
+	priority: "very high" | "high" | "medium" | "low";
 	source: string;
 	status:
 		| "new"
@@ -71,6 +84,13 @@ interface Lead {
 	lastCallAt?: string;
 	callDuration: number;
 	nextFollowupAt?: string;
+	scheduleType?: "follow_up" | "meeting";
+	meetingStatus?: "scheduled" | "done" | "canceled";
+	meetingAt?: string;
+	followUpCount: number;
+	meetingCount: number;
+	followUpLogs: FollowUpLog[];
+	meetingLogs: MeetingLog[];
 	notes: LeadNote[];
 	createdAt: string;
 	updatedAt: string;
@@ -91,10 +111,10 @@ const STATUS_OPTIONS: Lead["status"][] = [
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
-	"very high": "#ef4444",
-	high: "#f59e0b",
-	med: "#3b82f6",
-	low: "#6b7280",
+	"very high": "var(--color-danger)",
+	high: "var(--color-warning)",
+	med: "var(--color-primary)",
+	low: "var(--color-text-tertiary)",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -111,31 +131,37 @@ const STATUS_BADGE: Record<string, string> = {
 	closed_lost: "not_started",
 };
 
-
-
 const DialQueue = () => {
 	const { user: currentUser } = useAuthStore();
 	const navigate = useNavigate();
+	const location = useLocation();
+	const queryClient = useQueryClient();
 	const isAdmin = currentUser?.role === "admin";
+	useCrmSocket();
 
-	const [leads, setLeads] = useState<Lead[]>([]);
-	const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-	const [loading, setLoading] = useState(true);
 	const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 	const [filterCampaign, setFilterCampaign] = useState("");
 	const [filterStatus, setFilterStatus] = useState("");
+	const [searchInput, setSearchInput] = useState("");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [filterIndustry, setFilterIndustry] = useState("");
 	const [filterSource, setFilterSource] = useState("");
 	const [filterPriority, setFilterPriority] = useState("");
+	const [activeTab, setActiveTab] = useState<"all" | "archived" | "meeting_scheduled" | "closed_won">("all");
 	const [page, setPage] = useState(1);
 	const [pageSize, setPageSize] = useState(50);
-	const [totalPages, setTotalPages] = useState(1);
+
+	useEffect(() => {
+		const t = setTimeout(() => setSearchQuery(searchInput), 350);
+		return () => clearTimeout(t);
+	}, [searchInput]);
 
 	const [showImportModal, setShowImportModal] = useState(false);
 	const [showCreateForm, setShowCreateForm] = useState(false);
 	const [importing, setImporting] = useState(false);
-	const [importStep, setImportStep] = useState<"campaign" | "upload" | "result">("campaign");
+	const [importStep, setImportStep] = useState<
+		"campaign" | "upload" | "result"
+	>("campaign");
 	const [importCampaignId, setImportCampaignId] = useState("");
 	const [importResult, setImportResult] = useState<{
 		imported: number;
@@ -150,19 +176,28 @@ const DialQueue = () => {
 
 	const [followupDate, setFollowupDate] = useState("");
 	const [schedulingFollowup, setSchedulingFollowup] = useState(false);
+	const [scheduleType, setScheduleType] = useState<"follow_up" | "meeting">("follow_up");
 	const [showAllContactDetails, setShowAllContactDetails] = useState(false);
 	const [isEditingLead, setIsEditingLead] = useState(false);
-	const [editForm, setEditForm] = useState<Record<string, string | undefined>>({});
+	const [editForm, setEditForm] = useState<
+		Record<string, string | undefined>
+	>({});
 
 	useEffect(() => {
 		if (selectedLead) {
 			setIsEditingLead(false);
+			const hasMeeting = selectedLead.meetingAt;
+			const hasFollowup = selectedLead.nextFollowupAt;
+			const dateStr = hasMeeting || hasFollowup;
 			setFollowupDate(
-				selectedLead.nextFollowupAt
-					? new Date(selectedLead.nextFollowupAt)
+				dateStr
+					? new Date(dateStr)
 							.toISOString()
 							.slice(0, 16)
 					: "",
+			);
+			setScheduleType(
+				selectedLead.scheduleType || (selectedLead.meetingAt ? "meeting" : "follow_up"),
 			);
 		}
 	}, [selectedLead]);
@@ -212,57 +247,131 @@ const DialQueue = () => {
 		website: "",
 		alternatePhone: "",
 		campaignId: "",
-		priority: "med" as Lead["priority"],
+		priority: "medium" as Lead["priority"],
 	});
 
-	const fetchLeads = async () => {
-		try {
-			const params: any = { page, limit: pageSize };
+	const getTabStatusParam = (tab: typeof activeTab): string | undefined => {
+		switch (tab) {
+			case "archived": return "not_interested,do_not_call,closed_lost";
+			case "meeting_scheduled": return "meeting_scheduled";
+			case "closed_won": return "closed_won";
+			default: return undefined;
+		}
+	};
+
+	const leadsParams = { page, pageSize, activeTab, filterCampaign, filterStatus, searchQuery, filterIndustry, filterSource, filterPriority };
+
+	const { data: leadsData = { leads: [], totalPages: 1 }, isLoading } = useQuery({
+		queryKey: ["leads", leadsParams],
+		queryFn: async () => {
+			const params: any = { page: page, limit: pageSize };
 			if (filterCampaign) params.campaignId = filterCampaign;
-			if (filterStatus) params.status = filterStatus;
+			const tabStatus = getTabStatusParam(activeTab);
+			if (tabStatus) {
+				params.status = tabStatus;
+			} else if (filterStatus) {
+				params.status = filterStatus;
+			}
 			if (searchQuery) params.search = searchQuery;
 			if (filterIndustry) params.industry = filterIndustry;
 			if (filterSource) params.source = filterSource;
 			if (filterPriority) params.priority = filterPriority;
 			const { data } = await api.get("/leads", { params });
-			if (data.success) {
-				setLeads(data.leads);
-				setTotalPages(data.totalPages || 1);
-			}
-		} catch (err) {
-			console.error("Failed to load leads", err);
-		} finally {
-			setLoading(false);
-		}
-	};
+			return { leads: data.success ? data.leads : [], totalPages: data.totalPages || 1 };
+		},
+	});
 
-	const fetchCampaigns = async () => {
-		try {
+	const leads = leadsData.leads;
+	const totalPages = leadsData.totalPages;
+
+	const { data: campaigns = [] } = useQuery({
+		queryKey: ["campaigns"],
+		queryFn: async () => {
 			const { data } = await api.get("/campaigns");
-			if (data.success) setCampaigns(data.campaigns);
-		} catch (err) {
-			console.error("Failed to load campaigns", err);
-		}
-	};
+			return data.success ? data.campaigns : [];
+		},
+	});
 
-	useEffect(() => {
-		fetchLeads();
-		fetchCampaigns();
-	}, []);
+	const countsParams = { filterCampaign, searchQuery, filterIndustry, filterSource, filterPriority };
+
+	const { data: tabCounts = { all: 0, archived: 0, meeting_scheduled: 0, closed_won: 0 } } = useQuery({
+		queryKey: ["leads", "counts", countsParams],
+		queryFn: async () => {
+			const params: any = {};
+			if (filterCampaign) params.campaignId = filterCampaign;
+			if (searchQuery) params.search = searchQuery;
+			if (filterIndustry) params.industry = filterIndustry;
+			if (filterSource) params.source = filterSource;
+			if (filterPriority) params.priority = filterPriority;
+			const { data } = await api.get("/leads/counts", { params });
+			return data.success ? data.counts : { all: 0, archived: 0, meeting_scheduled: 0, closed_won: 0 };
+		},
+	});
 
 	useEffect(() => {
 		setPage(1);
-	}, [filterCampaign, filterStatus, searchQuery, filterIndustry, filterSource, filterPriority, pageSize]);
+	}, [
+		activeTab,
+		filterCampaign,
+		filterStatus,
+		searchQuery,
+		filterIndustry,
+		filterSource,
+		filterPriority,
+		pageSize,
+	]);
+
+	// Auto-open lead from URL param (e.g. from CRM Dashboard "Very High Priority" click)
+	const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
 
 	useEffect(() => {
-		fetchLeads();
-	}, [page, pageSize, filterCampaign, filterStatus, searchQuery, filterIndustry, filterSource, filterPriority]);
+		const params = new URLSearchParams(location.search);
+		const leadId = params.get("leadId");
+		if (leadId) {
+			setFocusLeadId(leadId);
+			navigate("/crm/dial", { replace: true });
+		}
+	}, [location.search]);
+
+	useEffect(() => {
+		if (!focusLeadId) return;
+
+		const openLead = async () => {
+			const lead = leads.find((l:any) => l._id === focusLeadId)
+				|| (await api.get(`/leads/${focusLeadId}`).then((r) => r.data.lead).catch(() => null));
+
+			if (!lead) return;
+
+			setTimeout(() => {
+				const el = document.getElementById(`lead-${focusLeadId}`);
+				if (el) {
+					el.scrollIntoView({ behavior: "smooth", block: "center" });
+					el.style.transition = "all 0.3s ease";
+					el.style.backgroundColor = "var(--color-primary-light)";
+					el.style.transform = "scale(1.02)";
+					el.style.boxShadow = "0 10px 25px rgba(0,0,0,0.1)";
+					setTimeout(() => {
+						el.style.backgroundColor = "";
+						el.style.transform = "";
+						el.style.boxShadow = "";
+					}, 2000);
+				}
+			}, 300);
+
+			setTimeout(() => {
+				setSelectedLead(lead);
+				setFocusLeadId(null);
+			}, 600);
+		};
+
+		openLead();
+	}, [focusLeadId, leads]);
 
 	const getCampaignName = (campaignId: any): string => {
 		if (!campaignId) return "—";
 		if (typeof campaignId === "object" && campaignId.name)
 			return campaignId.name;
-		const found = campaigns.find((c) => c._id === campaignId);
+		const found = campaigns.find((c:any) => c._id === campaignId);
 		return found?.name || "—";
 	};
 
@@ -309,10 +418,8 @@ const DialQueue = () => {
 		try {
 			const { data } = await api.put(`/leads/${leadId}`, { status });
 			if (data.success) {
-				setLeads((prev) =>
-					prev.map((l) => (l._id === leadId ? data.lead : l)),
-				);
 				if (selectedLead?._id === leadId) setSelectedLead(data.lead);
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err) {
 			console.error("Failed to update status", err);
@@ -332,10 +439,8 @@ const DialQueue = () => {
 			body.callDuration = callDuration;
 			const { data } = await api.post(`/leads/${leadId}/call`, body);
 			if (data.success) {
-				setLeads((prev) =>
-					prev.map((l) => (l._id === leadId ? data.lead : l)),
-				);
 				if (selectedLead?._id === leadId) setSelectedLead(data.lead);
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err) {
 			console.error("Failed to record call", err);
@@ -352,13 +457,9 @@ const DialQueue = () => {
 				{ text: newNote.trim() },
 			);
 			if (data.success) {
-				setLeads((prev) =>
-					prev.map((l) =>
-						l._id === selectedLead._id ? data.lead : l,
-					),
-				);
 				setSelectedLead(data.lead);
 				setNewNote("");
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err) {
 			console.error("Failed to add note", err);
@@ -369,16 +470,21 @@ const DialQueue = () => {
 		if (!selectedLead || !followupDate) return;
 		setSchedulingFollowup(true);
 		try {
-			const { data } = await api.put(`/leads/${selectedLead._id}`, {
-				nextFollowupAt: followupDate,
-			});
+			const payload: any = {
+				scheduleType,
+			};
+			if (scheduleType === "meeting") {
+				payload.meetingAt = followupDate;
+				payload.status = "meeting_scheduled";
+				payload.meetingStatus = "scheduled";
+			} else {
+				payload.nextFollowupAt = followupDate;
+				payload.status = "callback_scheduled";
+			}
+			const { data } = await api.put(`/leads/${selectedLead._id}`, payload);
 			if (data.success) {
-				setLeads((prev) =>
-					prev.map((l) =>
-						l._id === selectedLead._id ? data.lead : l,
-					),
-				);
 				setSelectedLead(data.lead);
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err) {
 			console.error("Failed to schedule follow-up", err);
@@ -389,11 +495,29 @@ const DialQueue = () => {
 
 	const handleCreateLead = async () => {
 		if (!createForm.name.trim()) return;
+		if (!createForm.campaignId) {
+			alert("Please select a campaign before creating a lead.");
+			return;
+		}
+		if (createForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) {
+			alert("Please enter a valid email address.");
+			return;
+		}
+		if (createForm.phone && !/^\d{10}$/.test(createForm.phone.replace(/\D/g, ""))) {
+			alert("Please enter a valid 10-digit phone number.");
+			return;
+		}
+		if (createForm.alternatePhone && !/^\d{10}$/.test(createForm.alternatePhone.replace(/\D/g, ""))) {
+			alert("Please enter a valid 10-digit alternate phone number.");
+			return;
+		}
 		setUpdatingLead(true);
+		const payload = Object.fromEntries(
+			Object.entries(createForm).filter(([_, v]) => v !== ""),
+		);
 		try {
-			const { data } = await api.post("/leads", createForm);
+			const { data } = await api.post("/leads", payload);
 			if (data.success) {
-				setLeads((prev) => [data.lead, ...prev]);
 				setShowCreateForm(false);
 				setCreateForm({
 					name: "",
@@ -411,8 +535,9 @@ const DialQueue = () => {
 					website: "",
 					alternatePhone: "",
 					campaignId: "",
-					priority: "med",
+					priority: "medium",
 				});
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err: any) {
 			alert(err.response?.data?.message || "Failed to create lead");
@@ -425,16 +550,19 @@ const DialQueue = () => {
 		if (!selectedLead || !editForm) return;
 		setUpdatingLead(true);
 		try {
-			const { data } = await api.put(`/leads/${selectedLead._id}`, editForm);
+			const { data } = await api.put(
+				`/leads/${selectedLead._id}`,
+				editForm,
+			);
 			if (data.success) {
-				setLeads((prev) =>
-					prev.map((l) => (l._id === selectedLead._id ? data.lead : l)),
-				);
 				setSelectedLead(data.lead);
 				setIsEditingLead(false);
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err: unknown) {
-			const apiErr = err as { response?: { data?: { message?: string } } };
+			const apiErr = err as {
+				response?: { data?: { message?: string } };
+			};
 			alert(apiErr.response?.data?.message || "Failed to update lead");
 		} finally {
 			setUpdatingLead(false);
@@ -445,14 +573,18 @@ const DialQueue = () => {
 		if (!selectedLead) return;
 		const first = confirm("Are you sure you want to delete this lead?");
 		if (!first) return;
-		const second = confirm(`This will permanently delete "${selectedLead.name}". This action cannot be undone.`);
+		const second = confirm(
+			`This will permanently delete "${selectedLead.name}". This action cannot be undone.`,
+		);
 		if (!second) return;
 		try {
 			await api.delete(`/leads/${selectedLead._id}`);
-			setLeads((prev) => prev.filter((l) => l._id !== selectedLead._id));
 			setSelectedLead(null);
+			queryClient.invalidateQueries({ queryKey: ["leads"] });
 		} catch (err: unknown) {
-			const apiErr = err as { response?: { data?: { message?: string } } };
+			const apiErr = err as {
+				response?: { data?: { message?: string } };
+			};
 			alert(apiErr.response?.data?.message || "Failed to delete lead");
 		}
 	};
@@ -479,7 +611,7 @@ const DialQueue = () => {
 			});
 			setImportStep("result");
 			if (data.success) {
-				fetchLeads();
+				queryClient.invalidateQueries({ queryKey: ["leads"] });
 			}
 		} catch (err: any) {
 			alert(err.response?.data?.message || "Import failed");
@@ -489,7 +621,7 @@ const DialQueue = () => {
 		}
 	};
 
-	if (loading) {
+	if (isLoading) {
 		return (
 			<div
 				style={{
@@ -523,7 +655,7 @@ const DialQueue = () => {
 					>
 						Dial Queue
 					</h1>
-					<p
+					{/* <p
 						style={{
 							color: "var(--color-text-secondary)",
 							fontSize: "0.875rem",
@@ -532,25 +664,91 @@ const DialQueue = () => {
 					>
 						{leads.length} lead{leads.length !== 1 ? "s" : ""} in
 						queue
-					</p>
+					</p> */}
 				</div>
 
 				{/* {isAdmin && ( */}
-					<div style={{ display: "flex", gap: 8 }}>
-						<button
-							className="btn btn-secondary"
-							onClick={() => setShowImportModal(true)}
-						>
-							<Download size={16} /> Import
-						</button>
-						<button
-							className="btn btn-primary"
-							onClick={() => setShowCreateForm(true)}
-						>
-							<Plus size={16} /> Add Lead
-						</button>
-					</div>
+				<div style={{ display: "flex", gap: 8 }}>
+					<button
+						className="btn btn-secondary"
+						onClick={() => setShowImportModal(true)}
+					>
+						<Download size={16} /> Import
+					</button>
+					<button
+						className="btn btn-primary"
+						onClick={() => setShowCreateForm(true)}
+					>
+						<Plus size={16} /> Add Lead
+					</button>
+				</div>
 				{/* // )} */}
+			</div>
+
+			{/* Tabs */}
+			<div
+				style={{
+					display: "flex",
+					gap: 4,
+					marginBottom: 16,
+					borderBottom: "1px solid var(--color-border)",
+					paddingBottom: 0,
+				}}
+			>
+				{([
+					{ key: "all", label: "All Queue" },
+					{ key: "archived", label: "Archived" },
+					{ key: "meeting_scheduled", label: "Meeting Scheduled" },
+					{ key: "closed_won", label: "Closed Won" },
+				] as const).map((tab) => (
+					<button
+						key={tab.key}
+						onClick={() => {
+							setActiveTab(tab.key);
+							setFilterStatus("");
+						}}
+						style={{
+							padding: "8px 18px",
+							fontSize: "0.82rem",
+							fontWeight: activeTab === tab.key ? 700 : 500,
+							color:
+								activeTab === tab.key
+									? "var(--color-primary)"
+									: "var(--color-text-secondary)",
+							background: "none",
+							border: "none",
+							borderBottom:
+								activeTab === tab.key
+									? "2px solid var(--color-primary)"
+									: "2px solid transparent",
+							cursor: "pointer",
+							transition: "all 0.15s ease",
+							whiteSpace: "nowrap",
+							display: "inline-flex",
+							alignItems: "center",
+						}}
+					>
+						{tab.label}
+						<span
+							style={{
+								marginLeft: 6,
+								padding: "2px 8px",
+								borderRadius: 12,
+								fontSize: "0.75rem",
+								background:
+									activeTab === tab.key
+										? "var(--color-primary-light)"
+										: "var(--color-surface-hover)",
+								color:
+									activeTab === tab.key
+										? "var(--color-primary)"
+										: "var(--color-text-tertiary)",
+							}}
+						>
+							{tabCounts[tab.key] ?? 0}
+						</span>
+					</button>
+				))}
 			</div>
 
 			<div
@@ -576,10 +774,13 @@ const DialQueue = () => {
 				>
 					<Search
 						size={15}
-						style={{ color: "var(--color-text-tertiary)", flexShrink: 0 }}
+						style={{
+							color: "var(--color-text-tertiary)",
+							flexShrink: 0,
+						}}
 					/>
 					<input
-						placeholder="Search by name, phone, company, email..."
+						placeholder="Search by name, phone, company, email, GST, PAN, industry ..... "
 						style={{
 							flex: 1,
 							border: "none",
@@ -589,11 +790,18 @@ const DialQueue = () => {
 							boxShadow: "none",
 							background: "transparent",
 						}}
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
+						value={searchInput}
+						onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
 					/>
 				</div>
-				<div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+				<div
+					style={{
+						display: "flex",
+						gap: 8,
+						flexWrap: "wrap",
+						alignItems: "center",
+					}}
+				>
 					<Filter
 						size={14}
 						style={{ color: "var(--color-text-tertiary)" }}
@@ -609,7 +817,7 @@ const DialQueue = () => {
 						onChange={(e) => setFilterCampaign(e.target.value)}
 					>
 						<option value="">All Campaigns</option>
-						{campaigns.map((c) => (
+						{campaigns.map((c:any) => (
 							<option key={c._id} value={c._id}>
 								{c.name}
 							</option>
@@ -643,7 +851,11 @@ const DialQueue = () => {
 						onChange={(e) => setFilterIndustry(e.target.value)}
 					>
 						<option value="">All Industries</option>
-						{[...new Set(leads.map((l) => l.industry).filter(Boolean))].map((ind) => (
+						{[
+							...new Set(
+								leads.map((l:any) => l.industry).filter(Boolean),
+							),
+						].map((ind) => (
 							<option key={ind} value={ind}>
 								{ind}
 							</option>
@@ -660,7 +872,11 @@ const DialQueue = () => {
 						onChange={(e) => setFilterSource(e.target.value)}
 					>
 						<option value="">All Sources</option>
-						{[...new Set(leads.map((l) => l.source).filter(Boolean))].map((src) => (
+						{[
+							...new Set(
+								leads.map((l:any) => l.source).filter(Boolean),
+							),
+						].map((src) => (
 							<option key={src} value={src}>
 								{src}
 							</option>
@@ -679,7 +895,7 @@ const DialQueue = () => {
 						<option value="">All Priority</option>
 						<option value="very high">Very High</option>
 						<option value="high">High</option>
-						<option value="med">Med</option>
+						<option value="medium">Medium</option>
 						<option value="low">Low</option>
 					</select>
 				</div>
@@ -723,9 +939,10 @@ const DialQueue = () => {
 						</p>
 					</div>
 				) : (
-					leads.map((lead) => (
+					leads.map((lead:any) => (
 						<div
 							key={lead._id}
+							id={`lead-${lead._id}`}
 							className="card animate-fade-in"
 							style={{
 								padding: 14,
@@ -840,6 +1057,8 @@ const DialQueue = () => {
 									}}
 								>
 									<div>Calls: {lead.callCount}</div>
+									<div>F/U: {lead.followUpCount}</div>
+									<div>Meet: {lead.meetingCount}</div>
 									<div
 										style={{
 											color: "var(--color-text-secondary)",
@@ -880,8 +1099,21 @@ const DialQueue = () => {
 							flexWrap: "wrap",
 						}}
 					>
-						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-							<span style={{ fontSize: "0.78rem", color: "var(--color-text-tertiary)" }}>Per page</span>
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: 6,
+							}}
+						>
+							<span
+								style={{
+									fontSize: "0.78rem",
+									color: "var(--color-text-tertiary)",
+								}}
+							>
+								Per page
+							</span>
 							<select
 								style={{
 									padding: "4px 8px",
@@ -891,7 +1123,9 @@ const DialQueue = () => {
 									// background: "white",
 								}}
 								value={pageSize}
-								onChange={(e) => setPageSize(Number(e.target.value))}
+								onChange={(e) =>
+									setPageSize(Number(e.target.value))
+								}
 							>
 								<option value={50}>50</option>
 								<option value={100}>100</option>
@@ -906,8 +1140,14 @@ const DialQueue = () => {
 								padding: "6px 14px",
 								borderRadius: 8,
 								border: "1px solid var(--color-border)",
-								background: page <= 1 ? "var(--color-surface)" : "white",
-								color: page <= 1 ? "var(--color-text-tertiary)" : "var(--color-text)",
+								background:
+									page <= 1
+										? "var(--color-surface)"
+										: "white",
+								color:
+									page <= 1
+										? "var(--color-text-tertiary)"
+										: "var(--color-text)",
 								fontSize: "0.8rem",
 								fontWeight: 600,
 								cursor: page <= 1 ? "not-allowed" : "pointer",
@@ -915,7 +1155,12 @@ const DialQueue = () => {
 						>
 							Previous
 						</button>
-						<span style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+						<span
+							style={{
+								fontSize: "0.82rem",
+								color: "var(--color-text-secondary)",
+							}}
+						>
 							Page {page} of {totalPages}
 						</span>
 						<button
@@ -925,11 +1170,20 @@ const DialQueue = () => {
 								padding: "6px 14px",
 								borderRadius: 8,
 								border: "1px solid var(--color-border)",
-								background: page >= totalPages ? "var(--color-surface)" : "white",
-								color: page >= totalPages ? "var(--color-text-tertiary)" : "var(--color-text)",
+								background:
+									page >= totalPages
+										? "var(--color-surface)"
+										: "white",
+								color:
+									page >= totalPages
+										? "var(--color-text-tertiary)"
+										: "var(--color-text)",
 								fontSize: "0.8rem",
 								fontWeight: 600,
-								cursor: page >= totalPages ? "not-allowed" : "pointer",
+								cursor:
+									page >= totalPages
+										? "not-allowed"
+										: "pointer",
 							}}
 						>
 							Next
@@ -943,35 +1197,38 @@ const DialQueue = () => {
 					style={{
 						position: "fixed",
 						inset: 0,
-						backgroundColor: "rgba(0,0,0,0.4)",
+						// backgroundColor: "rgba(0,0,0,0.4)",
 						zIndex: 50,
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
 						padding: 24,
 					}}
+					className="backdrop-blur-sm"
 					onClick={() => {
 						setSelectedLead(null);
 						setIsCalling(false);
 					}}
 				>
 					<div
-						className="card animate-fade-in bg-(--color-bg)"
+						className="card animate-fade-in bg-(--color-bg) shadow-xl border-(--color-primary)"
 						style={{
 							width: "100%",
-							maxWidth: 1100,
+							maxWidth: 1200,
 							maxHeight: "90vh",
 							overflow: "hidden",
 							display: "flex",
 							flexDirection: "column",
 							// background: "white",
 							borderRadius: 12,
+							boxShadow: "var(--color-primary)",
+							borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)"
 						}}
 						onClick={(e) => e.stopPropagation()}
 					>
 						<div
 							style={{
-								padding: "0px 20px 20px 20px",
+								padding: "0px 0px 20px 0px",
 								// borderBottom: "1px solid var(--color-border)",
 								display: "flex",
 								justifyContent: "space-between",
@@ -1070,12 +1327,15 @@ const DialQueue = () => {
 											<span>
 												{selectedLead.designation}
 											</span>
-										)}| 
+										)}
+										|
 										<span>
-                      Source :&nbsp;
-                      {selectedLead.source}</span> |
+											Source :&nbsp;
+											{selectedLead.source}
+										</span>{" "}
+										|
 										<span>
-                      Campaign :&nbsp;
+											Campaign :&nbsp;
 											{getCampaignName(
 												selectedLead.campaignId,
 											)}
@@ -1083,32 +1343,45 @@ const DialQueue = () => {
 									</div>
 								</div>
 							</div>
-							<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: 6,
+								}}
+							>
 								{isAdmin && !isEditingLead && (
 									<button
 										onClick={() => {
 											setEditForm({
 												name: selectedLead.name,
 												phone: selectedLead.phone,
-												alternatePhone: selectedLead.alternatePhone,
+												alternatePhone:
+													selectedLead.alternatePhone,
 												email: selectedLead.email,
 												website: selectedLead.website,
-												companyName: selectedLead.companyName,
+												companyName:
+													selectedLead.companyName,
 												industry: selectedLead.industry,
-												designation: selectedLead.designation,
-												addressLine: selectedLead.addressLine,
+												designation:
+													selectedLead.designation,
+												addressLine:
+													selectedLead.addressLine,
 												city: selectedLead.city,
 												state: selectedLead.state,
 												pincode: selectedLead.pincode,
-												companyPan: selectedLead.companyPan,
-												companyGst: selectedLead.companyGst,
+												companyPan:
+													selectedLead.companyPan,
+												companyGst:
+													selectedLead.companyGst,
 												priority: selectedLead.priority,
 											});
 											setIsEditingLead(true);
 										}}
 										title="Edit Lead"
 										style={{
-											background: "var(--color-primary-light)",
+											background:
+												"var(--color-primary-light)",
 											border: "none",
 											cursor: "pointer",
 											color: "var(--color-primary)",
@@ -1128,10 +1401,10 @@ const DialQueue = () => {
 										onClick={handleDeleteLead}
 										title="Delete Lead"
 										style={{
-											background: "#fef2f2",
+											background: "var(--color-danger-light)",
 											border: "none",
 											cursor: "pointer",
-											color: "#ef4444",
+											color: "var(--color-danger)",
 											width: 32,
 											height: 32,
 											borderRadius: 8,
@@ -1145,10 +1418,11 @@ const DialQueue = () => {
 								)}
 								<button
 									style={{
-										background: "var(--color-surface-hover)",
+										background:
+											"var(--color-primary)",
 										border: "none",
 										cursor: "pointer",
-										color: "var(--color-text-tertiary)",
+										color: "var(--color-bg)",
 										width: 32,
 										height: 32,
 										borderRadius: 8,
@@ -1173,7 +1447,6 @@ const DialQueue = () => {
 								flex: 1,
 								overflow: "hidden",
 							}}
-              className="bg-(--color-bg)"
 						>
 							{/* Left Column */}
 							<div
@@ -1183,9 +1456,9 @@ const DialQueue = () => {
 									overflowY: "auto",
 									// borderRight:
 									// 	"1px solid var(--color-border)",
-                    marginRight:"12px",
+									marginRight: "12px",
 								}}
-                className="pr-2"
+								className="pr-2"
 							>
 								{/* Contact Information */}
 								<div
@@ -1195,6 +1468,7 @@ const DialQueue = () => {
 										border: "1px solid var(--color-border)",
 										overflow: "hidden",
 										marginBottom: 16,
+										borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)"
 									}}
 								>
 									<div
@@ -1225,69 +1499,188 @@ const DialQueue = () => {
 										</span>
 									</div>
 									{isEditingLead ? (
-										<div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+										<div
+											style={{
+												padding: "12px 16px",
+												display: "flex",
+												flexDirection: "column",
+												gap: 10,
+											}}
+										>
 											{[
 												{ label: "Name", key: "name" },
-												{ label: "Phone", key: "phone" },
-												{ label: "Alt Phone", key: "alternatePhone" },
-												{ label: "Email", key: "email" },
-												{ label: "Website", key: "website" },
-												{ label: "Company", key: "companyName" },
-												{ label: "Industry", key: "industry" },
-												{ label: "Designation", key: "designation" },
-												{ label: "Address Line", key: "addressLine" },
+												{
+													label: "Phone",
+													key: "phone",
+												},
+												{
+													label: "Alt Phone",
+													key: "alternatePhone",
+												},
+												{
+													label: "Email",
+													key: "email",
+												},
+												{
+													label: "Website",
+													key: "website",
+												},
+												{
+													label: "Company",
+													key: "companyName",
+												},
+												{
+													label: "Industry",
+													key: "industry",
+												},
+												{
+													label: "Designation",
+													key: "designation",
+												},
+												{
+													label: "Address Line",
+													key: "addressLine",
+												},
 												{ label: "City", key: "city" },
-												{ label: "State", key: "state" },
-												{ label: "Pincode", key: "pincode" },
-												{ label: "PAN", key: "companyPan" },
-												{ label: "GST", key: "companyGst" },
+												{
+													label: "State",
+													key: "state",
+												},
+												{
+													label: "Pincode",
+													key: "pincode",
+												},
+												{
+													label: "PAN",
+													key: "companyPan",
+												},
+												{
+													label: "GST",
+													key: "companyGst",
+												},
 											].map((field) => (
 												<div key={field.key}>
-													<label style={{ fontSize: "0.7rem", color: "var(--color-text-tertiary)", marginBottom: 2, display: "block" }}>
+													<label
+														style={{
+															fontSize: "0.7rem",
+															color: "var(--color-text-tertiary)",
+															marginBottom: 2,
+															display: "block",
+														}}
+													>
 														{field.label}
 													</label>
 													<input
 														className="input"
-														style={{ width: "100%", padding: "6px 10px", fontSize: "0.8rem", borderRadius: 6 }}
-														value={editForm[field.key] || ""}
+														style={{
+															width: "100%",
+															padding: "6px 10px",
+															fontSize: "0.8rem",
+															borderRadius: 6,
+														}}
+														value={
+															editForm[
+																field.key
+															] || ""
+														}
 														onChange={(e) =>
-															setEditForm((prev) => ({ ...prev, [field.key]: e.target.value }))
+															setEditForm(
+																(prev) => ({
+																	...prev,
+																	[field.key]:
+																		e.target
+																			.value,
+																}),
+															)
 														}
 													/>
 												</div>
 											))}
 											<div>
-												<label style={{ fontSize: "0.7rem", color: "var(--color-text-tertiary)", marginBottom: 2, display: "block" }}>
+												<label
+													style={{
+														fontSize: "0.7rem",
+														color: "var(--color-text-tertiary)",
+														marginBottom: 2,
+														display: "block",
+													}}
+												>
 													Priority
 												</label>
 												<select
 													className="input"
-													style={{ width: "100%", padding: "6px 10px", fontSize: "0.8rem", borderRadius: 6 }}
-													value={editForm.priority || "med"}
+													style={{
+														width: "100%",
+														padding: "6px 10px",
+														fontSize: "0.8rem",
+														borderRadius: 6,
+													}}
+													value={
+														editForm.priority ||
+														"medium"
+													}
 													onChange={(e) =>
-														setEditForm((prev) => ({ ...prev, priority: e.target.value }))
+														setEditForm((prev) => ({
+															...prev,
+															priority:
+																e.target.value,
+														}))
 													}
 												>
-													<option value="very high">Very High</option>
-													<option value="high">High</option>
-													<option value="med">Med</option>
-													<option value="low">Low</option>
+													<option value="very high">
+														Very High
+													</option>
+													<option value="high">
+														High
+													</option>
+													<option value="medium">
+														Medium
+													</option>
+													<option value="low">
+														Low
+													</option>
 												</select>
 											</div>
-											<div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+											<div
+												style={{
+													display: "flex",
+													gap: 8,
+													marginTop: 4,
+												}}
+											>
 												<button
 													className="btn btn-primary"
-													disabled={updatingLead || !editForm.name}
+													disabled={
+														updatingLead ||
+														!editForm.name
+													}
 													onClick={handleSaveLead}
-													style={{ flex: 1, padding: "8px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 600 }}
+													style={{
+														flex: 1,
+														padding: "8px",
+														borderRadius: 8,
+														fontSize: "0.82rem",
+														fontWeight: 600,
+													}}
 												>
-													{updatingLead ? "Saving..." : "Save Changes"}
+													{updatingLead
+														? "Saving..."
+														: "Save Changes"}
 												</button>
 												<button
-													onClick={() => setIsEditingLead(false)}
+													onClick={() =>
+														setIsEditingLead(false)
+													}
 													style={{
-														flex: 1, padding: "8px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 600,
-														background: "var(--color-surface)", border: "1px solid var(--color-border)", cursor: "pointer",
+														flex: 1,
+														padding: "8px",
+														borderRadius: 8,
+														fontSize: "0.82rem",
+														fontWeight: 600,
+														background:
+															"var(--color-surface)",
+														border: "1px solid var(--color-border)",
+														cursor: "pointer",
 													}}
 												>
 													Cancel
@@ -1299,52 +1692,145 @@ const DialQueue = () => {
 											<div
 												style={{
 													display: "grid",
-													gridTemplateColumns: "1fr 1fr",
+													gridTemplateColumns:
+														"1fr 1fr",
 													gap: 0,
 												}}
 											>
 												{[
-													{ label: "Phone", value: selectedLead.phone, phone: true },
-													{ label: "Alt Phone", value: selectedLead.alternatePhone, phone: true },
-													{ label: "Email", value: selectedLead.email },
-													{ label: "Website", value: selectedLead.website },
-													{ label: "Company", value: selectedLead.companyName },
-													{ label: "Industry", value: selectedLead.industry },
-													{ label: "PAN", value: selectedLead.companyPan },
-													{ label: "GST", value: selectedLead.companyGst },
-													{ label: "Address", value: [selectedLead.addressLine, selectedLead.city, selectedLead.state, selectedLead.pincode].filter(Boolean).join(", "), fullWidth: true },
+													{
+														label: "Phone",
+														value: selectedLead.phone,
+														phone: true,
+													},
+													{
+														label: "Alt Phone",
+														value: selectedLead.alternatePhone,
+														phone: true,
+													},
+													{
+														label: "Email",
+														value: selectedLead.email,
+													},
+													{
+														label: "Website",
+														value: selectedLead.website,
+													},
+													{
+														label: "Company",
+														value: selectedLead.companyName,
+													},
+													{
+														label: "Industry",
+														value: selectedLead.industry,
+													},
+													{
+														label: "PAN",
+														value: selectedLead.companyPan,
+													},
+													{
+														label: "GST",
+														value: selectedLead.companyGst,
+													},
+													{
+														label: "Address",
+														value: [
+															selectedLead.addressLine,
+															selectedLead.city,
+															selectedLead.state,
+															selectedLead.pincode,
+														]
+															.filter(Boolean)
+															.join(", "),
+														fullWidth: true,
+													},
 												]
-													.filter((item) => item.phone || showAllContactDetails)
+													.filter(
+														(item) =>
+															item.phone ||
+															showAllContactDetails,
+													)
 													.map((item, i, arr) => {
-														const isPhone = item.phone;
+														const isPhone =
+															item.phone;
 														return (
 															<div
 																key={i}
 																style={{
-																	padding: isPhone ? "10px 18px" : "6px 18px",
-																	gridColumn: item.fullWidth ? "1 / -1" : undefined,
-																	borderRight: !item.fullWidth && i % 2 === 0 ? "1px solid var(--color-border)" : "none",
-																	borderBottom: i < arr.length - 1 ? "1px solid var(--color-border)" : "none",
-																	background: isPhone ? "var(--color-primary-light)" : "transparent",
+																	padding:
+																		isPhone
+																			? "10px 18px"
+																			: "6px 18px",
+																	gridColumn:
+																		item.fullWidth
+																			? "1 / -1"
+																			: undefined,
+																	borderRight:
+																		!item.fullWidth &&
+																		i %
+																			2 ===
+																			0
+																			? "1px solid var(--color-border)"
+																			: "none",
+																	borderBottom:
+																		i <
+																		arr.length -
+																			1
+																			? "1px solid var(--color-border)"
+																			: "none",
+																	background:
+																		isPhone
+																			? "var(--color-primary-light)"
+																			: "transparent",
 																}}
 															>
-																<div style={{ fontSize: "0.65rem", color: isPhone ? "var(--color-primary)" : "var(--color-text-tertiary)", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+																<div
+																	style={{
+																		fontSize:
+																			"0.65rem",
+																		color: isPhone
+																			? "var(--color-primary)"
+																			: "var(--color-text-tertiary)",
+																		marginBottom: 2,
+																		display:
+																			"flex",
+																		alignItems:
+																			"center",
+																		gap: 4,
+																	}}
+																>
 																	{item.label}
 																</div>
-																<div style={{
-																	fontSize: isPhone ? "1.15rem" : "0.82rem",
-																	fontWeight: isPhone ? 700 : 500,
-																	color: isPhone ? "var(--color-primary)" : "var(--color-text)",
-																	wordBreak: "break-all",
-																}}>
-																	{item.value || "—"}
+																<div
+																	style={{
+																		fontSize:
+																			isPhone
+																				? "1.15rem"
+																				: "0.82rem",
+																		fontWeight:
+																			isPhone
+																				? 700
+																				: 500,
+																		color: isPhone
+																			? "var(--color-primary)"
+																			: "var(--color-text)",
+																		wordBreak:
+																			"break-all",
+																	}}
+																>
+																	{item.value ||
+																		"—"}
 																</div>
 															</div>
 														);
 													})}
 											</div>
 											<button
-												onClick={() => setShowAllContactDetails((prev) => !prev)}
+												onClick={() =>
+													setShowAllContactDetails(
+														(prev) => !prev,
+													)
+												}
 												style={{
 													width: "100%",
 													display: "flex",
@@ -1352,16 +1838,20 @@ const DialQueue = () => {
 													justifyContent: "center",
 													gap: 6,
 													padding: "10px",
-													background: "var(--color-surface)",
+													background:
+														"var(--color-surface)",
 													border: "none",
-													borderTop: "1px solid var(--color-border)",
+													borderTop:
+														"1px solid var(--color-border)",
 													fontSize: "0.78rem",
 													fontWeight: 600,
 													color: "var(--color-primary)",
 													cursor: "pointer",
 												}}
 											>
-												{showAllContactDetails ? "Show Less Details" : "View More Details"}
+												{showAllContactDetails
+													? "Show Less Details"
+													: "View More Details"}
 											</button>
 										</>
 									)}
@@ -1375,6 +1865,7 @@ const DialQueue = () => {
 										border: "1px solid var(--color-border)",
 										overflow: "hidden",
 										marginBottom: 16,
+										borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)"
 									}}
 								>
 									<div
@@ -1502,7 +1993,8 @@ const DialQueue = () => {
 															: "var(--color-text)",
 														display: "flex",
 														alignItems: "center",
-														justifyContent: "center",
+														justifyContent:
+															"center",
 														gap: 4,
 													}}
 												>
@@ -1515,71 +2007,73 @@ const DialQueue = () => {
 										</div>
 
 										{/* {isAdmin && ( */}
-											<div
+										<div
+											style={{
+												display: "flex",
+												gap: 10,
+												marginBottom: 10,
+											}}
+										>
+											<select
+												className="input"
 												style={{
-													display: "flex",
-													gap: 10,
-													marginBottom: 10,
+													flex: 1,
+													padding: "8px 10px",
+													fontSize: "0.8rem",
+													borderRadius: 8,
+													fontWeight: 600,
+													color: "var(--color-text)",
+													border: "2px solid var(--color-primary)",
+													background:
+														"var(--color-primary-light)",
+													cursor: "pointer",
 												}}
+												value={selectedLead.status}
+												onChange={(e) =>
+													handleStatusChange(
+														selectedLead._id,
+														e.target
+															.value as Lead["status"],
+													)
+												}
 											>
-												<select
-													className="input"
-													style={{
-														flex: 1,
-														padding: "8px 10px",
-														fontSize: "0.8rem",
-														borderRadius: 8,
-														fontWeight: 600,
-														color: "var(--color-text)",
-														border: "2px solid var(--color-primary)",
-														background:
-															"var(--color-primary-light)",
-														cursor: "pointer",
-													}}
-													value={selectedLead.status}
-													onChange={(e) =>
-														handleStatusChange(
-															selectedLead._id,
-															e.target
-																.value as Lead["status"],
-														)
-													}
-												>
-													{STATUS_OPTIONS.map((s) => (
-														<option key={s} value={s}>
-															{s.replace(/_/g, " ")}
-														</option>
-													))}
-												</select>
-											</div>
+												{STATUS_OPTIONS.map((s) => (
+													<option key={s} value={s}>
+														{s.replace(/_/g, " ")}
+													</option>
+												))}
+											</select>
+										</div>
 										{/* )} */}
 
 										{/* {isAdmin && ( */}
-											<button
-												onClick={handleToggleCall}
-												style={{
-													width: "100%",
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-													gap: 8,
-													background: isCalling
-														? "#ef4444"
-														: "var(--color-primary)",
-													color: "white",
-													border: "none",
-													padding: "8px",
-													borderRadius: 8,
-													fontSize: "0.85rem",
-													fontWeight: 600,
-													cursor: "pointer",
-												}}
-											>
-												<PhoneCall size={16} />
-												{isCalling
-													? "End Call"
-													: "Start Call"}
-											</button>
+										{/* <a href={`tel:${selectedLead.phone}`}> */}
+										<button
+											onClick={handleToggleCall}
+											style={{
+												width: "100%",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												gap: 8,
+												background: isCalling
+													? "var(--color-danger)"
+													: "var(--color-primary)",
+												color: "white",
+												border: "none",
+												padding: "8px",
+												borderRadius: 8,
+												fontSize: "0.85rem",
+												fontWeight: 600,
+												cursor: "pointer",
+											}}
+										>
+											<PhoneCall size={16} />
+											{isCalling
+												? "End Call"
+												: "Start Call"}
+										</button>
+										{/* </a> */}
 										{/* // )} */}
 									</div>
 								</div>
@@ -1767,22 +2261,23 @@ const DialQueue = () => {
 								</div> */}
 							</div>
 
-							{/* Right Column (Notes) */}
+							{/* Center Column - Schedule & Activity Trail */}
 							<div
 								style={{
-									width: 400,
-                  // height: "50%",
+									width: 350,
 									display: "flex",
 									flexDirection: "column",
-									// background: "white",
-                  border:"1px solid var(--color-border)",
-                  borderRadius: "12px",
+									minHeight: 0,
+									border: "1px solid var(--color-border)",
+									borderRadius: "12px",
+									marginRight: 12,
+									borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)"
 								}}
-                // className="border border-(--color-border)"
 							>
 								{/* Follow-up Section */}
 								<div
 									style={{
+										flexShrink: 0,
 										padding: "14px 20px",
 										borderBottom:
 											"1px solid var(--color-border)",
@@ -1809,10 +2304,10 @@ const DialQueue = () => {
 												color: "var(--color-text)",
 											}}
 										>
-											Follow-up
+											Schedule
 										</span>
 									</div>
-									{selectedLead.nextFollowupAt && (
+									{(selectedLead.nextFollowupAt || selectedLead.meetingAt) && (
 										<div
 											style={{
 												fontSize: "0.78rem",
@@ -1820,15 +2315,75 @@ const DialQueue = () => {
 												marginBottom: 8,
 												padding: "6px 10px",
 												background:
-													"var(--color-primary-light)",
+													selectedLead.scheduleType === "meeting"
+														? "var(--color-primary-light)"
+														: "var(--color-primary-light)",
 												borderRadius: 6,
+												display: "flex",
+												alignItems: "center",
+												gap: 6,
 											}}
 										>
+											<span style={{ fontWeight: 600, color: "var(--color-primary)" }}>
+												{selectedLead.scheduleType === "meeting" ? "Meeting" : "Follow-up"}:
+											</span>
 											{formatDate(
-												selectedLead.nextFollowupAt,
+												selectedLead.meetingAt || selectedLead.nextFollowupAt,
 											)}
 										</div>
 									)}
+									<div
+										style={{
+											display: "flex",
+											gap: 6,
+											marginBottom: 8,
+										}}
+									>
+										<button
+											style={{
+												flex: 1,
+												padding: "5px 0",
+												fontSize: "0.72rem",
+												fontWeight: 600,
+												borderRadius: 6,
+												border: "none",
+												cursor: "pointer",
+												background:
+													scheduleType === "follow_up"
+														? "var(--color-primary)"
+														: "var(--color-surface)",
+												color:
+													scheduleType === "follow_up"
+														? "white"
+														: "var(--color-text-tertiary)",
+											}}
+											onClick={() => setScheduleType("follow_up")}
+										>
+											Follow-up
+										</button>
+										<button
+											style={{
+												flex: 1,
+												padding: "5px 0",
+												fontSize: "0.72rem",
+												fontWeight: 600,
+												borderRadius: 6,
+												border: "none",
+												cursor: "pointer",
+												background:
+													scheduleType === "meeting"
+														? "var(--color-primary)"
+														: "var(--color-surface)",
+												color:
+													scheduleType === "meeting"
+														? "white"
+														: "var(--color-text-tertiary)",
+											}}
+											onClick={() => setScheduleType("meeting")}
+										>
+											Meeting
+										</button>
+									</div>
 									<div
 										style={{
 											display: "flex",
@@ -1851,7 +2406,10 @@ const DialQueue = () => {
 										/>
 										<button
 											className="btn btn-primary"
-											disabled={!followupDate || schedulingFollowup}
+											disabled={
+												!followupDate ||
+												schedulingFollowup
+											}
 											onClick={handleScheduleFollowup}
 											style={{
 												padding: "6px 14px",
@@ -1859,12 +2417,244 @@ const DialQueue = () => {
 												fontSize: "0.78rem",
 												fontWeight: 600,
 												whiteSpace: "nowrap",
+												background: scheduleType === "meeting" ? "var(--color-primary)" : undefined,
 											}}
 										>
-											{schedulingFollowup ? "Saving..." : "Save"}
+											{schedulingFollowup
+												? "Saving..."
+												: "Save"}
 										</button>
 									</div>
 								</div>
+								{/* Trail / Logs */}
+								<div
+									style={{
+										flex: 1,
+										overflowY: "auto",
+										minHeight: 0,
+										padding: "14px 20px",
+										// borderBottom:
+										// 	"1px solid var(--color-border)",
+									}}
+								>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: 8,
+											marginBottom: 10,
+										}}
+									>
+										<Clock
+											size={14}
+											style={{
+												color: "var(--color-primary)",
+											}}
+										/>
+										<span
+											style={{
+												fontSize: "0.82rem",
+												fontWeight: 600,
+												color: "var(--color-text)",
+											}}
+										>
+											Activity Trail
+										</span>
+									</div>
+									<div
+										style={{
+											display: "flex",
+											gap: 8,
+											marginBottom: 8,
+										}}
+									>
+										<div
+											style={{
+												flex: 1,
+												textAlign: "center",
+												padding: "6px",
+												background:
+													"var(--color-surface)",
+												borderRadius: 6,
+											}}
+										>
+											<div
+												style={{
+													fontSize: "0.65rem",
+													color: "var(--color-text-tertiary)",
+												}}
+											>
+												Follow-ups
+											</div>
+											<div
+												style={{
+													fontSize: "1rem",
+													fontWeight: 700,
+													color: "var(--color-primary)",
+												}}
+											>
+												{selectedLead.followUpCount}
+											</div>
+										</div>
+										<div
+											style={{
+												flex: 1,
+												textAlign: "center",
+												padding: "6px",
+												background:
+													"var(--color-surface)",
+												borderRadius: 6,
+											}}
+										>
+											<div
+												style={{
+													fontSize: "0.65rem",
+													color: "var(--color-text-tertiary)",
+												}}
+											>
+												Meetings
+											</div>
+											<div
+												style={{
+													fontSize: "1rem",
+													fontWeight: 700,
+													color: "var(--color-primary)",
+												}}
+											>
+												{selectedLead.meetingCount}
+											</div>
+										</div>
+									</div>
+									{[...selectedLead.followUpLogs]
+										.reverse()
+										// .slice(0, 5)
+										.map((log, idx) => (
+											<div
+												key={idx}
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: 8,
+													padding: "4px 0",
+													fontSize: "0.72rem",
+													color: "var(--color-text-secondary)",
+													borderBottom:
+														idx <
+														Math.min(
+															selectedLead
+																.followUpLogs
+																.length,
+															5,
+														) -
+															1
+															? "1px solid var(--color-border)"
+															: "none",
+												}}
+											>
+												<div
+													style={{
+														width: 6,
+														height: 6,
+														borderRadius: "50%",
+														background:
+															"var(--color-primary)",
+														flexShrink: 0,
+													}}
+												/>
+												<span
+													style={{
+														fontWeight: 600,
+														marginRight: 4,
+													}}
+												>
+													Follow-up
+												</span>
+												{formatDate(log.scheduledAt)}
+											</div>
+										))}
+									{[...selectedLead.meetingLogs]
+										.reverse()
+										// .slice(0, 5)
+										.map((log, idx) => (
+											<div
+												key={idx}
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: 8,
+													padding: "4px 0",
+													fontSize: "0.72rem",
+													color: "var(--color-text-secondary)",
+													borderBottom:
+														idx <
+														Math.min(
+															selectedLead
+																.meetingLogs
+																.length,
+															5,
+														) -
+															1
+															? "1px solid var(--color-border)"
+															: "none",
+												}}
+											>
+												<div
+													style={{
+														width: 6,
+														height: 6,
+														borderRadius: "50%",
+														background:
+															log.status ===
+															"done"
+																? "var(--color-success)"
+																: log.status ===
+																	  "canceled"
+																	? "var(--color-danger)"
+																	: "var(--color-warning)",
+														flexShrink: 0,
+													}}
+												/>
+												<span
+													style={{
+														fontWeight: 600,
+														marginRight: 4,
+													}}
+												>
+													Meeting ({log.status})
+												</span>
+												{formatDate(log.scheduledAt)}
+											</div>
+										))}
+									{selectedLead.followUpLogs.length === 0 &&
+										selectedLead.meetingLogs.length ===
+											0 && (
+											<p
+												style={{
+													fontSize: "0.75rem",
+													color: "var(--color-text-tertiary)",
+													textAlign: "center",
+													padding: "8px 0",
+													margin: 0,
+												}}
+											>
+												No follow-ups or meetings
+												scheduled yet.
+											</p>
+										)}
+								</div>
+							</div>
+
+							{/* Right Column - Notes */}
+							<div
+								style={{
+									width: 350,
+									display: "flex",
+									flexDirection: "column",
+									border: "1px solid var(--color-border)",
+									borderRadius: "12px",
+									borderColor: "color-mix(in srgb, var(--color-primary) 50%, transparent)"
+								}}
+							>
 								<div
 									style={{
 										padding: "14px 20px",
@@ -1873,7 +2663,6 @@ const DialQueue = () => {
 										display: "flex",
 										justifyContent: "space-between",
 										alignItems: "center",
-										// background: "var(--color-surface)",
 									}}
 								>
 									<div
@@ -2040,48 +2829,49 @@ const DialQueue = () => {
 									)}
 								</div>
 								{/* {isAdmin && ( */}
-									<div
+								<div
+									style={{
+										padding: "12px 16px",
+										borderTop:
+											"1px solid var(--color-border)",
+										display: "flex",
+										gap: 10,
+										
+									}}
+								>
+									<textarea
+										id="note-input"
+										className="input"
+										placeholder="Add a note..."
+										rows={3}
+										value={newNote}
+										onChange={(e) =>
+											setNewNote(e.target.value)
+										}
 										style={{
-											padding: "12px 16px",
-											borderTop:
-												"1px solid var(--color-border)",
-											display: "flex",
-											gap: 10,
+											flex: 1,
+											padding: "8px 12px",
+											fontSize: "0.8rem",
+											borderRadius: 8,
+											resize: "vertical",
+											minHeight: 60,
+											maxHeight: 120,
+										}}
+									/>
+									<button
+										className="btn btn-primary"
+										disabled={!newNote.trim()}
+										onClick={handleAddNote}
+										style={{
+											padding: "0 18px",
+											borderRadius: 8,
+											fontWeight: 600,
+											fontSize: "0.82rem",
 										}}
 									>
-										<textarea
-											id="note-input"
-											className="input"
-											placeholder="Add a note..."
-											rows={3}
-											value={newNote}
-											onChange={(e) =>
-												setNewNote(e.target.value)
-											}
-											style={{
-												flex: 1,
-												padding: "8px 12px",
-												fontSize: "0.8rem",
-												borderRadius: 8,
-												resize: "vertical",
-												minHeight: 60,
-												maxHeight: 120,
-											}}
-										/>
-										<button
-											className="btn btn-primary"
-											disabled={!newNote.trim()}
-											onClick={handleAddNote}
-											style={{
-												padding: "0 18px",
-												borderRadius: 8,
-												fontWeight: 600,
-												fontSize: "0.82rem",
-											}}
-										>
-											Add
-										</button>
-									</div>
+										Add
+									</button>
+								</div>
 								{/* )} */}
 							</div>
 						</div>
@@ -2101,6 +2891,7 @@ const DialQueue = () => {
 						justifyContent: "center",
 						padding: 24,
 					}}
+					
 					onClick={() => {
 						setShowImportModal(false);
 						setImportResult(null);
@@ -2110,7 +2901,13 @@ const DialQueue = () => {
 				>
 					<div
 						className="card animate-fade-in"
-						style={{ maxWidth: 480, width: "100%", padding: 0, overflow: "hidden", borderRadius: 16 }}
+						style={{
+							maxWidth: 480,
+							width: "100%",
+							padding: 0,
+							overflow: "hidden",
+							borderRadius: 16,
+						}}
 						onClick={(e) => e.stopPropagation()}
 					>
 						<div
@@ -2123,16 +2920,54 @@ const DialQueue = () => {
 								background: "var(--color-surface)",
 							}}
 						>
-							<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-								<div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-primary-light)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-									<Upload size={18} style={{ color: "var(--color-primary)" }} />
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: 10,
+								}}
+							>
+								<div
+									style={{
+										width: 36,
+										height: 36,
+										borderRadius: 10,
+										background:
+											"var(--color-primary-light)",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+									}}
+								>
+									<Upload
+										size={18}
+										style={{
+											color: "var(--color-primary)",
+										}}
+									/>
 								</div>
 								<div>
-									<h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>
+									<h3
+										style={{
+											fontSize: "1rem",
+											fontWeight: 700,
+											margin: 0,
+										}}
+									>
 										Import Leads
 									</h3>
-									<p style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary)", margin: "2px 0 0" }}>
-										{importStep === "campaign" ? "Select a target campaign" : importStep === "upload" ? "Upload an Excel file" : "Import complete"}
+									<p
+										style={{
+											fontSize: "0.72rem",
+											color: "var(--color-text-tertiary)",
+											margin: "2px 0 0",
+										}}
+									>
+										{importStep === "campaign"
+											? "Select a target campaign"
+											: importStep === "upload"
+												? "Upload an Excel file"
+												: "Import complete"}
 									</p>
 								</div>
 							</div>
@@ -2162,15 +2997,61 @@ const DialQueue = () => {
 
 						{importStep === "result" && importResult ? (
 							<div style={{ padding: 24 }}>
-								<div style={{ textAlign: "center", marginBottom: 20 }}>
-									<div style={{ width: 48, height: 48, borderRadius: "50%", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", background: importResult.imported > 0 ? "#dcfce7" : "#fef2f2" }}>
-										{importResult.imported > 0 ? <CheckCircle size={24} style={{ color: "#22c55e" }} /> : <AlertCircle size={24} style={{ color: "#ef4444" }} />}
+								<div
+									style={{
+										textAlign: "center",
+										marginBottom: 20,
+									}}
+								>
+									<div
+										style={{
+											width: 48,
+											height: 48,
+											borderRadius: "50%",
+											margin: "0 auto 12px",
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+											background:
+												importResult.imported > 0
+													? "var(--color-success-light)"
+													: "var(--color-danger-light)",
+										}}
+									>
+										{importResult.imported > 0 ? (
+											<CheckCircle
+												size={24}
+												style={{ color: "var(--color-success)" }}
+											/>
+										) : (
+											<AlertCircle
+												size={24}
+												style={{ color: "var(--color-danger)" }}
+											/>
+										)}
 									</div>
-									<h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--color-text)", margin: "0 0 4px" }}>
-										{importResult.imported} lead{importResult.imported !== 1 ? "s" : ""} imported
+									<h3
+										style={{
+											fontSize: "1.05rem",
+											fontWeight: 700,
+											color: "var(--color-text)",
+											margin: "0 0 4px",
+										}}
+									>
+										{importResult.imported} lead
+										{importResult.imported !== 1 ? "s" : ""}{" "}
+										imported
 									</h3>
-									<p style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", margin: 0 }}>
-										{importResult.errors.length > 0 ? `${importResult.errors.length} error${importResult.errors.length !== 1 ? "s" : ""} encountered` : "All leads imported successfully"}
+									<p
+										style={{
+											fontSize: "0.8rem",
+											color: "var(--color-text-secondary)",
+											margin: 0,
+										}}
+									>
+										{importResult.errors.length > 0
+											? `${importResult.errors.length} error${importResult.errors.length !== 1 ? "s" : ""} encountered`
+											: "All leads imported successfully"}
 									</p>
 								</div>
 								{importResult.errors.length > 0 && (
@@ -2178,27 +3059,59 @@ const DialQueue = () => {
 										style={{
 											marginBottom: 16,
 											padding: 12,
-											background: "#fef2f2",
+											background: "var(--color-danger-light)",
 											borderRadius: 10,
 											fontSize: "0.78rem",
 											maxHeight: 150,
 											overflowY: "auto",
-											border: "1px solid #fecaca",
+											border: "1px solid var(--color-danger-light)",
 										}}
 									>
-										<div style={{ fontWeight: 600, color: "#dc2626", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-											<AlertCircle size={14} /> {importResult.errors.length} error{importResult.errors.length !== 1 ? "s" : ""}
+										<div
+											style={{
+												fontWeight: 600,
+												color: "var(--color-danger)",
+												marginBottom: 8,
+												display: "flex",
+												alignItems: "center",
+												gap: 6,
+											}}
+										>
+											<AlertCircle size={14} />{" "}
+											{importResult.errors.length} error
+											{importResult.errors.length !== 1
+												? "s"
+												: ""}
 										</div>
-										{importResult.errors.map((e: any, i: number) => (
-											<div key={i} style={{ color: "#dc2626", padding: "4px 8px", borderRadius: 4, marginBottom: 4, fontSize: "0.75rem" }}>
-												<strong>Row {e.row}:</strong> {e.message}
-											</div>
-										))}
+										{importResult.errors.map(
+											(e: any, i: number) => (
+												<div
+													key={i}
+													style={{
+														color: "var(--color-danger)",
+														padding: "4px 8px",
+														borderRadius: 4,
+														marginBottom: 4,
+														fontSize: "0.75rem",
+													}}
+												>
+													<strong>
+														Row {e.row}:
+													</strong>{" "}
+													{e.message}
+												</div>
+											),
+										)}
 									</div>
 								)}
 								<button
 									className="btn btn-primary"
-									style={{ width: "100%", padding: 10, borderRadius: 10, fontWeight: 600 }}
+									style={{
+										width: "100%",
+										padding: 10,
+										borderRadius: 10,
+										fontWeight: 600,
+									}}
 									onClick={() => {
 										setShowImportModal(false);
 										setImportResult(null);
@@ -2211,17 +3124,40 @@ const DialQueue = () => {
 							</div>
 						) : importStep === "upload" ? (
 							<div style={{ padding: 24 }}>
-								<div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: 8,
+										marginBottom: 16,
+									}}
+								>
 									<button
 										className="btn btn-secondary"
-										style={{ padding: "6px 12px", fontSize: "0.78rem", borderRadius: 8 }}
-										onClick={() => { setImportStep("campaign"); setImportResult(null); }}
+										style={{
+											padding: "6px 12px",
+											fontSize: "0.78rem",
+											borderRadius: 8,
+										}}
+										onClick={() => {
+											setImportStep("campaign");
+											setImportResult(null);
+										}}
 									>
 										← Back
 									</button>
 									{importCampaignId && (
-										<span style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
-											Campaign: {campaigns.find(c => c._id === importCampaignId)?.name || "Unknown"}
+										<span
+											style={{
+												fontSize: "0.78rem",
+												color: "var(--color-text-secondary)",
+											}}
+										>
+											Campaign:{" "}
+											{campaigns.find(
+												(c:any) =>
+													c._id === importCampaignId,
+											)?.name || "Unknown"}
 										</span>
 									)}
 								</div>
@@ -2233,29 +3169,71 @@ const DialQueue = () => {
 									onChange={handleFileImport}
 								/>
 								<div
-									onClick={() => !importing && fileInputRef.current?.click()}
+									onClick={() =>
+										!importing &&
+										fileInputRef.current?.click()
+									}
 									style={{
 										border: "2px dashed var(--color-border)",
 										borderRadius: 12,
 										padding: "32px 24px",
 										textAlign: "center",
-										cursor: importing ? "default" : "pointer",
+										cursor: importing
+											? "default"
+											: "pointer",
 										background: "var(--color-surface)",
 										marginBottom: 16,
 										transition: "border-color 0.2s",
 									}}
-									onMouseOver={e => { if (!importing) e.currentTarget.style.borderColor = "var(--color-primary)"; }}
-									onMouseOut={e => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
+									onMouseOver={(e) => {
+										if (!importing)
+											e.currentTarget.style.borderColor =
+												"var(--color-primary)";
+									}}
+									onMouseOut={(e) => {
+										e.currentTarget.style.borderColor =
+											"var(--color-border)";
+									}}
 								>
 									{importing ? (
-										<Loader2 size={32} style={{ color: "var(--color-primary)", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+										<Loader2
+											size={32}
+											style={{
+												color: "var(--color-primary)",
+												margin: "0 auto 12px",
+												animation:
+													"spin 1s linear infinite",
+											}}
+										/>
 									) : (
-										<Upload size={32} style={{ color: "var(--color-text-tertiary)", margin: "0 auto 12px", opacity: 0.4 }} />
+										<Upload
+											size={32}
+											style={{
+												color: "var(--color-text-tertiary)",
+												margin: "0 auto 12px",
+												opacity: 0.4,
+											}}
+										/>
 									)}
-									<p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--color-text)", margin: "0 0 4px" }}>
-										{importing ? "Importing..." : "Click to upload Excel file"}
+									<p
+										style={{
+											fontSize: "0.85rem",
+											fontWeight: 600,
+											color: "var(--color-text)",
+											margin: "0 0 4px",
+										}}
+									>
+										{importing
+											? "Importing..."
+											: "Click to upload Excel file"}
 									</p>
-									<p style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary)", margin: 0 }}>
+									<p
+										style={{
+											fontSize: "0.72rem",
+											color: "var(--color-text-tertiary)",
+											margin: 0,
+										}}
+									>
 										.xlsx or .xls format
 									</p>
 								</div>
@@ -2263,27 +3241,82 @@ const DialQueue = () => {
 								<a
 									href={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/leads/import/sample`}
 									style={{
-										display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-										fontSize: "0.8rem", fontWeight: 500, color: "var(--color-primary)",
-										textDecoration: "none", marginBottom: 16, padding: "8px",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										gap: 6,
+										fontSize: "0.8rem",
+										fontWeight: 500,
+										color: "var(--color-primary)",
+										textDecoration: "none",
+										marginBottom: 16,
+										padding: "8px",
 									}}
 								>
-									<Download size={14} /> Download sample format
+									<Download size={14} /> Download sample
+									format
 								</a>
 							</div>
 						) : (
 							<div style={{ padding: 24 }}>
 								{campaigns.length === 0 ? (
-									<div style={{ textAlign: "center", padding: "24px 0" }}>
-										<div style={{ width: 48, height: 48, borderRadius: "50%", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-hover)" }}>
-											<AlertCircle size={24} style={{ color: "var(--color-text-tertiary)" }} />
+									<div
+										style={{
+											textAlign: "center",
+											padding: "24px 0",
+										}}
+									>
+										<div
+											style={{
+												width: 48,
+												height: 48,
+												borderRadius: "50%",
+												margin: "0 auto 16px",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												background:
+													"var(--color-surface-hover)",
+											}}
+										>
+											<AlertCircle
+												size={24}
+												style={{
+													color: "var(--color-text-tertiary)",
+												}}
+											/>
 										</div>
-										<h4 style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--color-text)", margin: "0 0 6px" }}>No campaigns yet</h4>
-										<p style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", margin: "0 0 20px" }}>Create a campaign before importing leads</p>
+										<h4
+											style={{
+												fontSize: "0.95rem",
+												fontWeight: 600,
+												color: "var(--color-text)",
+												margin: "0 0 6px",
+											}}
+										>
+											No campaigns yet
+										</h4>
+										<p
+											style={{
+												fontSize: "0.78rem",
+												color: "var(--color-text-secondary)",
+												margin: "0 0 20px",
+											}}
+										>
+											Create a campaign before importing
+											leads
+										</p>
 										<button
 											className="btn btn-primary"
-											style={{ padding: "10px 24px", borderRadius: 10, fontWeight: 600 }}
-											onClick={() => { navigate("/crm/campaigns"); setShowImportModal(false); }}
+											style={{
+												padding: "10px 24px",
+												borderRadius: 10,
+												fontWeight: 600,
+											}}
+											onClick={() => {
+												navigate("/crm/campaigns");
+												setShowImportModal(false);
+											}}
 										>
 											Create Now
 										</button>
@@ -2312,20 +3345,35 @@ const DialQueue = () => {
 											}}
 											value={importCampaignId}
 											onChange={(e) =>
-												setImportCampaignId(e.target.value)
+												setImportCampaignId(
+													e.target.value,
+												)
 											}
 										>
-											<option value="">No Campaign</option>
-											{campaigns.map((c) => (
-												<option key={c._id} value={c._id}>
+											<option value="">
+												No Campaign
+											</option>
+											{campaigns.map((c:any) => (
+												<option
+													key={c._id}
+													value={c._id}
+												>
 													{c.name}
 												</option>
 											))}
 										</select>
 										<button
+											disabled={!importCampaignId}
 											className="btn btn-primary"
-											style={{ width: "100%", padding: 10, borderRadius: 10, fontWeight: 600 }}
-											onClick={() => setImportStep("upload")}
+											style={{
+												width: "100%",
+												padding: 10,
+												borderRadius: 10,
+												fontWeight: 600,
+											}}
+											onClick={() =>
+												setImportStep("upload")
+											}
 										>
 											Next →
 										</button>
@@ -2770,7 +3818,7 @@ const DialQueue = () => {
 										}
 									>
 										<option value="">None</option>
-										{campaigns.map((c) => (
+										{campaigns.map((c:any) => (
 											<option key={c._id} value={c._id}>
 												{c.name}
 											</option>
@@ -2807,11 +3855,11 @@ const DialQueue = () => {
 											}))
 										}
 									>
-										<option value="med">Medium</option>
-										<option value="high">High</option>
 										<option value="very high">
 											Very High
 										</option>
+										<option value="high">High</option>
+										<option value="medium">Medium</option>
 										<option value="low">Low</option>
 									</select>
 								</div>

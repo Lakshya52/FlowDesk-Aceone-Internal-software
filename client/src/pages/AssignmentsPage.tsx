@@ -528,7 +528,7 @@ const AssignmentsPage: React.FC = () => {
 
       {/* Tabs */}
       <div
-        className="flex overflow-x-scroll gap-4 border-b border-[var(--color-border)] mb-6 sm:mb-8"
+        className="flex overflow-x-scroll gap-4 border-b border-(--color-border) mb-6 sm:mb-8"
         style={{}}
       >
         <button

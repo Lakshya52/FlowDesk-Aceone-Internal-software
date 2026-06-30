@@ -22,7 +22,7 @@ export interface ISubtask {
 export interface ITask extends Document {
     title: string;
     description: string;
-    assignment: mongoose.Types.ObjectId;
+    assignment?: mongoose.Types.ObjectId;
     assignedTo: mongoose.Types.ObjectId;
     createdBy: mongoose.Types.ObjectId;
     dueDate: Date;
@@ -45,7 +45,7 @@ const taskSchema = new Schema<ITask>(
     {
         title: { type: String, required: true, trim: true },
         description: { type: String, required: true, trim: true },
-        assignment: { type: Schema.Types.ObjectId, ref: 'Assignment', required: true },
+        assignment: { type: Schema.Types.ObjectId, ref: 'Assignment' },
         assignedTo: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         dueDate: { type: Date },

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -14,6 +14,7 @@ import DialQueue from "../components/crm/DialQueue";
 import Plan from "../components/crm/Plan";
 import CrmLogs from "../components/crm/CrmLogs";
 import Schedule from "../components/crm/Schedule";
+import Summary from "../components/crm/Summary";
 
 const SECTIONS = [
   {
@@ -52,6 +53,13 @@ const SECTIONS = [
     description: "Planning & strategy",
   },
   {
+    id: "summary",
+    label: "Summary",
+    icon: <ClipboardList size={18} />,
+    component: Summary,
+    description: "Generate your summaries",
+  },
+  {
     id: "logs",
     label: "Logs",
     icon: <ScrollText size={18} />,
@@ -66,8 +74,12 @@ const CrmPage = (): React.JSX.Element => {
   const activeSectionData = SECTIONS.find((s) => s.id === activeSection);
   const ActiveComponent = activeSectionData?.component || CrmDashboard;
 
+  useEffect(() => {
+    document.getElementById("main-content-scroll")?.scrollTo(0, 0);
+  }, [activeSection]);
+
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] pb-20">
+    <div className="min-h-screen bg-(--color-bg) pb-20">
       {/* <div className="bg-surface border-b border-border top-0 z-30 card rounded-2xl px-4 sm:px-8 lg:px-16 py-6 sm:py-10">
         <div
           className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8"

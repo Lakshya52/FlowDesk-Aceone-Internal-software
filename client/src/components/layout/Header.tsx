@@ -14,7 +14,7 @@ import {
 import api from "../../lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import Avatar from "../common/Avatar";
-import { io } from "socket.io-client";
+import { getSocket } from "../../hooks/useSocket";
 import { useChatStore } from "../../store/chatStore";
 // import { useCalendarStore } from "../../store/calendarStore";
 
@@ -57,9 +57,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
     // Native notifications handled by Electron via IPC (no browser permission needed)
 
     // Socket connection for notifications
-    const socketUrl =
-      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
-    const socket = io(socketUrl);
+    const socket = getSocket();
     socketRef.current = socket;
 
     const joinUserRoom = () => {
@@ -234,7 +232,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         window.removeEventListener("blur", handleBlur);
       }
       clearTimeout(idleTimeout);
-      socket.disconnect();
     };
   }, [user?._id]);
 

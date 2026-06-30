@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
     ScrollText, Search, Filter, Loader2, Clock, Target, PhoneCall,
-    Building, RefreshCw, ChevronDown, ChevronUp,
+    RefreshCw, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { useCrmSocket } from '../../hooks/useCrmSocket';
 
 interface ActivityLog {
     _id: string;
@@ -25,14 +27,6 @@ const AVATAR_COLORS = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#
 const getInitials = (name: string) =>
     name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-const formatDate = (d?: string) => {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    });
-};
-
 const formatDateShort = (d?: string) => {
     if (!d) return '';
     const date = new Date(d);
@@ -47,40 +41,30 @@ const formatDateShort = (d?: string) => {
 };
 
 const CrmLogs = () => {
-    const [logs, setLogs] = useState<ActivityLog[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [total, setTotal] = useState(0);
+    useCrmSocket();
+    const queryClient = useQueryClient();
     const [filterEntity, setFilterEntity] = useState('');
     const [searchAction, setSearchAction] = useState('');
-    const [refreshing, setRefreshing] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
-    const fetchLogs = async (silent = false) => {
-        if (silent) {
-            setRefreshing(true);
-        } else {
-            setLoading(true);
-        }
-        try {
+    const queryParams: any = { limit: '100' };
+    if (filterEntity) queryParams.entityType = filterEntity;
+    if (searchAction) queryParams.action = searchAction;
+
+    const { data, isLoading, isFetching } = useQuery({
+        queryKey: ["activity-logs", filterEntity, searchAction],
+        queryFn: async () => {
             const params: any = { limit: '100' };
             if (filterEntity) params.entityType = filterEntity;
             if (searchAction) params.action = searchAction;
             const { data } = await api.get('/activity-logs', { params });
-            if (data.success) {
-                setLogs(data.logs);
-                setTotal(data.total);
-            }
-        } catch (err) {
-            console.error('Failed to load activity logs', err);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+            return { logs: (data.success ? data.logs || [] : []) as ActivityLog[], total: data.total || 0 };
+        },
+    });
 
-    useEffect(() => {
-        fetchLogs();
-    }, [filterEntity]);
+    const logs = data?.logs || [];
+    const total = data?.total || 0;
+    const refreshing = isFetching && !isLoading;
 
     const renderMetadataDetails = (log: ActivityLog) => {
         const m = log.metadata;
@@ -126,7 +110,7 @@ const CrmLogs = () => {
                     <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>{total} total entries</p>
                 </div>
                 <button
-                    onClick={() => fetchLogs(true)}
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ["activity-logs"] })}
                     disabled={refreshing}
                     style={{
                         width: 36, height: 36, borderRadius: 8,
@@ -153,11 +137,11 @@ const CrmLogs = () => {
                         style={{ flex: 1, border: 'none', outline: 'none', padding: '12px', fontSize: '0.82rem', color: 'var(--color-text)', background: 'transparent', minWidth: 0 }}
                         value={searchAction}
                         onChange={e => setSearchAction(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') fetchLogs(); }}
+                        onKeyDown={e => { if (e.key === 'Enter') queryClient.invalidateQueries({ queryKey: ["activity-logs"] }); }}
                     />
                     {searchAction && (
                         <button
-                            onClick={() => { setSearchAction(''); fetchLogs(); }}
+                            onClick={() => { setSearchAction(''); }}
                             style={{ border: 'none', background: 'none', padding: '10px', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: '0.8rem' }}
                         >
                             Clear
@@ -180,7 +164,7 @@ const CrmLogs = () => {
                 </div>
             </div>
 
-            {loading && logs.length === 0 ? (
+            {isLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
                     <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-text-tertiary)' }} />
                 </div>
