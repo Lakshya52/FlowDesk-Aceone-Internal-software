@@ -44,7 +44,16 @@ export const getCampaigns = async (req: AuthRequest, res: Response): Promise<voi
     try {
         const tenantId = (req.user as any).tenantId?._id || (req.user as any).tenantId;
 
-        const campaigns = await Campaign.find({ tenantId })
+        const filter: any = { tenantId };
+
+        if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
+            filter.$or = [
+                { people: req.user!._id },
+                { createdBy: req.user!._id },
+            ];
+        }
+
+        const campaigns = await Campaign.find(filter)
             .populate('people', 'name email avatar')
             .populate('createdBy', 'name email avatar')
             .sort({ createdAt: -1 });

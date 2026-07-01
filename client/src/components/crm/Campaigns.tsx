@@ -160,16 +160,13 @@ const Campaigns = () => {
                     </p>
                 </div>
 
-                {currentUser?.role === 'admin' && (
+                {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                        {/* <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
-                            <Upload size={16} /> Import
-                        </button> */}
                         <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
                             <Plus size={16} /> New Campaign
                         </button>
                     </div>
-                )}
+                )} 
             </div>
 
             {campaigns.length === 0 ? (

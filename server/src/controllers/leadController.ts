@@ -1,9 +1,15 @@
 import { Response } from "express";
 import Lead from "../models/Lead";
+import Campaign from "../models/Campaign";
 import ActivityLog, { EntityType } from "../models/ActivityLog";
 import { AuthRequest } from "../middlewares/auth";
 import XLSX from "xlsx";
 import { emitLeadCreated, emitLeadUpdated, emitLeadDeleted } from "../services/crmSocketService";
+
+const getAccessibleCampaignIds = async (user: any, tenantId: string) => {
+    if (user.role === 'admin' || user.role === 'manager') return null;
+    return Campaign.find({ tenantId, $or: [{ people: user._id }, { createdBy: user._id }] }).distinct('_id');
+};
 
 const getTenantId = (user: any): string =>
 	(user.tenantId?._id || user.tenantId).toString();
@@ -24,7 +30,33 @@ export const getLeads = async (
 		const skip = (page - 1) * limit;
 
 		const filter: any = { tenantId };
-		if (campaignId) filter.campaignId = campaignId;
+		let campaignOr: any[] | null = null;
+		let searchOr: any[] | null = null;
+
+		if (campaignId === '__none__') {
+			const allCampaignIds = await Campaign.find({ tenantId }).distinct('_id');
+			filter.campaignId = { $nin: allCampaignIds };
+		} else {
+			if (campaignId) filter.campaignId = campaignId;
+
+			const accessible = await getAccessibleCampaignIds(req.user, tenantId);
+			if (accessible) {
+				if (campaignId) {
+					const hasAccess = accessible.some((id: any) => id.toString() === campaignId);
+					if (!hasAccess) {
+						res.json({ success: true, leads: [], total: 0, page, limit, totalPages: 0 });
+						return;
+					}
+				} else {
+					const allCampaignIds = await Campaign.find({ tenantId }).distinct('_id');
+					campaignOr = [
+						{ campaignId: { $in: accessible } },
+						{ campaignId: { $nin: allCampaignIds } },
+					];
+				}
+			}
+		}
+
 		if (status) {
 			const statuses = String(status).split(",").map(s => s.trim()).filter(Boolean);
 			if (statuses.length === 1) {
@@ -40,7 +72,7 @@ export const getLeads = async (
 			const q = String(search).trim();
 			const digits = q.replace(/\D/g, '');
 			const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const searchConds: any[] = [
+			searchOr = [
 				{ name: { $regex: escaped, $options: 'i' } },
 				{ companyName: { $regex: escaped, $options: 'i' } },
 				{ email: { $regex: escaped, $options: 'i' } },
@@ -49,10 +81,17 @@ export const getLeads = async (
 				{ companyGst: { $regex: escaped, $options: 'i' } },
 			];
 			if (digits.length >= 3) {
-				searchConds.push({ phone: { $regex: digits, $options: 'i' } });
-				searchConds.push({ alternatePhone: { $regex: digits, $options: 'i' } });
+				searchOr.push({ phone: { $regex: digits, $options: 'i' } });
+				searchOr.push({ alternatePhone: { $regex: digits, $options: 'i' } });
 			}
-			filter.$or = searchConds;
+		}
+
+		if (campaignOr && searchOr) {
+			filter.$and = [{ $or: campaignOr }, { $or: searchOr }];
+		} else if (campaignOr) {
+			filter.$or = campaignOr;
+		} else if (searchOr) {
+			filter.$or = searchOr;
 		}
 
 		const [leads, total] = await Promise.all([
@@ -90,6 +129,15 @@ export const getLead = async (
 		if (!lead) {
 			res.status(404).json({ success: false, message: "Lead not found" });
 			return;
+		}
+
+		const accessible = await getAccessibleCampaignIds(req.user, lead.tenantId.toString());
+		if (accessible) {
+			const hasAccess = accessible.some((id: any) => id.toString() === lead.campaignId._id?.toString() || id.toString() === lead.campaignId.toString());
+			if (!hasAccess) {
+				res.status(404).json({ success: false, message: "Lead not found" });
+				return;
+			}
 		}
 
 		res.json({ success: true, lead });
@@ -763,13 +811,39 @@ export const getLeadCounts = async (
 		const { campaignId, search, industry, source, priority } = req.query;
 
 		const baseFilter: any = { tenantId };
-		if (campaignId) baseFilter.campaignId = campaignId;
+		let campaignOr: any[] | null = null;
+		let searchOr: any[] | null = null;
+
+		if (campaignId === '__none__') {
+			const allCampaignIds = await Campaign.find({ tenantId }).distinct('_id');
+			baseFilter.campaignId = { $nin: allCampaignIds };
+		} else {
+			if (campaignId) baseFilter.campaignId = campaignId;
+
+			const accessible = await getAccessibleCampaignIds(req.user, tenantId);
+			if (accessible) {
+				if (campaignId) {
+					const hasAccess = accessible.some((id: any) => id.toString() === campaignId);
+					if (!hasAccess) {
+						res.json({ success: true, counts: { all: 0, archived: 0, meeting_scheduled: 0, closed_won: 0 } });
+						return;
+					}
+				} else {
+					const allCampaignIds = await Campaign.find({ tenantId }).distinct('_id');
+					campaignOr = [
+						{ campaignId: { $in: accessible } },
+						{ campaignId: { $nin: allCampaignIds } },
+					];
+				}
+			}
+		}
+
 		if (industry) baseFilter.industry = industry;
 		if (source) baseFilter.source = source;
 		if (priority) baseFilter.priority = priority;
 		if (search) {
 			const regex = new RegExp(String(search), "i");
-			baseFilter.$or = [
+			searchOr = [
 				{ name: regex },
 				{ phone: regex },
 				{ alternatePhone: regex },
@@ -779,6 +853,14 @@ export const getLeadCounts = async (
 				{ companyPan: regex },
 				{ companyGst: regex },
 			];
+		}
+
+		if (campaignOr && searchOr) {
+			baseFilter.$and = [{ $or: campaignOr }, { $or: searchOr }];
+		} else if (campaignOr) {
+			baseFilter.$or = campaignOr;
+		} else if (searchOr) {
+			baseFilter.$or = searchOr;
 		}
 
 		const [allCount, archivedCount, meetingScheduledCount, closedWonCount] =
@@ -822,7 +904,12 @@ export const getUpcomingFollowups = async (
 		const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 100));
 		const skip = (page - 1) * limit;
 
-		const tenantMatch = { tenantId };
+		const tenantMatch: any = { tenantId };
+
+		const accessible = await getAccessibleCampaignIds(req.user, tenantId);
+		if (accessible) {
+			tenantMatch.campaignId = { $in: accessible };
+		}
 
 		const buildDateRange = () => {
 			if (!dateFrom && !dateTo) return null;

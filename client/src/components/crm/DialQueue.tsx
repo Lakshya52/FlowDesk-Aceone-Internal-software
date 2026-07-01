@@ -817,6 +817,7 @@ const DialQueue = () => {
 						onChange={(e) => setFilterCampaign(e.target.value)}
 					>
 						<option value="">All Campaigns</option>
+						<option value="__none__">No Campaign</option>
 						{campaigns.map((c:any) => (
 							<option key={c._id} value={c._id}>
 								{c.name}
@@ -3239,7 +3240,7 @@ const DialQueue = () => {
 								</div>
 
 								<a
-									href={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/leads/import/sample`}
+									href={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}leads/import/sample`}
 									style={{
 										display: "flex",
 										alignItems: "center",
@@ -3479,10 +3480,15 @@ const DialQueue = () => {
 											marginBottom: 4,
 										}}
 									>
-										Phone
+										Phone *
 									</label>
 									<input
+										type="phone"
+										inputMode="numeric"
+										maxLength={10}
+    									pattern="[0-9]"
 										className="input"
+										required
 										value={createForm.phone}
 										onChange={(e) =>
 											setCreateForm((p) => ({
@@ -3805,7 +3811,7 @@ const DialQueue = () => {
 											marginBottom: 4,
 										}}
 									>
-										Campaign
+										Project
 									</label>
 									<select
 										className="input"
@@ -3872,7 +3878,7 @@ const DialQueue = () => {
 									marginTop: 4,
 								}}
 								disabled={
-									!createForm.name.trim() || updatingLead
+									!createForm.name.trim() || updatingLead || !createForm.phone.trim()
 								}
 								onClick={handleCreateLead}
 							>

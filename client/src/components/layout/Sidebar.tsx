@@ -26,6 +26,7 @@ import {
 	PanelLeftClose,
 	X,
 	Headset,
+	PanelLeftOpen,
 	// ScrollText,
 } from "lucide-react";
 
@@ -179,11 +180,28 @@ const Sidebar: React.FC<SidebarProps> = ({
 								flexShrink: 0,
 							}}
 						>
-							<img
-								src="/icon.ico"
-								alt="FlowDesk logo"
-								className="rounded-lg"
-							/>
+							<div className="group flex items-cente justify-center">
+								<img
+									onClick={toggleSidebar}
+									src="/icon.ico"
+									alt="FlowDesk logo"
+									className={`rounded-lg ${isOpen ? "" : "group-hover:hidden"}`}
+								/>
+								{/* the icon of opening */}
+								<PanelLeftOpen
+									onClick={toggleSidebar}
+									size={20}
+									style={{
+										background:
+											"var(--color-surface-hover)",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										cursor: "pointer",
+										color: "var(--color-text-secondary)",
+									}}
+								/>
+							</div>
 
 							{/* <Zap size={18} color="white" /> */}
 						</div>
@@ -200,6 +218,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 								FlowDesk
 							</span>
 						)}
+						{/* {!isOpen && (
+							<span
+								style={{
+									fontSize: "1.125rem",
+									fontWeight: 700,
+									letterSpacing: "-0.02em",
+									color: "var(--color-text)",
+									whiteSpace: "nowrap",
+								}}
+							>
+								Flow
+							</span>
+						)} */}
 					</div>
 					{isOpen && (
 						<button
@@ -231,37 +262,39 @@ const Sidebar: React.FC<SidebarProps> = ({
 			</div>
 
 			{/* Toggle/Close Button */}
-			<div
-				style={{
-					display: "flex",
-					justifyContent: isOpen ? "flex-end" : "center",
-					padding: isOpen ? "12px 16px 0" : "12px 0 0",
-				}}
-			>
-				<button
-					onClick={toggleSidebar}
+			{!isOpen && (
+				<div
 					style={{
-						background: "var(--color-surface-hover)",
-						border: "none",
-						borderRadius: "8px",
-						width: 32,
-						height: 32,
 						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						cursor: "pointer",
-						color: "var(--color-text-secondary)",
+						justifyContent: isOpen ? "flex-end" : "center",
+						padding: isOpen ? "12px 16px 0" : "12px 0 0",
 					}}
 				>
-					{window.innerWidth < 768 ? (
-						<X size={16} />
-					) : isOpen ? (
-						<PanelLeftClose size={16} />
-					) : (
-						<PanelRightClose size={16} />
-					)}
-				</button>
-			</div>
+					{/* <button
+						onClick={toggleSidebar}
+						style={{
+							background: "var(--color-surface-hover)",
+							border: "none",
+							borderRadius: "8px",
+							width: 32,
+							height: 32,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							cursor: "pointer",
+							color: "var(--color-text-secondary)",
+						}}
+					>
+						{window.innerWidth < 768 ? (
+							<X size={16} />
+						) : isOpen ? (
+							<PanelLeftClose size={16} />
+						) : (
+							<PanelRightClose size={16} />
+						)}
+					</button> */}
+				</div>
+			)}
 
 			{/* Navigation */}
 			<nav
